@@ -47,6 +47,8 @@ Raw HTML and external datasets should be cached locally but not committed unless
 
 ## Quick start
 
+Python 3.10 or newer is recommended.
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\\Scripts\\activate
@@ -62,11 +64,24 @@ python -m src.ftg.build_demo
 streamlit run dashboard/app.py
 ```
 
+## Importing the 20-team dataset
+
+Place CSV or Parquet files in `data/incoming/`, then run:
+
+```bash
+python -m src.ftg.import_data --input data/incoming
+```
+
+The importer accepts split files, normalises common source headings, validates the frozen cohort and season window, prevents duplicate team-season-player rows, and writes coverage/issue reports to `data/qa/`. See `docs/INCOMING_DATA.md` and `config/incoming_player_seasons_template.csv` for the contract.
+
 ## Full collection flow
 
 ```bash
-# 1) Scrape all team-season squad tables politely and cache HTML
+# Option A: scrape all team-season squad tables politely and cache HTML
 python -m src.ftg.collect_11v11 --start-season 2000 --end-season 2026
+
+# Option B: import prepared CSV/Parquet files
+python -m src.ftg.import_data --input data/incoming
 
 # 2) Build unique player table + fetch player profile metadata
 python -m src.ftg.enrich_players
@@ -96,6 +111,8 @@ Every record should retain:
 - birthplace confidence
 - ADM assignment method
 - population source + epoch
+
+Machine-readable validation and coverage reports are written to `data/qa/`; unresolved records remain visible there and are never silently discarded.
 
 Do not silently force ambiguous players or birthplaces. Put unresolved rows into QA outputs.
 
