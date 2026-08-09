@@ -83,6 +83,10 @@ python -m src.ftg.collect_11v11 --start-season 2000 --end-season 2026
 # Option B: import prepared CSV/Parquet files
 python -m src.ftg.import_data --input data/incoming
 
+# Bounded open-data fallback: World Cup finals, 2002-2022
+git clone --depth 1 https://github.com/jfjelstul/worldcup.git /tmp/ftg-worldcup
+python -m src.ftg.import_worldcup --source-dir /tmp/ftg-worldcup/data-csv
+
 # 2) Build unique player table + fetch player profile metadata
 python -m src.ftg.enrich_players
 
@@ -119,6 +123,14 @@ Do not silently force ambiguous players or birthplaces. Put unresolved rows into
 ## Seed data
 
 `data/seed/italy_2005_06_11v11.csv` is a real seed extracted from the Italy 2005-06 national-team season page and demonstrates the start/sub structure. `data/seed/italy_2006_final_starters.csv` is a small visual demo of the World Cup Final XI birthplaces.
+
+## Current open-data fallback
+
+If the primary all-international source is inaccessible, `import_worldcup` builds a clearly labelled match-level dataset from the Fjelstul World Cup Database. It covers the 2002, 2006, 2010, 2014, 2018 and 2022 men's World Cup finals. This is not equivalent to complete national-team seasons: non-qualifiers have no rows and qualifiers include finals matches only.
+
+The upstream database is © 2023 Joshua C. Fjelstul, Ph.D., licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), and sourced from [jfjelstul/worldcup](https://github.com/jfjelstul/worldcup). Derived database outputs must retain that attribution and share-alike license.
+
+See `docs/CURRENT_COVERAGE.md` for exact row counts, validation results and current source limitations.
 
 ## Recommended next milestones
 

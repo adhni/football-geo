@@ -2,6 +2,8 @@
 
 ## player_season_starts.parquet
 
+The same canonical table can hold season aggregates or explicitly labelled tournament aggregates. Check `dataset_scope` before analysis; never describe World Cup-only rows as complete national-team seasons.
+
 | field | type | description |
 |---|---|---|
 | team | string | national team |
@@ -17,6 +19,11 @@
 | source_url | string | provenance |
 | retrieved_at | timestamp string | UTC retrieval time for the cached source response |
 | source_input_file | string | local incoming file path when imported rather than scraped |
+| dataset_scope | string | coverage boundary, e.g. `FIFA Men's World Cup finals only` |
+| tournament_id | string | source tournament identifier when using tournament aggregates |
+| tournament_name | string | source tournament display name |
+| source_license | string | redistribution license for the source data |
+| source_commit | string | pinned upstream revision when applicable |
 
 ## players.parquet
 

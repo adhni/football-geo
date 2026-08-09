@@ -6,3 +6,4 @@ geoBoundaries,open ADM1/ADM2 display geometry,https://www.geoboundaries.org/,CC 
 ghsl_pop,globally consistent population denominator,https://human-settlement.emergency.copernicus.eu/ghs_pop2023.php,EU reuse notice,"GHS-POP R2023A has 5-year epochs incl. 2000-2025."
 ghsl_duc,pre-aggregated admin population option,https://data.jrc.ec.europa.eu/dataset/5d99f849-6e55-46b4-bad3-82fadb8f1846,EU reuse notice,"GHS-WUP-DUC R2025A gives GADM 4.1 ADM0-2 population totals; useful for QA or non-published processing."
 wikidata,birthplace coordinates/country enrichment,https://www.wikidata.org/,CC0,"Resolve by player name + DOB; cache QIDs and confidence."
+fjelstul_worldcup,World Cup match-level starting lineups and player DOB,https://github.com/jfjelstul/worldcup,CC BY-SA 4.0,"Bounded fallback when 11v11 is unavailable. Finals only; attribute Joshua C. Fjelstul, Ph.D. © 2023 and preserve share-alike terms. Pinned import commit 35a8667f518b07469182ae16d35574dd0e7a00fb."
