@@ -1,0 +1,8 @@
+source_id,purpose,url,license_or_terms,notes
+fifa_rank_20260720,freeze top-20 cohort,https://inside.fifa.com/fifa-world-ranking/men,FIFA site terms,"Official ranking date: 20 July 2026."
+elevenv11,season player starts/sub appearances and player profile birthplace,https://www.11v11.com/,site terms,"Primary v1 football source. Cache raw HTML and crawl politely."
+openfootball_internationals,match universe / validation,https://github.com/openfootball/internationals,public repo,"Useful for validating match counts and competition coverage."
+geoBoundaries,open ADM1/ADM2 display geometry,https://www.geoboundaries.org/,CC BY 4.0,"Preferred published map geometry."
+ghsl_pop,globally consistent population denominator,https://human-settlement.emergency.copernicus.eu/ghs_pop2023.php,EU reuse notice,"GHS-POP R2023A has 5-year epochs incl. 2000-2025."
+ghsl_duc,pre-aggregated admin population option,https://data.jrc.ec.europa.eu/dataset/5d99f849-6e55-46b4-bad3-82fadb8f1846,EU reuse notice,"GHS-WUP-DUC R2025A gives GADM 4.1 ADM0-2 population totals; useful for QA or non-published processing."
+wikidata,birthplace coordinates/country enrichment,https://www.wikidata.org/,CC0,"Resolve by player name + DOB; cache QIDs and confidence."
