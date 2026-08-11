@@ -17,11 +17,11 @@ const LEAGUE_HOSTS = {
   "Ligue 1": "FRA",
 };
 const POPULATION_RATE_STOPS = [
-  { value: 0, colour: [23, 49, 40] },
-  { value: 2, colour: [34, 86, 63] },
-  { value: 5, colour: [52, 125, 84] },
-  { value: 10, colour: [95, 191, 113] },
-  { value: 25, colour: [217, 255, 87] },
+  { value: 0, colour: [51, 34, 136] },
+  { value: 2, colour: [17, 112, 170] },
+  { value: 5, colour: [68, 170, 153] },
+  { value: 10, colour: [238, 190, 72] },
+  { value: 25, colour: [238, 93, 80] },
 ];
 
 const state = {
