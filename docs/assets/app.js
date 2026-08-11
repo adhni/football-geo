@@ -1,5 +1,13 @@
 const DATA_URL = "./data/dashboard.json";
 const COUNTRY_GEO_URL = "./data/countries.geojson";
+const AGE_AS_OF = new Date("2026-06-30T00:00:00Z");
+const AGE_BANDS = [
+  { id: "u21", label: "Under 21", min: 0, max: 20 },
+  { id: "21-24", label: "21–24", min: 21, max: 24 },
+  { id: "25-29", label: "25–29", min: 25, max: 29 },
+  { id: "30-34", label: "30–34", min: 30, max: 34 },
+  { id: "35plus", label: "35+", min: 35, max: 99 },
+];
 const LEAGUE_HOSTS = {
   "Premier League": "GBR",
   "La Liga": "ESP",
@@ -13,6 +21,7 @@ const state = {
   league: "all",
   team: "all",
   country: "all",
+  ageBand: "all",
   placeQuery: "",
   mapMode: "city",
   years: new Set(),
@@ -45,6 +54,31 @@ function normalCountry(value) {
   return String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+function ageAtSeasonEnd(row) {
+  if (row.dob) {
+    const birth = new Date(`${row.dob}T00:00:00Z`);
+    if (!Number.isNaN(birth.getTime())) {
+      let age = AGE_AS_OF.getUTCFullYear() - birth.getUTCFullYear();
+      if (AGE_AS_OF.getUTCMonth() < birth.getUTCMonth() || (AGE_AS_OF.getUTCMonth() === birth.getUTCMonth() && AGE_AS_OF.getUTCDate() < birth.getUTCDate())) age -= 1;
+      return { age, exact: true };
+    }
+  }
+  return row.birthYear ? { age: AGE_AS_OF.getUTCFullYear() - row.birthYear, exact: false } : { age: null, exact: false };
+}
+
+function matchesAgeBand(age, bandId = state.ageBand) {
+  if (bandId === "all") return true;
+  const band = AGE_BANDS.find((item) => item.id === bandId);
+  return age !== null && band && age >= band.min && age <= band.max;
+}
+
+function median(values) {
+  const sorted = values.filter((value) => value !== null).sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
 function prepareCountryMetadata() {
   const lookup = new Map();
   const fields = ["ADMIN", "NAME", "NAME_LONG", "SOVEREIGNT", "BRK_NAME", "FORMAL_EN"];
@@ -59,6 +93,9 @@ function prepareCountryMetadata() {
     const meta = lookup.get(normalized);
     row.countryCode = meta?.code || normalized;
     row.continent = meta?.continent || manualContinents[normalized] || "Unclassified";
+    const age = ageAtSeasonEnd(row);
+    row.age = age.age;
+    row.ageExact = age.exact;
   });
 }
 
@@ -66,11 +103,12 @@ function metricLabel(metric = state.metric) {
   return { starts: "starts", starters: "unique starters", players: "players" }[metric];
 }
 
-function filteredRecords({ ignoreTeam = false } = {}) {
+function filteredRecords({ ignoreTeam = false, ignoreAge = false } = {}) {
   return state.payload.records.filter((row) =>
     state.years.has(row.year)
     && (state.league === "all" || row.league === state.league)
     && (state.country === "all" || row.country === state.country)
+    && (ignoreAge || matchesAgeBand(row.age))
     && (ignoreTeam || state.team === "all" || row.team === state.team)
   );
 }
@@ -106,7 +144,7 @@ function aggregatePlayers(records) {
   const players = new Map();
   records.forEach((row) => {
     if (!players.has(row.id)) {
-      players.set(row.id, { id: row.id, name: row.name, teams: new Set(), leagues: new Set(), positions: new Set(), years: new Set(), starts: 0, subs: 0, apps: 0, minutes: 0, goals: 0, assists: 0, dob: row.dob, birthYear: row.birthYear, nation: row.nation, place: row.place, country: row.country, continent: row.continent, lat: row.lat, lon: row.lon, mapped: row.mapped });
+      players.set(row.id, { id: row.id, name: row.name, teams: new Set(), leagues: new Set(), positions: new Set(), years: new Set(), starts: 0, subs: 0, apps: 0, minutes: 0, goals: 0, assists: 0, dob: row.dob, birthYear: row.birthYear, age: row.age, ageExact: row.ageExact, nation: row.nation, place: row.place, country: row.country, continent: row.continent, lat: row.lat, lon: row.lon, mapped: row.mapped });
     }
     const player = players.get(row.id);
     player.teams.add(row.team);
@@ -140,9 +178,10 @@ function aggregateCountries(records) {
 function aggregateLeagues(records) {
   const leagues = new Map();
   records.forEach((row) => {
-    if (!leagues.has(row.league)) leagues.set(row.league, { league: row.league, players: new Set(), playerCountries: new Map() });
+    if (!leagues.has(row.league)) leagues.set(row.league, { league: row.league, players: new Set(), playerCountries: new Map(), playerAges: new Map() });
     const league = leagues.get(row.league);
     league.players.add(row.id);
+    if (row.age !== null && !league.playerAges.has(row.id)) league.playerAges.set(row.id, row.age);
     if (row.mapped && !league.playerCountries.has(row.id)) {
       league.playerCountries.set(row.id, { code: row.countryCode, country: row.country, continent: row.continent });
     }
@@ -157,6 +196,7 @@ function aggregateLeagues(records) {
       if (birth.code === LEAGUE_HOSTS[league.league]) domestic += 1;
     });
     const mapped = league.playerCountries.size;
+    const ages = [...league.playerAges.values()];
     const probabilities = [...countryCounts.values()].map((count) => count / mapped);
     const entropy = probabilities.length > 1
       ? -probabilities.reduce((sum, probability) => sum + probability * Math.log(probability), 0) / Math.log(probabilities.length)
@@ -169,6 +209,9 @@ function aggregateLeagues(records) {
       countries: countryCounts.size,
       continents: continentCounts.size,
       diversity: entropy * 100,
+      medianAge: median(ages),
+      under21Pct: ages.length ? ages.filter((age) => age < 21).length / ages.length * 100 : 0,
+      over30Pct: ages.length ? ages.filter((age) => age >= 30).length / ages.length * 100 : 0,
       topCountries: [...countryCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4),
       continentCounts: [...continentCounts.entries()].sort((a, b) => b[1] - a[1]),
     };
@@ -350,10 +393,43 @@ function updateLeagueComparison() {
       <header><div><span>0${index + 1}</span><h3>${escapeHtml(league.league)}</h3></div><strong>${league.diversity.toFixed(0)}<small>/100 diversity</small></strong></header>
       <div class="league-primary"><div><b>${league.domesticPct.toFixed(1)}%</b><span>domestic-born</span></div><div><b>${league.countries}</b><span>birth countries</span></div><div><b>${league.continents}</b><span>continents</span></div></div>
       <div class="domestic-track"><i style="width:${league.domesticPct}%"></i></div>
+      <div class="league-age"><span><b>${league.medianAge?.toFixed(1) ?? "—"}</b> median age</span><span><b>${league.under21Pct.toFixed(1)}%</b> U21</span><span><b>${league.over30Pct.toFixed(1)}%</b> 30+</span></div>
       <div class="league-detail"><div><span class="card-label">Leading birth countries</span><ol>${countries}</ol></div><div><span class="card-label">Continents</span><div class="continent-chips">${continents}</div></div></div>
       <div class="league-footer">${formatNumber.format(league.mapped)} of ${formatNumber.format(league.players)} players mapped</div>
     </article>`;
   }).join("");
+}
+
+function updateAgeView() {
+  const records = filteredRecords({ ignoreAge: true });
+  const players = aggregatePlayers(records).filter((player) => player.age !== null);
+  const ages = players.map((player) => player.age);
+  const exact = players.filter((player) => player.ageExact).length;
+  $("#age-overview").innerHTML = `
+    <article><span>Median age</span><strong>${median(ages)?.toFixed(1) ?? "—"}</strong><small>at 30 June 2026</small></article>
+    <article><span>Under 21</span><strong>${formatNumber.format(ages.filter((age) => age < 21).length)}</strong><small>${ages.length ? (ages.filter((age) => age < 21).length / ages.length * 100).toFixed(1) : 0}% of players</small></article>
+    <article><span>Age 30+</span><strong>${formatNumber.format(ages.filter((age) => age >= 30).length)}</strong><small>${ages.length ? (ages.filter((age) => age >= 30).length / ages.length * 100).toFixed(1) : 0}% of players</small></article>
+    <article><span>Exact ages</span><strong>${players.length ? (exact / players.length * 100).toFixed(1) : 0}%</strong><small>remaining values approximate</small></article>`;
+
+  const leagueRows = state.payload.meta.leagues.map((league) => {
+    const leaguePlayers = aggregatePlayers(records.filter((row) => row.league === league)).filter((player) => player.age !== null);
+    const counts = AGE_BANDS.map((band) => leaguePlayers.filter((player) => matchesAgeBand(player.age, band.id)).length);
+    const segments = AGE_BANDS.map((band, index) => {
+      const percentage = leaguePlayers.length ? counts[index] / leaguePlayers.length * 100 : 0;
+      const muted = state.ageBand !== "all" && state.ageBand !== band.id ? " muted" : "";
+      return `<i class="age-${index}${muted}" style="width:${percentage}%" title="${escapeHtml(band.label)}: ${counts[index]} players"></i>`;
+    }).join("");
+    return `<div class="age-league-row"><div><strong>${escapeHtml(league)}</strong><small>${leaguePlayers.length} players · median ${median(leaguePlayers.map((player) => player.age))?.toFixed(1) ?? "—"}</small></div><div class="age-stack">${segments}</div></div>`;
+  }).join("");
+  $("#age-chart").innerHTML = `<div class="age-legend">${AGE_BANDS.map((band, index) => `<span><i class="age-${index}"></i>${escapeHtml(band.label)}</span>`).join("")}</div>${leagueRows}`;
+
+  const ageLabel = (player) => `${player.ageExact ? "" : "≈"}${player.age}`;
+  const playerRow = (player) => `<li><span><strong>${escapeHtml(player.name)}</strong><small>${escapeHtml([...player.teams].sort().join(", "))}</small></span><b>${ageLabel(player)}</b></li>`;
+  const youngest = [...players].sort((a, b) => a.age - b.age || a.name.localeCompare(b.name)).slice(0, 10);
+  const oldest = [...players].sort((a, b) => b.age - a.age || a.name.localeCompare(b.name)).slice(0, 10);
+  $("#youngest-players").innerHTML = youngest.map(playerRow).join("");
+  $("#oldest-players").innerHTML = oldest.map(playerRow).join("");
+  $("#age-scope").textContent = `${formatNumber.format(players.length)} players in the current league, club and birthplace scope`;
 }
 
 function updateTeamChart() {
@@ -400,6 +476,7 @@ function openPlayerProfile(playerId) {
   $("#profile-assists").textContent = formatNumber.format(player.assists);
   $("#profile-birthplace").textContent = player.mapped ? `${player.place}, ${player.country}` : "Birthplace awaiting QA";
   $("#profile-dob").textContent = player.dob || player.birthYear || "Unavailable";
+  $("#profile-age").textContent = player.age === null ? "Age unavailable" : `${player.ageExact ? "" : "≈ "}${player.age} years at season end`;
   $("#player-modal").classList.add("open");
   $("#player-modal").setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
@@ -443,7 +520,8 @@ function updateFilterSummary() {
   const league = state.league === "all" ? "All five leagues" : state.league;
   const team = state.team === "all" ? "All clubs" : state.team;
   const country = state.country === "all" ? "All birth countries" : `Born in ${state.country}`;
-  $("#filter-summary").textContent = `${league} · ${team} · ${country}`;
+  const age = state.ageBand === "all" ? "All ages" : AGE_BANDS.find((band) => band.id === state.ageBand)?.label;
+  $("#filter-summary").textContent = `${league} · ${team} · ${country} · ${age}`;
 }
 
 function filteredPlaces() {
@@ -468,6 +546,7 @@ function render() {
   updateFilterSummary();
   updateMapAndRanking(records, places);
   updateLeagueComparison();
+  updateAgeView();
   updateTeamChart();
   updatePlayerTable();
   updateQuality();
@@ -500,6 +579,7 @@ function bindControls() {
     render();
   });
   $("#team-filter").addEventListener("change", (event) => { state.team = event.target.value; render(); });
+  $("#age-filter").addEventListener("change", (event) => { state.ageBand = event.target.value; render(); });
   $("#country-filter").addEventListener("change", (event) => { state.country = event.target.value; render(); });
   $("#place-search").addEventListener("input", (event) => { state.placeQuery = event.target.value; renderMapExplorer(); });
   $("#clear-place-search").addEventListener("click", () => {
@@ -518,6 +598,7 @@ function bindControls() {
     state.league = "all";
     state.team = "all";
     state.country = "all";
+    state.ageBand = "all";
     state.placeQuery = "";
     state.years = new Set(state.payload.meta.years);
     state.metric = "starts";
@@ -525,6 +606,7 @@ function bindControls() {
     populateTeamOptions();
     $("#team-filter").value = "all";
     $("#country-filter").value = "all";
+    $("#age-filter").value = "all";
     $("#place-search").value = "";
     $$("#metric-control button").forEach((button) => button.classList.toggle("active", button.dataset.metric === "starts"));
     render();

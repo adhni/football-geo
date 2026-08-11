@@ -63,6 +63,10 @@
             <select id="team-filter"><option value="all">All 96 clubs</option></select>
           </div>
         </div>
+        <div class="control-group age-control">
+          <label for="age-filter">Age at season end</label>
+          <div class="select-wrap"><select id="age-filter"><option value="all">All ages</option><option value="u21">Under 21</option><option value="21-24">21–24</option><option value="25-29">25–29</option><option value="30-34">30–34</option><option value="35plus">35+</option></select></div>
+        </div>
         <div class="control-group metric-control">
           <label>Measure</label>
           <div class="segmented" id="metric-control" role="group" aria-label="Map measure">
@@ -86,7 +90,8 @@
         <button class="active" data-view="map"><span>01</span> Talent map</button>
         <button data-view="teams"><span>02</span> League comparison</button>
         <button data-view="players"><span>03</span> Player index</button>
-        <button data-view="quality"><span>04</span> Data notes</button>
+        <button data-view="age"><span>04</span> Age profile</button>
+        <button data-view="quality"><span>05</span> Data notes</button>
       </nav>
 
       <section class="view-panel active" id="view-map" aria-labelledby="map-heading">
@@ -134,6 +139,17 @@
           </table>
           <div class="table-footer" id="player-table-note"></div>
         </div>
+      </section>
+
+      <section class="view-panel" id="view-age" aria-labelledby="age-heading">
+        <div class="section-heading">
+          <div><p class="eyebrow">Age & generations</p><h2 id="age-heading">Who plays—and when</h2></div>
+          <p id="age-scope">Age measured at 30 June 2026</p>
+        </div>
+        <div class="age-overview" id="age-overview"></div>
+        <div class="age-chart-card"><div class="card-heading"><div><span>League distribution</span><h3>Age bands by league</h3></div><span class="card-count">Season-end age</span></div><div id="age-chart"></div></div>
+        <div class="age-extremes"><article><div class="card-heading"><div><span>Emerging generation</span><h3>Youngest players</h3></div></div><ol id="youngest-players"></ol></article><article><div class="card-heading"><div><span>Veteran generation</span><h3>Oldest players</h3></div></div><ol id="oldest-players"></ol></article></div>
+        <p class="age-note">Exact dates are used where DOB validation succeeded. A “≈” symbol marks ages estimated from birth year only.</p>
       </section>
 
       <section class="view-panel" id="view-quality" aria-labelledby="quality-heading">
@@ -192,7 +208,7 @@
         <div class="profile-stats">
           <div><strong id="profile-apps">—</strong><span>Apps</span></div><div><strong id="profile-starts">—</strong><span>Starts</span></div><div><strong id="profile-minutes">—</strong><span>Minutes</span></div><div><strong id="profile-goals">—</strong><span>Goals</span></div><div><strong id="profile-assists">—</strong><span>Assists</span></div>
         </div>
-        <div class="profile-birth"><span class="card-label">Place of birth</span><h3 id="profile-birthplace">—</h3><p>Born <span id="profile-dob">—</span></p></div>
+        <div class="profile-birth"><span class="card-label">Place of birth</span><h3 id="profile-birthplace">—</h3><p>Born <span id="profile-dob">—</span> · <span id="profile-age">—</span></p></div>
         <div class="profile-map-wrap"><div id="player-mini-map"></div><p id="profile-map-empty" hidden>Map unavailable until this birthplace clears QA.</p></div>
       </article>
     </div>

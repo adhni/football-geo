@@ -17,3 +17,21 @@ def test_static_map_explorer_assets_and_controls_are_wired():
     assert 'id="league-comparison"' in html
     assert 'id="player-modal"' in html
     assert (ROOT / "docs" / "data" / "countries.geojson").exists()
+
+
+def test_age_profile_controls_and_outputs_are_wired():
+    html = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+    javascript = (ROOT / "docs" / "assets" / "app.js").read_text(encoding="utf-8")
+
+    for element_id in (
+        "age-filter",
+        "age-overview",
+        "age-chart",
+        "youngest-players",
+        "oldest-players",
+        "profile-age",
+    ):
+        assert f'id="{element_id}"' in html
+        assert f'$("#{element_id}")' in javascript
+    assert 'new Date("2026-06-30T00:00:00Z")' in javascript
+    assert 'exact: false' in javascript
