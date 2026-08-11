@@ -9,8 +9,9 @@ least one appearance in the 2025–26 Premier League, La Liga, Bundesliga, Serie
 A or Ligue 1**. It covers 96 clubs and keeps unresolved birthplace identities
 visible for QA.
 
-The interface includes clustered birthplace points, a country choropleth,
-five-league geographic comparisons and clickable player profiles.
+The interface includes clustered birthplace points, a country choropleth, a
+WorldPop-normalised local hotspot layer, five-league geographic comparisons,
+age distributions and clickable player profiles.
 
 ## Frozen cohort
 
@@ -48,8 +49,9 @@ See `config/source_registry.csv`.
 1. **11v11** — season player start/sub counts and player profile birthplace text.
 2. **Wikidata** — birthplace entity, coordinates and birth country; resolved by player name + DOB and cached.
 3. **geoBoundaries** — open ADM1/ADM2 map geometry for published visualisations.
-4. **GHSL / GHS-POP** — consistent population denominator, including historical 5-year epochs.
-5. **OpenFootball internationals** — match-universe validation.
+4. **WorldPop Global 2** — 2025 local population totals for the live H3 hotspot map.
+5. **GHSL / GHS-POP** — planned historical population denominator for 5-year epochs.
+6. **OpenFootball internationals** — match-universe validation.
 
 Raw HTML and external datasets should be cached locally but not committed unless their terms allow redistribution.
 
@@ -79,11 +81,14 @@ GitHub Pages. To refresh its bundled data and preview it locally:
 
 ```bash
 python -m src.ftg.export_static_site
+python -m src.ftg.build_population_hexes
 python -m http.server 8000 --directory docs
 ```
 
 Then open `http://localhost:8000`. The generated dashboard data is committed at
 `docs/data/dashboard.json`; raw and intermediate datasets remain local.
+The population command queries only occupied H3 cells and resumes from the
+ignored `data/cache/` checkpoint.
 
 To rebuild the current Big Five edition:
 

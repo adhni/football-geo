@@ -1,5 +1,6 @@
 const DATA_URL = "./data/dashboard.json";
 const COUNTRY_GEO_URL = "./data/countries.geojson";
+const POPULATION_GEO_URL = "./data/population_hexes.geojson";
 const AGE_AS_OF = new Date("2026-06-30T00:00:00Z");
 const AGE_BANDS = [
   { id: "u21", label: "Under 21", min: 0, max: 20 },
@@ -15,6 +16,13 @@ const LEAGUE_HOSTS = {
   "Serie A": "ITA",
   "Ligue 1": "FRA",
 };
+const POPULATION_RATE_STOPS = [
+  { value: 0, colour: [51, 34, 136] },
+  { value: 2, colour: [17, 112, 170] },
+  { value: 5, colour: [68, 170, 153] },
+  { value: 10, colour: [238, 190, 72] },
+  { value: 25, colour: [238, 93, 80] },
+];
 
 const state = {
   payload: null,
@@ -36,12 +44,16 @@ const state = {
   countryGeojson: null,
   countryLayer: null,
   countryLayers: new Map(),
+  populationGeojson: null,
+  populationLayer: null,
+  populationLayers: new Map(),
   profileMap: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const formatNumber = new Intl.NumberFormat("en-US");
+const formatCompact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -228,6 +240,49 @@ function aggregateCountries(records) {
   return [...countries.values()].map((country) => ({ ...country, players: country.players.size, starters: country.starters.size }));
 }
 
+function aggregatePopulationCells(records) {
+  const players = new Map();
+  records.filter((row) => row.mapped).forEach((row) => {
+    if (!players.has(row.id)) players.set(row.id, row);
+  });
+  return state.populationGeojson.features.map((feature) => {
+    const selected = feature.properties.player_ids.filter((playerId) => players.has(playerId));
+    if (!selected.length) return null;
+    const places = new Map();
+    const countries = new Map();
+    selected.forEach((playerId) => {
+      const row = players.get(playerId);
+      if (row.place) places.set(row.place, (places.get(row.place) || 0) + 1);
+      if (row.country) countries.set(row.country, (countries.get(row.country) || 0) + 1);
+    });
+    const leadingPlace = [...places.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || feature.properties.label;
+    const leadingCountry = [...countries.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || feature.properties.country;
+    const population = feature.properties.population;
+    return {
+      feature,
+      hexId: feature.properties.hex_id,
+      players: selected.length,
+      population,
+      rate: population ? selected.length / population * 1_000_000 : null,
+      stable: selected.length >= 2 && population >= 100_000,
+      label: leadingPlace,
+      country: leadingCountry,
+    };
+  }).filter(Boolean);
+}
+
+function populationRateColour(rate) {
+  if (rate === null) return "#26352f";
+  const clamped = Math.max(0, Math.min(rate, POPULATION_RATE_STOPS.at(-1).value));
+  const upperIndex = POPULATION_RATE_STOPS.findIndex((stop) => clamped <= stop.value);
+  if (upperIndex <= 0) return `rgb(${POPULATION_RATE_STOPS[0].colour.join(",")})`;
+  const lower = POPULATION_RATE_STOPS[upperIndex - 1];
+  const upper = POPULATION_RATE_STOPS[upperIndex];
+  const progress = (clamped - lower.value) / (upper.value - lower.value);
+  const colour = lower.colour.map((channel, index) => Math.round(channel + (upper.colour[index] - channel) * progress));
+  return `rgb(${colour.join(",")})`;
+}
+
 function aggregateLeagues(records) {
   const leagues = new Map();
   records.forEach((row) => {
@@ -325,6 +380,7 @@ function initMap() {
 function updateCityMap(places) {
   if (!state.map) initMap();
   if (state.countryLayer) state.map.removeLayer(state.countryLayer);
+  if (state.populationLayer) state.map.removeLayer(state.populationLayer);
   if (!state.map.hasLayer(state.markerLayer)) state.markerLayer.addTo(state.map);
   state.markerLayer.clearLayers();
   state.placeMarkers = new Map();
@@ -352,6 +408,9 @@ function updateCityMap(places) {
   if ((state.team !== "all" || state.country !== "all" || state.placeQuery) && bounds.length > 1) state.map.fitBounds(bounds, { padding: [45, 45], maxZoom: 6 });
   else if (bounds.length === 1) state.map.setView(bounds[0], 7);
   else state.map.setView([20, 4], 2);
+  $("#map-legend").classList.remove("population");
+  $("#population-scale").hidden = true;
+  $("#legend-prefix").textContent = "Circle size =";
   $("#legend-metric").textContent = metricLabel();
   setTimeout(() => state.map.invalidateSize(), 80);
 }
@@ -360,6 +419,7 @@ function updateCountryMap(records) {
   if (!state.map) initMap();
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
   if (state.countryLayer) state.map.removeLayer(state.countryLayer);
+  if (state.populationLayer) state.map.removeLayer(state.populationLayer);
   const countries = aggregateCountries(records);
   const byCode = new Map(countries.map((country) => [country.code, country]));
   const maxValue = Math.max(...countries.map(selectedMetric), 1);
@@ -383,7 +443,43 @@ function updateCountryMap(records) {
   const selected = countries.find((country) => country.country === state.country);
   if (selected && state.countryLayers.has(selected.code)) state.map.fitBounds(state.countryLayers.get(selected.code).getBounds(), { padding: [35, 35], maxZoom: 5 });
   else state.map.setView([20, 4], 2);
+  $("#map-legend").classList.remove("population");
+  $("#population-scale").hidden = true;
+  $("#legend-prefix").textContent = "Country colour =";
   $("#legend-metric").textContent = metricLabel();
+  setTimeout(() => state.map.invalidateSize(), 80);
+}
+
+function updatePopulationMap(records) {
+  if (!state.map) initMap();
+  if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (state.countryLayer) state.map.removeLayer(state.countryLayer);
+  if (state.populationLayer) state.map.removeLayer(state.populationLayer);
+  const cells = aggregatePopulationCells(records);
+  const byId = new Map(cells.map((cell) => [cell.hexId, cell]));
+  state.populationLayers = new Map();
+  state.populationLayer = L.geoJSON({ type: "FeatureCollection", features: cells.map((cell) => cell.feature) }, {
+    style: (feature) => {
+      const cell = byId.get(feature.properties.hex_id);
+      return { color: cell.stable ? "#75958a" : "#51645d", weight: cell.stable ? .8 : .55, dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .72 : .24 };
+    },
+    onEachFeature: (feature, layer) => {
+      const cell = byId.get(feature.properties.hex_id);
+      const rateLabel = cell.rate === null ? "Population estimate unavailable" : `${cell.rate.toFixed(1)} players per 1M`;
+      const caution = cell.stable ? "" : "<br><em>Small-sample cell</em>";
+      layer.bindTooltip(`<strong>${escapeHtml(cell.label)} area</strong><br>${escapeHtml(cell.country)}<br>${rateLabel}<br>${cell.players} players · population ${cell.population ? formatCompact.format(cell.population) : "unavailable"}${caution}`, { sticky: true });
+      layer.bindPopup(`<div class="place-popup"><strong>${escapeHtml(cell.label)} area</strong><p>${rateLabel}</p><ul><li><span>${cell.players} mapped players</span><small>Current dashboard selection</small></li><li><span>${cell.population ? `${formatNumber.format(cell.population)} residents` : "Population unavailable"}</span><small>WorldPop 2025 · 1 km grid</small></li></ul>${cell.stable ? "" : '<p class="popup-overflow">Interpret carefully: fewer than two players, fewer than 100,000 residents, or no population estimate.</p>'}</div>`, { maxWidth: 320, minWidth: 250 });
+      layer.on("click", () => state.map.fitBounds(layer.getBounds(), { padding: [30, 30], maxZoom: 7 }));
+      state.populationLayers.set(cell.hexId, layer);
+    },
+  }).addTo(state.map);
+  if ((state.league !== "all" || state.team !== "all" || state.country !== "all" || state.ageBand !== "all") && cells.length) {
+    state.map.fitBounds(state.populationLayer.getBounds(), { padding: [35, 35], maxZoom: 6 });
+  } else state.map.setView([20, 4], 2);
+  $("#map-legend").classList.add("population");
+  $("#population-scale").hidden = false;
+  $("#legend-prefix").textContent = "Hex colour =";
+  $("#legend-metric").textContent = "players per 1M people";
   setTimeout(() => state.map.invalidateSize(), 80);
 }
 
@@ -427,8 +523,30 @@ function updateCountryRanking(records) {
   }));
 }
 
+function updatePopulationRanking(records) {
+  const cells = aggregatePopulationCells(records);
+  const reliable = cells.filter((cell) => cell.stable).sort((a, b) => b.rate - a.rate);
+  const top = reliable.slice(0, 10);
+  const max = top[0]?.rate || 1;
+  $("#ranking-title").textContent = "Players per 1M people";
+  $("#place-count").textContent = `${formatNumber.format(cells.length)} occupied hexes`;
+  $("#place-ranking").innerHTML = top.map((cell, index) => `
+    <li class="place-row" style="--bar:${cell.rate / max * 100}%"><button class="place-jump population-jump" data-hex-id="${escapeHtml(cell.hexId)}" aria-label="Zoom to ${escapeHtml(cell.label)} area">
+      <span class="place-rank">${String(index + 1).padStart(2, "0")}</span>
+      <span class="place-name"><strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)} · ${cell.players} players / ${formatCompact.format(cell.population)} people</small></span>
+      <span class="place-value">${cell.rate.toFixed(1)}</span>
+    </button></li>`).join("") || `<li class="place-row"><span class="place-name"><strong>No stable cells match this selection</strong><small>Rankings require at least two players and 100,000 residents.</small></span></li>`;
+  $$(".population-jump").forEach((button) => button.addEventListener("click", () => {
+    const layer = state.populationLayers.get(button.dataset.hexId);
+    if (layer) state.map.fitBounds(layer.getBounds(), { padding: [35, 35], maxZoom: 7 });
+  }));
+}
+
 function updateMapAndRanking(records, places) {
-  if (state.mapMode === "country") {
+  if (state.mapMode === "population") {
+    updatePopulationMap(records);
+    updatePopulationRanking(records);
+  } else if (state.mapMode === "country") {
     updateCountryMap(records);
     updateCountryRanking(records);
   } else {
@@ -667,7 +785,7 @@ function bindControls() {
       item.classList.toggle("active", item === button);
       item.setAttribute("aria-pressed", String(item === button));
     });
-    $("#map-explorer").classList.toggle("country-mode", state.mapMode === "country");
+    $("#map-explorer").classList.toggle("country-mode", state.mapMode !== "city");
     renderMapExplorer();
   });
   $("#league-filter").addEventListener("change", (event) => {
@@ -765,11 +883,13 @@ function showError(message) {
 
 async function boot() {
   try {
-    const [response, countryResponse] = await Promise.all([fetch(DATA_URL), fetch(COUNTRY_GEO_URL)]);
+    const [response, countryResponse, populationResponse] = await Promise.all([fetch(DATA_URL), fetch(COUNTRY_GEO_URL), fetch(POPULATION_GEO_URL)]);
     if (!response.ok) throw new Error(`Dataset request failed (${response.status})`);
     if (!countryResponse.ok) throw new Error(`Country geometry request failed (${countryResponse.status})`);
+    if (!populationResponse.ok) throw new Error(`Population geometry request failed (${populationResponse.status})`);
     state.payload = await response.json();
     state.countryGeojson = await countryResponse.json();
+    state.populationGeojson = await populationResponse.json();
     prepareCountryMetadata();
     populateControls();
     bindControls();

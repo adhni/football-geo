@@ -10,6 +10,8 @@ data/processed/*
 !data/processed/.gitkeep
 data/qa/*
 !data/qa/.gitkeep
+data/cache/*
+!data/cache/.gitkeep
 *.html
 !tests/fixtures/*.html
 !docs/index.html

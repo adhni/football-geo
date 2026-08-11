@@ -1,4 +1,4 @@
-.PHONY: test demo ingest birthplaces app
+.PHONY: test demo ingest birthplaces population app
 
 test:
 	pytest -q
@@ -12,6 +12,9 @@ ingest:
 birthplaces:
 	python -m src.ftg.enrich_wikidata
 	python -m src.ftg.build_birthplaces
+
+population:
+	python -m src.ftg.build_population_hexes
 
 app: demo
 	streamlit run dashboard/app.py
