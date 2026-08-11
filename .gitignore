@@ -12,4 +12,5 @@ data/qa/*
 !data/qa/.gitkeep
 *.html
 !tests/fixtures/*.html
+!docs/index.html
 *.zip

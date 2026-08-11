@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Explore the birthplaces behind the world's leading men's national football teams." />
+    <meta name="theme-color" content="#07110e" />
+    <title>Football Talent Geography</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="./assets/styles.css" />
+  </head>
+  <body>
+    <div class="loading-screen" id="loading-screen" role="status" aria-live="polite">
+      <div class="loading-mark"><span></span><span></span><span></span></div>
+      <p>Building the talent map</p>
+    </div>
+
+    <header class="site-header">
+      <a class="brand" href="#" aria-label="Football Talent Geography home">
+        <span class="brand-mark" aria-hidden="true"><i></i></span>
+        <span>Football <b>Geo</b></span>
+      </a>
+      <div class="header-meta">
+        <span class="status-pill"><i></i> Data live</span>
+        <a href="https://github.com/adhni/football-geo" target="_blank" rel="noreferrer">View source ↗</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Birthplace intelligence · World Cup 2002–2022</p>
+          <h1>Where football<br /><em>talent begins.</em></h1>
+          <p class="hero-intro">Trace the birthplaces behind the world’s leading national teams—from global patterns to the cities producing the most starters.</p>
+        </div>
+        <aside class="hero-note">
+          <span class="note-index">01 / SCOPE</span>
+          <p>Six men’s World Cup finals. Nineteen of the frozen FIFA top 20. Every accepted birthplace matched to a player using date of birth.</p>
+          <a href="#methodology" data-view-link="quality">Read the methodology <span>→</span></a>
+        </aside>
+      </section>
+
+      <section class="scope-banner" aria-label="Dataset scope notice">
+        <span>Important scope</span>
+        <p>This edition covers World Cup finals—not every national-team match. Norway has no rows because it did not qualify in this window.</p>
+      </section>
+
+      <section class="controls" aria-label="Dashboard filters">
+        <div class="control-group team-control">
+          <label for="team-filter">Represented team</label>
+          <div class="select-wrap">
+            <select id="team-filter"><option value="all">All 19 teams</option></select>
+          </div>
+        </div>
+        <div class="control-group years-control">
+          <label>World Cups</label>
+          <div class="year-chips" id="year-chips" role="group" aria-label="World Cup years"></div>
+        </div>
+        <div class="control-group metric-control">
+          <label>Measure</label>
+          <div class="segmented" id="metric-control" role="group" aria-label="Map measure">
+            <button class="active" data-metric="starts">Starts</button>
+            <button data-metric="starters">Starters</button>
+            <button data-metric="players">Players</button>
+          </div>
+        </div>
+        <button class="reset-button" id="reset-filters" title="Reset filters" aria-label="Reset all filters">↺</button>
+      </section>
+
+      <section class="kpi-grid" aria-label="Current selection summary">
+        <article class="kpi"><span>Teams</span><strong id="kpi-teams">—</strong><small>represented</small></article>
+        <article class="kpi"><span>Players</span><strong id="kpi-players">—</strong><small>in selection</small></article>
+        <article class="kpi accent"><span>Recorded starts</span><strong id="kpi-starts">—</strong><small>starting XI places</small></article>
+        <article class="kpi"><span>Birthplaces</span><strong id="kpi-places">—</strong><small>mapped entities</small></article>
+        <article class="kpi"><span>POB coverage</span><strong id="kpi-coverage">—</strong><small>unique players</small></article>
+      </section>
+
+      <nav class="view-tabs" aria-label="Dashboard views">
+        <button class="active" data-view="map"><span>01</span> Talent map</button>
+        <button data-view="teams"><span>02</span> Compare teams</button>
+        <button data-view="players"><span>03</span> Player index</button>
+        <button data-view="quality"><span>04</span> Data notes</button>
+      </nav>
+
+      <section class="view-panel active" id="view-map" aria-labelledby="map-heading">
+        <div class="section-heading">
+          <div><p class="eyebrow">Geographic distribution</p><h2 id="map-heading">Talent birthplace map</h2></div>
+          <p id="filter-summary">All teams · All tournaments</p>
+        </div>
+        <div class="map-layout">
+          <div class="map-card">
+            <div id="talent-map" aria-label="Interactive map of player birthplaces"></div>
+            <div class="map-legend"><i></i><span>Circle size = <b id="legend-metric">starts</b></span></div>
+          </div>
+          <aside class="ranking-card">
+            <div class="card-heading"><div><span>Top locations</span><h3 id="ranking-title">By starts</h3></div><span class="card-count" id="place-count">— places</span></div>
+            <ol class="place-ranking" id="place-ranking"></ol>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view-panel" id="view-teams" aria-labelledby="teams-heading">
+        <div class="section-heading">
+          <div><p class="eyebrow">National comparison</p><h2 id="teams-heading">Team footprint</h2></div>
+          <p>Starts and mapped birthplace coverage</p>
+        </div>
+        <div class="team-chart" id="team-chart"></div>
+      </section>
+
+      <section class="view-panel" id="view-players" aria-labelledby="players-heading">
+        <div class="section-heading player-heading">
+          <div><p class="eyebrow">Player-level detail</p><h2 id="players-heading">Player index</h2></div>
+          <label class="search-box"><span aria-hidden="true">⌕</span><input id="player-search" type="search" placeholder="Search player or birthplace" autocomplete="off" /></label>
+        </div>
+        <div class="table-shell">
+          <table>
+            <thead><tr><th>Player</th><th>Team</th><th>POB</th><th>Tournaments</th><th class="numeric">Starts</th><th class="numeric">Subs</th></tr></thead>
+            <tbody id="player-table"></tbody>
+          </table>
+          <div class="table-footer" id="player-table-note"></div>
+        </div>
+      </section>
+
+      <section class="view-panel" id="view-quality" aria-labelledby="quality-heading">
+        <div class="section-heading" id="methodology">
+          <div><p class="eyebrow">Transparent by design</p><h2 id="quality-heading">Coverage & methodology</h2></div>
+          <p>No inferred or guessed birthplaces</p>
+        </div>
+        <div class="quality-grid">
+          <article class="quality-card coverage-card">
+            <span class="card-label">Birthplace resolution</span>
+            <strong id="quality-player-coverage">—</strong>
+            <p>DOB-validated players with geographic coordinates.</p>
+            <div class="progress"><i id="quality-player-bar"></i></div>
+            <div class="quality-split"><span id="quality-mapped-players">— mapped</span><span id="quality-unresolved">— unresolved</span></div>
+          </article>
+          <article class="quality-card coverage-card">
+            <span class="card-label">Contribution coverage</span>
+            <strong id="quality-start-coverage">—</strong>
+            <p>Recorded starts connected to a validated birthplace.</p>
+            <div class="progress"><i id="quality-start-bar"></i></div>
+            <div class="quality-split"><span id="quality-mapped-starts">— mapped starts</span><span>4,752 total</span></div>
+          </article>
+          <article class="quality-card methodology-card">
+            <span class="card-label">Resolution method</span>
+            <h3>Identity first.<br />Geography second.</h3>
+            <ol><li>Link the source Wikipedia identity.</li><li>Require an exact Wikidata DOB match.</li><li>Resolve the birthplace entity and coordinates.</li><li>Queue every mismatch for manual QA.</li></ol>
+          </article>
+        </div>
+        <div class="quality-lower">
+          <article class="unresolved-card">
+            <div class="card-heading"><div><span>Manual QA queue</span><h3>Unresolved players</h3></div><span class="card-count">21 records</span></div>
+            <div class="unresolved-list" id="unresolved-list"></div>
+          </article>
+          <article class="source-card">
+            <span class="card-label">Source & licence</span>
+            <h3>Reproducible and attributed.</h3>
+            <p>Match-level lineups come from the Fjelstul World Cup Database, pinned to a fixed revision. Birthplace entities and coordinates come from Wikidata.</p>
+            <dl><div><dt>Football data</dt><dd>CC BY-SA 4.0</dd></div><div><dt>Wikidata</dt><dd>CC0</dd></div><div><dt>Lineup QA</dt><dd>11 × matches ✓</dd></div></dl>
+            <a href="./CURRENT_COVERAGE.md">Full coverage notes →</a>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="brand footer-brand"><span class="brand-mark" aria-hidden="true"><i></i></span><span>Football <b>Geo</b></span></div>
+      <p>Built as a reproducible research project. Data scope matters.</p>
+      <p>© 2023 Joshua C. Fjelstul, Ph.D. · Derived data CC BY-SA 4.0</p>
+    </footer>
+
+    <div class="error-toast" id="error-toast" role="alert"></div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="./assets/app.js"></script>
+  </body>
+</html>

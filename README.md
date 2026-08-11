@@ -64,6 +64,19 @@ python -m src.ftg.build_demo
 streamlit run dashboard/app.py
 ```
 
+## GitHub Pages dashboard
+
+The public, backend-free dashboard lives in `docs/` and is served directly by
+GitHub Pages. To refresh its bundled data and preview it locally:
+
+```bash
+python -m src.ftg.export_static_site
+python -m http.server 8000 --directory docs
+```
+
+Then open `http://localhost:8000`. The generated dashboard data is committed at
+`docs/data/dashboard.json`; raw and intermediate datasets remain local.
+
 ## Importing the 20-team dataset
 
 Place CSV or Parquet files in `data/incoming/`, then run:
