@@ -38,17 +38,25 @@ def build_payload(
     if missing := required - set(data.columns):
         raise ValueError(f"Static export is missing columns: {', '.join(sorted(missing))}")
 
+    is_top5 = "league" in data.columns
     records: list[dict] = []
     for row in data.sort_values(["season_end_year", "team", "player_name"]).itertuples(index=False):
         mapped = bool(row.pob_mapped)
-        records.append(
-            {
+        record = {
                 "id": str(row.player_id),
                 "name": str(row.player_name),
                 "team": str(row.team),
+                "league": str(row.league) if is_top5 else None,
                 "year": int(row.season_end_year),
                 "starts": int(row.starts),
                 "subs": int(row.sub_appearances),
+                "apps": int(row.appearances) if is_top5 else int(row.starts) + int(row.sub_appearances),
+                "minutes": int(row.minutes) if is_top5 else None,
+                "goals": int(row.goals) if is_top5 else None,
+                "assists": int(row.assists) if is_top5 else None,
+                "position": str(row.position_source) if is_top5 else None,
+                "nation": str(row.nationality_source) if is_top5 and pd.notna(row.nationality_source) else None,
+                "birthYear": int(row.birth_year) if is_top5 and pd.notna(row.birth_year) else None,
                 "dob": _date_string(row.dob),
                 "place": str(row.birthplace_wikidata) if mapped and pd.notna(row.birthplace_wikidata) else None,
                 "country": str(row.birth_country) if mapped and pd.notna(row.birth_country) else None,
@@ -57,7 +65,7 @@ def build_payload(
                 "mapped": mapped,
                 "status": str(row.resolution_status) if pd.notna(row.resolution_status) else "unresolved",
             }
-        )
+        records.append(record)
 
     unique_players = data.drop_duplicates("player_id")
     mapped_players = unique_players[unique_players["pob_mapped"]]
@@ -73,18 +81,26 @@ def build_payload(
                 }
             )
 
+    meta = {
+        "title": "Football Talent Geography",
+        "scope": "2025–26 Big Five European domestic leagues" if is_top5 else "FIFA Men's World Cup finals only",
+        "years": sorted(int(year) for year in data["season_end_year"].unique()),
+        "teams": sorted(str(team) for team in data["team"].unique()),
+        "leagues": sorted(str(league) for league in data["league"].unique()) if is_top5 else [],
+        "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "source_name": "Football Players Stats (2025–2026)" if is_top5 else "Fjelstul World Cup Database",
+        "source_url": (
+            "https://www.kaggle.com/datasets/hubertsidorowicz/football-players-stats-2025-2026"
+            if is_top5 else "https://github.com/jfjelstul/worldcup"
+        ),
+        "source_version": 36 if is_top5 else None,
+        "source_commit": None if is_top5 else "35a8667f518b07469182ae16d35574dd0e7a00fb",
+        "license": "MIT" if is_top5 else "CC BY-SA 4.0",
+        "missing_team": None if is_top5 else "Norway",
+    }
     return {
         "meta": {
-            "title": "Football Talent Geography",
-            "scope": "FIFA Men's World Cup finals only",
-            "years": sorted(int(year) for year in data["season_end_year"].unique()),
-            "teams": sorted(str(team) for team in data["team"].unique()),
-            "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-            "source_name": "Fjelstul World Cup Database",
-            "source_url": "https://github.com/jfjelstul/worldcup",
-            "source_commit": "35a8667f518b07469182ae16d35574dd0e7a00fb",
-            "license": "CC BY-SA 4.0",
-            "missing_team": "Norway",
+            **meta,
         },
         "summary": {
             "teams": int(data["team"].nunique()),
@@ -92,6 +108,7 @@ def build_payload(
             "mapped_players": int(mapped_players["player_id"].nunique()),
             "player_coverage_pct": round(len(mapped_players) / len(unique_players) * 100, 1),
             "starts": total_starts,
+            "appearances": int(data["appearances"].sum()) if is_top5 else int((data["starts"] + data["sub_appearances"]).sum()),
             "mapped_starts": mapped_starts,
             "start_coverage_pct": round(mapped_starts / total_starts * 100, 1),
             "birthplaces": int(mapped_players["birth_place_qid"].nunique()),

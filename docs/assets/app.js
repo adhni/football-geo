@@ -2,6 +2,7 @@ const DATA_URL = "./data/dashboard.json";
 
 const state = {
   payload: null,
+  league: "all",
   team: "all",
   years: new Set(),
   metric: "starts",
@@ -30,7 +31,9 @@ function metricLabel(metric = state.metric) {
 
 function filteredRecords({ ignoreTeam = false } = {}) {
   return state.payload.records.filter((row) =>
-    state.years.has(row.year) && (ignoreTeam || state.team === "all" || row.team === state.team)
+    state.years.has(row.year)
+    && (state.league === "all" || row.league === state.league)
+    && (ignoreTeam || state.team === "all" || row.team === state.team)
   );
 }
 
@@ -59,13 +62,18 @@ function aggregatePlayers(records) {
   const players = new Map();
   records.forEach((row) => {
     if (!players.has(row.id)) {
-      players.set(row.id, { id: row.id, name: row.name, teams: new Set(), years: new Set(), starts: 0, subs: 0, dob: row.dob, place: row.place, country: row.country, mapped: row.mapped });
+      players.set(row.id, { id: row.id, name: row.name, teams: new Set(), leagues: new Set(), years: new Set(), starts: 0, subs: 0, apps: 0, minutes: 0, goals: 0, assists: 0, dob: row.dob, birthYear: row.birthYear, place: row.place, country: row.country, mapped: row.mapped });
     }
     const player = players.get(row.id);
     player.teams.add(row.team);
+    if (row.league) player.leagues.add(row.league);
     player.years.add(row.year);
     player.starts += row.starts;
     player.subs += row.subs;
+    player.apps += row.apps || 0;
+    player.minutes += row.minutes || 0;
+    player.goals += row.goals || 0;
+    player.assists += row.assists || 0;
     if (row.mapped) { player.place = row.place; player.country = row.country; player.mapped = true; }
   });
   return [...players.values()];
@@ -74,13 +82,14 @@ function aggregatePlayers(records) {
 function aggregateTeams(records) {
   const teams = new Map();
   records.forEach((row) => {
-    if (!teams.has(row.team)) teams.set(row.team, { team: row.team, starts: 0, players: new Set(), starters: new Set(), mapped: new Set(), years: new Set() });
+    if (!teams.has(row.team)) teams.set(row.team, { team: row.team, starts: 0, players: new Set(), starters: new Set(), mapped: new Set(), years: new Set(), leagues: new Set() });
     const team = teams.get(row.team);
     team.starts += row.starts;
     team.players.add(row.id);
     if (row.starts > 0) team.starters.add(row.id);
     if (row.mapped) team.mapped.add(row.id);
     team.years.add(row.year);
+    if (row.league) team.leagues.add(row.league);
   });
   return [...teams.values()].map((team) => ({
     team: team.team,
@@ -89,6 +98,7 @@ function aggregateTeams(records) {
     starters: team.starters.size,
     mapped: team.mapped.size,
     years: team.years.size,
+    leagues: [...team.leagues].sort(),
     coverage: team.players.size ? (team.mapped.size / team.players.size) * 100 : 0,
   }));
 }
@@ -162,7 +172,7 @@ function updateTeamChart() {
   const max = Math.max(...teams.map(selectedMetric), 1);
   $("#team-chart").innerHTML = teams.map((team) => `
     <div class="team-row">
-      <div class="team-name"><strong>${escapeHtml(team.team)}</strong><small>${team.years} tournament${team.years === 1 ? "" : "s"}</small></div>
+      <div class="team-name"><strong>${escapeHtml(team.team)}</strong><small>${escapeHtml(team.leagues.join(", "))}</small></div>
       <div class="team-track"><i style="width:${(selectedMetric(team) / max) * 100}%"></i></div>
       <div class="team-value">${formatNumber.format(selectedMetric(team))}<small>${team.coverage.toFixed(1)}% POB</small></div>
     </div>`).join("") || `<p>No teams match this selection.</p>`;
@@ -175,10 +185,11 @@ function updatePlayerTable() {
     .sort((a, b) => b.starts - a.starts || a.name.localeCompare(b.name));
   const visible = players.slice(0, 150);
   $("#player-table").innerHTML = visible.map((player) => `
-    <tr><td><strong>${escapeHtml(player.name)}</strong><br><small>${escapeHtml(player.dob || "DOB unavailable")}</small></td>
+    <tr><td><strong>${escapeHtml(player.name)}</strong><br><small>${escapeHtml(player.dob || player.birthYear || "DOB unavailable")}</small></td>
     <td>${escapeHtml([...player.teams].sort().join(", "))}</td>
+    <td>${escapeHtml([...player.leagues].sort().join(", "))}</td>
     <td>${player.mapped ? `${escapeHtml(player.place)}<br><small>${escapeHtml(player.country || "")}</small>` : `<span style="color:var(--danger)">QA pending</span>`}</td>
-    <td>${[...player.years].sort().join(", ")}</td><td class="numeric">${formatNumber.format(player.starts)}</td><td class="numeric">${formatNumber.format(player.subs)}</td></tr>`).join("");
+    <td class="numeric">${formatNumber.format(player.apps)}</td><td class="numeric">${formatNumber.format(player.starts)}</td></tr>`).join("");
   $("#player-table-note").textContent = `Showing ${formatNumber.format(visible.length)} of ${formatNumber.format(players.length)} players in this selection`;
 }
 
@@ -191,14 +202,15 @@ function updateQuality() {
   $("#quality-mapped-players").textContent = `${formatNumber.format(summary.mapped_players)} mapped`;
   $("#quality-unresolved").textContent = `${formatNumber.format(summary.unresolved_players)} unresolved`;
   $("#quality-mapped-starts").textContent = `${formatNumber.format(summary.mapped_starts)} mapped starts`;
-  $("#unresolved-list").innerHTML = unresolved.map((row) => `<div class="unresolved-row"><span>${escapeHtml(row.name)}</span><span>${escapeHtml(row.status)}</span></div>`).join("");
+  $("#quality-total-starts").textContent = `${formatNumber.format(summary.starts)} total`;
+  $("#unresolved-count").textContent = `${formatNumber.format(summary.unresolved_players)} players`;
+  $("#unresolved-list").innerHTML = unresolved.slice(0, 120).map((row) => `<div class="unresolved-row"><span>${escapeHtml(row.name)}</span><span>${escapeHtml(row.status)}</span></div>`).join("");
 }
 
 function updateFilterSummary() {
-  const team = state.team === "all" ? "All teams" : state.team;
-  const years = [...state.years].sort();
-  const yearText = years.length === state.payload.meta.years.length ? "All tournaments" : years.join(", ");
-  $("#filter-summary").textContent = `${team} · ${yearText}`;
+  const league = state.league === "all" ? "All five leagues" : state.league;
+  const team = state.team === "all" ? "All clubs" : state.team;
+  $("#filter-summary").textContent = `${league} · ${team} · 2025–26`;
 }
 
 function render() {
@@ -222,15 +234,13 @@ function setView(view) {
 }
 
 function bindControls() {
-  $("#team-filter").addEventListener("change", (event) => { state.team = event.target.value; render(); });
-  $("#year-chips").addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-year]");
-    if (!button) return;
-    const year = Number(button.dataset.year);
-    if (state.years.has(year) && state.years.size > 1) state.years.delete(year); else state.years.add(year);
-    button.classList.toggle("active", state.years.has(year));
+  $("#league-filter").addEventListener("change", (event) => {
+    state.league = event.target.value;
+    state.team = "all";
+    populateTeamOptions();
     render();
   });
+  $("#team-filter").addEventListener("change", (event) => { state.team = event.target.value; render(); });
   $("#metric-control").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-metric]");
     if (!button) return;
@@ -239,11 +249,13 @@ function bindControls() {
     render();
   });
   $("#reset-filters").addEventListener("click", () => {
+    state.league = "all";
     state.team = "all";
     state.years = new Set(state.payload.meta.years);
     state.metric = "starts";
+    $("#league-filter").value = "all";
+    populateTeamOptions();
     $("#team-filter").value = "all";
-    $$("#year-chips button").forEach((button) => button.classList.add("active"));
     $$("#metric-control button").forEach((button) => button.classList.toggle("active", button.dataset.metric === "starts"));
     render();
   });
@@ -252,11 +264,18 @@ function bindControls() {
   $("#player-search").addEventListener("input", (event) => { state.search = event.target.value; updatePlayerTable(); });
 }
 
+function populateTeamOptions() {
+  const teams = [...new Set(state.payload.records
+    .filter((row) => state.league === "all" || row.league === state.league)
+    .map((row) => row.team))].sort();
+  $("#team-filter").innerHTML = `<option value="all">All ${teams.length} clubs</option>${teams.map((team) => `<option value="${escapeHtml(team)}">${escapeHtml(team)}</option>`).join("")}`;
+}
+
 function populateControls() {
   const { meta } = state.payload;
   state.years = new Set(meta.years);
-  $("#team-filter").insertAdjacentHTML("beforeend", meta.teams.map((team) => `<option value="${escapeHtml(team)}">${escapeHtml(team)}</option>`).join(""));
-  $("#year-chips").innerHTML = meta.years.map((year) => `<button class="active" data-year="${year}" aria-pressed="true">${year}</button>`).join("");
+  $("#league-filter").insertAdjacentHTML("beforeend", meta.leagues.map((league) => `<option value="${escapeHtml(league)}">${escapeHtml(league)}</option>`).join(""));
+  populateTeamOptions();
 }
 
 function showError(message) {

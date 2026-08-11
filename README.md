@@ -4,6 +4,11 @@ A reproducible data + visualisation project that asks:
 
 > **Where do the world's leading men's national teams actually get their starters from, and which places over-produce elite footballers relative to population?**
 
+The live GitHub Pages edition currently maps all **2,690 players who made at
+least one appearance in the 2025–26 Premier League, La Liga, Bundesliga, Serie
+A or Ligue 1**. It covers 96 clubs and keeps unresolved birthplace identities
+visible for QA.
+
 ## Frozen cohort
 
 The project freezes the **FIFA men's top 20 at 20 July 2026** so results do not change every time FIFA updates its ranking. The cohort is stored in `config/top20_fifa_2026-07-20.csv`.
@@ -76,6 +81,17 @@ python -m http.server 8000 --directory docs
 
 Then open `http://localhost:8000`. The generated dashboard data is committed at
 `docs/data/dashboard.json`; raw and intermediate datasets remain local.
+
+To rebuild the current Big Five edition:
+
+```bash
+python -m src.ftg.import_top5
+python -m src.ftg.enrich_top5_wikidata
+python -m src.ftg.build_top5
+python -m src.ftg.export_static_site \
+  --input data/processed/top5_players_with_birthplace.parquet \
+  --unresolved data/qa/top5_wikidata_resolution_queue.csv
+```
 
 ## Importing the 20-team dataset
 

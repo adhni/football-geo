@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Explore the birthplaces behind the world's leading men's national football teams." />
+    <meta name="description" content="Explore the birthplaces of every 2025–26 Big Five European league player." />
     <meta name="theme-color" content="#07110e" />
     <title>Football Talent Geography</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -32,32 +32,34 @@
     <main>
       <section class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Birthplace intelligence · World Cup 2002–2022</p>
+          <p class="eyebrow">Birthplace intelligence · Big Five leagues · 2025–26</p>
           <h1>Where football<br /><em>talent begins.</em></h1>
-          <p class="hero-intro">Trace the birthplaces behind the world’s leading national teams—from global patterns to the cities producing the most starters.</p>
+          <p class="hero-intro">Trace the birthplaces of every player who appeared in Europe’s five leading domestic leagues last season—from global patterns to individual careers.</p>
         </div>
         <aside class="hero-note">
           <span class="note-index">01 / SCOPE</span>
-          <p>Six men’s World Cup finals. Nineteen of the frozen FIFA top 20. Every accepted birthplace matched to a player using date of birth.</p>
+          <p>One completed season. Five leagues, 96 clubs and 2,690 players. Every accepted birthplace matched using the player’s name and birth year.</p>
           <a href="#methodology" data-view-link="quality">Read the methodology <span>→</span></a>
         </aside>
       </section>
 
       <section class="scope-banner" aria-label="Dataset scope notice">
         <span>Important scope</span>
-        <p>This edition covers World Cup finals—not every national-team match. Norway has no rows because it did not qualify in this window.</p>
+        <p>This edition covers players with at least one domestic-league appearance in the 2025–26 Premier League, La Liga, Bundesliga, Serie A or Ligue 1.</p>
       </section>
 
       <section class="controls" aria-label="Dashboard filters">
-        <div class="control-group team-control">
-          <label for="team-filter">Represented team</label>
+        <div class="control-group league-control">
+          <label for="league-filter">League</label>
           <div class="select-wrap">
-            <select id="team-filter"><option value="all">All 19 teams</option></select>
+            <select id="league-filter"><option value="all">All five leagues</option></select>
           </div>
         </div>
-        <div class="control-group years-control">
-          <label>World Cups</label>
-          <div class="year-chips" id="year-chips" role="group" aria-label="World Cup years"></div>
+        <div class="control-group team-control">
+          <label for="team-filter">Club</label>
+          <div class="select-wrap">
+            <select id="team-filter"><option value="all">All 96 clubs</option></select>
+          </div>
         </div>
         <div class="control-group metric-control">
           <label>Measure</label>
@@ -71,16 +73,16 @@
       </section>
 
       <section class="kpi-grid" aria-label="Current selection summary">
-        <article class="kpi"><span>Teams</span><strong id="kpi-teams">—</strong><small>represented</small></article>
+        <article class="kpi"><span>Clubs</span><strong id="kpi-teams">—</strong><small>represented</small></article>
         <article class="kpi"><span>Players</span><strong id="kpi-players">—</strong><small>in selection</small></article>
-        <article class="kpi accent"><span>Recorded starts</span><strong id="kpi-starts">—</strong><small>starting XI places</small></article>
+        <article class="kpi accent"><span>League starts</span><strong id="kpi-starts">—</strong><small>starting XI places</small></article>
         <article class="kpi"><span>Birthplaces</span><strong id="kpi-places">—</strong><small>mapped entities</small></article>
         <article class="kpi"><span>POB coverage</span><strong id="kpi-coverage">—</strong><small>unique players</small></article>
       </section>
 
       <nav class="view-tabs" aria-label="Dashboard views">
         <button class="active" data-view="map"><span>01</span> Talent map</button>
-        <button data-view="teams"><span>02</span> Compare teams</button>
+        <button data-view="teams"><span>02</span> Compare clubs</button>
         <button data-view="players"><span>03</span> Player index</button>
         <button data-view="quality"><span>04</span> Data notes</button>
       </nav>
@@ -88,7 +90,7 @@
       <section class="view-panel active" id="view-map" aria-labelledby="map-heading">
         <div class="section-heading">
           <div><p class="eyebrow">Geographic distribution</p><h2 id="map-heading">Talent birthplace map</h2></div>
-          <p id="filter-summary">All teams · All tournaments</p>
+          <p id="filter-summary">All five leagues · All clubs · 2025–26</p>
         </div>
         <div class="map-layout">
           <div class="map-card">
@@ -104,7 +106,7 @@
 
       <section class="view-panel" id="view-teams" aria-labelledby="teams-heading">
         <div class="section-heading">
-          <div><p class="eyebrow">National comparison</p><h2 id="teams-heading">Team footprint</h2></div>
+          <div><p class="eyebrow">Club comparison</p><h2 id="teams-heading">Club footprint</h2></div>
           <p>Starts and mapped birthplace coverage</p>
         </div>
         <div class="team-chart" id="team-chart"></div>
@@ -117,7 +119,7 @@
         </div>
         <div class="table-shell">
           <table>
-            <thead><tr><th>Player</th><th>Team</th><th>POB</th><th>Tournaments</th><th class="numeric">Starts</th><th class="numeric">Subs</th></tr></thead>
+            <thead><tr><th>Player</th><th>Club</th><th>League</th><th>POB</th><th class="numeric">Apps</th><th class="numeric">Starts</th></tr></thead>
             <tbody id="player-table"></tbody>
           </table>
           <div class="table-footer" id="player-table-note"></div>
@@ -133,7 +135,7 @@
           <article class="quality-card coverage-card">
             <span class="card-label">Birthplace resolution</span>
             <strong id="quality-player-coverage">—</strong>
-            <p>DOB-validated players with geographic coordinates.</p>
+            <p>Name-and-birth-year matched players with geographic coordinates.</p>
             <div class="progress"><i id="quality-player-bar"></i></div>
             <div class="quality-split"><span id="quality-mapped-players">— mapped</span><span id="quality-unresolved">— unresolved</span></div>
           </article>
@@ -142,24 +144,24 @@
             <strong id="quality-start-coverage">—</strong>
             <p>Recorded starts connected to a validated birthplace.</p>
             <div class="progress"><i id="quality-start-bar"></i></div>
-            <div class="quality-split"><span id="quality-mapped-starts">— mapped starts</span><span>4,752 total</span></div>
+            <div class="quality-split"><span id="quality-mapped-starts">— mapped starts</span><span id="quality-total-starts">— total</span></div>
           </article>
           <article class="quality-card methodology-card">
             <span class="card-label">Resolution method</span>
             <h3>Identity first.<br />Geography second.</h3>
-            <ol><li>Link the source Wikipedia identity.</li><li>Require an exact Wikidata DOB match.</li><li>Resolve the birthplace entity and coordinates.</li><li>Queue every mismatch for manual QA.</li></ol>
+            <ol><li>Match the exact player label and birth year.</li><li>Reject ambiguous Wikidata identities.</li><li>Resolve the birthplace entity and coordinates.</li><li>Queue every miss for manual QA.</li></ol>
           </article>
         </div>
         <div class="quality-lower">
           <article class="unresolved-card">
-            <div class="card-heading"><div><span>Manual QA queue</span><h3>Unresolved players</h3></div><span class="card-count">21 records</span></div>
+            <div class="card-heading"><div><span>Manual QA queue</span><h3>Unresolved players</h3></div><span class="card-count" id="unresolved-count">— players</span></div>
             <div class="unresolved-list" id="unresolved-list"></div>
           </article>
           <article class="source-card">
             <span class="card-label">Source & licence</span>
             <h3>Reproducible and attributed.</h3>
-            <p>Match-level lineups come from the Fjelstul World Cup Database, pinned to a fixed revision. Birthplace entities and coordinates come from Wikidata.</p>
-            <dl><div><dt>Football data</dt><dd>CC BY-SA 4.0</dd></div><div><dt>Wikidata</dt><dd>CC0</dd></div><div><dt>Lineup QA</dt><dd>11 × matches ✓</dd></div></dl>
+            <p>Appearance statistics come from the MIT-licensed Football Players Stats dataset, derived from FBref. Birthplace entities and coordinates come from Wikidata.</p>
+            <dl><div><dt>Stats dataset</dt><dd>MIT</dd></div><div><dt>Wikidata</dt><dd>CC0</dd></div><div><dt>Starts QA</dt><dd>11 × matches ✓</dd></div></dl>
             <a href="./CURRENT_COVERAGE.md">Full coverage notes →</a>
           </article>
         </div>
@@ -169,7 +171,7 @@
     <footer>
       <div class="brand footer-brand"><span class="brand-mark" aria-hidden="true"><i></i></span><span>Football <b>Geo</b></span></div>
       <p>Built as a reproducible research project. Data scope matters.</p>
-      <p>© 2023 Joshua C. Fjelstul, Ph.D. · Derived data CC BY-SA 4.0</p>
+      <p>2025–26 stats: hubertsidorowicz dataset · Birthplaces: Wikidata</p>
     </footer>
 
     <div class="error-toast" id="error-toast" role="alert"></div>
