@@ -16,6 +16,19 @@ Bundesliga, Serie A and Ligue 1 seasons.
 - Unique mapped birthplace entities: 1,488
 - Unresolved POB identities: 267, retained in the QA queue
 
+## Population-normalized map
+
+The per-capita layer groups mapped player birthplaces into H3 resolution-3
+cells and divides unique players by each cell's estimated 2025 population.
+Population totals come from the WorldPop Global 2 R2025A 1 km population grid.
+Only occupied cells are included in the static GeoJSON.
+
+The map displays every occupied cell, but the ranked hotspot list requires at
+least two selected players and at least 100,000 estimated residents. Dashed
+cells fall below one of those thresholds and should be interpreted cautiously.
+The rate describes birthplace production in the dashboard cohort; it is not a
+general participation rate or a causal measure of player development.
+
 Identities are resolved through exact Wikidata labels or Wikipedia title
 redirects and must match the source birth year. Ambiguous matches are not
 published.

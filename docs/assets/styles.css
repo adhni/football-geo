@@ -100,14 +100,14 @@ select:focus, input:focus { border-color: var(--mint); box-shadow: 0 0 0 3px rgb
 .section-heading { margin-bottom: 28px; display: flex; justify-content: space-between; align-items: end; gap: 24px; }
 .section-heading .eyebrow { margin-bottom: 10px; }.section-heading h2 { margin: 0; font-size: clamp(30px, 4vw, 50px); letter-spacing: -.055em; }.section-heading > p { margin: 0 0 6px; color: var(--muted); font-size: 11px; }
 
-.map-explorer { margin-bottom: 14px; padding: 14px; display: grid; grid-template-columns: 210px 220px minmax(260px, 1fr) auto; align-items: end; gap: 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; }
+.map-explorer { margin-bottom: 14px; padding: 14px; display: grid; grid-template-columns: 300px 220px minmax(260px, 1fr) auto; align-items: end; gap: 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; }
 .map-explorer label > span { display: block; margin: 0 0 7px 2px; color: var(--muted); font: 500 9px "DM Mono", monospace; letter-spacing: .11em; text-transform: uppercase; }
 .map-explorer input { width: 100%; height: 39px; padding: 0 13px; color: var(--text); border: 1px solid var(--line); background: #0a1612; border-radius: 9px; outline: none; font-size: 12px; }
 .map-explorer input::placeholder { color: #62736c; }
 .map-explorer button { height: 39px; padding: 0 16px; color: var(--accent); border: 1px solid var(--line); background: #0a1612; border-radius: 9px; cursor: pointer; font-size: 11px; }
 .map-explorer button:hover { border-color: var(--accent); }
-.map-mode { display: flex; height: 39px; }.map-mode button { flex: 1; padding-inline: 10px; border-radius: 0; }.map-mode button:first-child { border-radius: 9px 0 0 9px; }.map-mode button:last-child { margin-left: -1px; border-radius: 0 9px 9px 0; }.map-mode button.active { color: #07110e; border-color: var(--accent); background: var(--accent); }
-.map-explorer.country-mode { grid-template-columns: 210px 260px; }.map-explorer.country-mode .place-search-control, .map-explorer.country-mode #clear-place-search { display: none; }
+.map-mode { display: flex; height: 39px; }.map-mode button { flex: 1; padding-inline: 8px; border-radius: 0; font-size: 9px; }.map-mode button + button { margin-left: -1px; }.map-mode button:first-child { border-radius: 9px 0 0 9px; }.map-mode button:last-child { border-radius: 0 9px 9px 0; }.map-mode button.active { position: relative; color: #07110e; border-color: var(--accent); background: var(--accent); }
+.map-explorer.country-mode { grid-template-columns: 300px 260px; }.map-explorer.country-mode .place-search-control, .map-explorer.country-mode #clear-place-search { display: none; }
 .map-layout { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 18px; }
 .map-card, .ranking-card, .team-chart, .table-shell, .quality-card, .unresolved-card, .source-card { border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); overflow: hidden; }
 .map-card { position: relative; min-height: 650px; }.map-card::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 80px rgba(5,15,12,.42); }

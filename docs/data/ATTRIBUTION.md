@@ -12,6 +12,11 @@ Country boundaries for the choropleth are the 1:110m Admin 0 Countries layer
 from [Natural Earth](https://www.naturalearthdata.com/), which is in the public
 domain. The committed GeoJSON retains only the properties needed by the site.
 
+Local population totals for the population-normalized map come from
+[WorldPop Global 2](https://hub.worldpop.org/project/categories?id=3), 2025
+release R2025A, using the 1 km population grid under CC BY 4.0. Totals are
+calculated only for occupied H3 resolution-3 cells through the WorldPop API.
+
 The dashboard includes every player with at least one domestic-league
 appearance in the Premier League, La Liga, Bundesliga, Serie A, or Ligue 1 in
 2025–26. Unresolved birthplace matches remain explicitly flagged.
