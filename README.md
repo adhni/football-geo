@@ -9,6 +9,9 @@ least one appearance in the 2025–26 Premier League, La Liga, Bundesliga, Serie
 A or Ligue 1**. It covers 96 clubs and keeps unresolved birthplace identities
 visible for QA.
 
+The interface includes clustered birthplace points, a country choropleth,
+five-league geographic comparisons and clickable player profiles.
+
 ## Frozen cohort
 
 The project freezes the **FIFA men's top 20 at 20 July 2026** so results do not change every time FIFA updates its ranking. The cohort is stored in `config/top20_fifa_2026-07-20.csv`.

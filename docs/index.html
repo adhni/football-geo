@@ -84,7 +84,7 @@
 
       <nav class="view-tabs" aria-label="Dashboard views">
         <button class="active" data-view="map"><span>01</span> Talent map</button>
-        <button data-view="teams"><span>02</span> Compare clubs</button>
+        <button data-view="teams"><span>02</span> League comparison</button>
         <button data-view="players"><span>03</span> Player index</button>
         <button data-view="quality"><span>04</span> Data notes</button>
       </nav>
@@ -94,7 +94,8 @@
           <div><p class="eyebrow">Geographic distribution</p><h2 id="map-heading">Talent birthplace map</h2></div>
           <p id="filter-summary">All five leagues · All clubs · 2025–26</p>
         </div>
-        <div class="map-explorer" aria-label="Map exploration controls">
+        <div class="map-explorer" id="map-explorer" aria-label="Map exploration controls">
+          <div class="map-mode" id="map-mode" role="group" aria-label="Geography level"><button class="active" data-map-mode="city" aria-pressed="true">Birthplaces</button><button data-map-mode="country" aria-pressed="false">Countries</button></div>
           <label><span>Birth country</span><select id="country-filter"><option value="all">All birth countries</option></select></label>
           <label class="place-search-control"><span>Find a birthplace</span><input id="place-search" list="place-options" type="search" placeholder="Try London, Paris, Dakar…" autocomplete="off" /><datalist id="place-options"></datalist></label>
           <button id="clear-place-search" type="button">Clear place</button>
@@ -113,9 +114,11 @@
 
       <section class="view-panel" id="view-teams" aria-labelledby="teams-heading">
         <div class="section-heading">
-          <div><p class="eyebrow">Club comparison</p><h2 id="teams-heading">Club footprint</h2></div>
-          <p>Starts and mapped birthplace coverage</p>
+          <div><p class="eyebrow">Five-league comparison</p><h2 id="teams-heading">Where each league recruits</h2></div>
+          <p>Domestic share, birth countries, continents and diversity</p>
         </div>
+        <div class="league-comparison" id="league-comparison"></div>
+        <div class="subsection-heading"><div><p class="eyebrow">Club comparison</p><h3>Club footprint</h3></div><p>Starts and mapped birthplace coverage</p></div>
         <div class="team-chart" id="team-chart"></div>
       </section>
 
@@ -180,6 +183,19 @@
       <p>Built as a reproducible research project. Data scope matters.</p>
       <p>2025–26 stats: hubertsidorowicz dataset · Birthplaces: Wikidata</p>
     </footer>
+
+    <div class="player-modal" id="player-modal" role="dialog" aria-modal="true" aria-labelledby="profile-name" aria-hidden="true">
+      <article class="profile-drawer">
+        <button class="profile-close" id="close-player-modal" type="button" aria-label="Close player profile">×</button>
+        <header><span class="card-label">Player profile</span><h2 id="profile-name">Player</h2><p id="profile-meta"></p></header>
+        <div class="profile-club"><span id="profile-clubs"></span><small id="profile-leagues"></small></div>
+        <div class="profile-stats">
+          <div><strong id="profile-apps">—</strong><span>Apps</span></div><div><strong id="profile-starts">—</strong><span>Starts</span></div><div><strong id="profile-minutes">—</strong><span>Minutes</span></div><div><strong id="profile-goals">—</strong><span>Goals</span></div><div><strong id="profile-assists">—</strong><span>Assists</span></div>
+        </div>
+        <div class="profile-birth"><span class="card-label">Place of birth</span><h3 id="profile-birthplace">—</h3><p>Born <span id="profile-dob">—</span></p></div>
+        <div class="profile-map-wrap"><div id="player-mini-map"></div><p id="profile-map-empty" hidden>Map unavailable until this birthplace clears QA.</p></div>
+      </article>
+    </div>
 
     <div class="error-toast" id="error-toast" role="alert"></div>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

@@ -8,6 +8,10 @@ dataset, version 36, which is published under the MIT License and derived from
 FBref. Player birthplace identities and coordinates are supplied by Wikidata
 under CC0.
 
+Country boundaries for the choropleth are the 1:110m Admin 0 Countries layer
+from [Natural Earth](https://www.naturalearthdata.com/), which is in the public
+domain. The committed GeoJSON retains only the properties needed by the site.
+
 The dashboard includes every player with at least one domestic-league
 appearance in the Premier League, La Liga, Bundesliga, Serie A, or Ligue 1 in
 2025–26. Unresolved birthplace matches remain explicitly flagged.
