@@ -93,6 +93,9 @@ python -m src.ftg.enrich_players
 # 3) Resolve birthplace coordinates / birth country with Wikidata
 python -m src.ftg.enrich_wikidata
 
+# 3b) Build point-map inputs and birthplace coverage QA
+python -m src.ftg.build_birthplaces
+
 # 4) Spatially join birthplace points to ADM1/ADM2
 python -m src.ftg.assign_admin --adm1 path/to/adm1.geojson --adm2 path/to/adm2.geojson
 

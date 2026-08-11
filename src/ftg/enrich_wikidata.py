@@ -70,7 +70,13 @@ def claim_coordinates(entity: dict) -> tuple[float | None, float | None]:
 
 
 def entity_label(entity: dict) -> str | None:
-    return entity.get("labels", {}).get("en", {}).get("value")
+    labels = entity.get("labels", {})
+    if "en" in labels:
+        return labels["en"].get("value")
+    return next(
+        (label.get("value") for label in labels.values() if label.get("value")),
+        None,
+    )
 
 
 def title_qid_map(query_response: dict, requested_titles: list[str]) -> dict[str, str | None]:
@@ -151,6 +157,7 @@ def _fetch_entities(
     *,
     batch_size: int,
     force: bool,
+    languages: str = "en",
 ) -> dict[str, dict]:
     output: dict[str, dict] = {}
     for batch in chunks(sorted(set(qids)), batch_size):
@@ -160,7 +167,7 @@ def _fetch_entities(
                 "action": "wbgetentities",
                 "ids": "|".join(batch),
                 "props": "claims|labels",
-                "languages": "en",
+                "languages": languages,
                 "format": "json",
             },
             cache_group,
@@ -245,6 +252,18 @@ def run(
         batch_size=batch_size,
         force=force,
     )
+    missing_place_labels = [qid for qid in place_qids if not entity_label(places.get(qid, {}))]
+    if missing_place_labels:
+        places.update(
+            _fetch_entities(
+                client,
+                missing_place_labels,
+                "place_label_fallback_batches",
+                batch_size=batch_size,
+                force=force,
+                languages="en|fr|es|pt|de|it|nl|hr|ja",
+            )
+        )
     players["birthplace_wikidata"] = players["birth_place_qid"].map(
         lambda qid: entity_label(places.get(qid, {})) if pd.notna(qid) else None
     )
@@ -265,6 +284,18 @@ def run(
         batch_size=batch_size,
         force=force,
     )
+    missing_country_labels = [qid for qid in country_qids if not entity_label(countries.get(qid, {}))]
+    if missing_country_labels:
+        countries.update(
+            _fetch_entities(
+                client,
+                missing_country_labels,
+                "country_label_fallback_batches",
+                batch_size=batch_size,
+                force=force,
+                languages="en|fr|es|pt|de|it|nl|hr|ja",
+            )
+        )
     players["birth_country"] = players["birth_country_qid"].map(
         lambda qid: entity_label(countries.get(qid, {})) if pd.notna(qid) else None
     )

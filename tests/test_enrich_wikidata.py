@@ -2,6 +2,7 @@ from src.ftg.enrich_wikidata import (
     claim_coordinates,
     claim_date,
     claim_entity,
+    entity_label,
     title_qid_map,
     wikipedia_title,
 )
@@ -53,3 +54,4 @@ def test_claim_parsers():
     assert claim_date(entity) == "1978-01-28"
     assert claim_entity(entity, "P19") == "Q123"
     assert claim_coordinates(entity) == (44.1, 10.1)
+    assert entity_label({"labels": {"it": {"value": "Firenze"}}}) == "Firenze"

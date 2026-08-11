@@ -54,6 +54,21 @@ The same canonical table can hold season aggregates or explicitly labelled tourn
 | adm2_name | string | second-order admin |
 | admin_source | string | geometry source/version |
 
+## players_enriched.parquet
+
+| field | type | description |
+|---|---|---|
+| `wikidata_qid` | string | person entity linked from the player's English Wikipedia page |
+| `wikidata_dob` | date string | Wikidata DOB used for exact source-DOB validation |
+| `birth_place_qid` | string | Wikidata birthplace entity |
+| `birthplace_wikidata` | string | English birthplace label |
+| `birth_lat` | float | validated birthplace latitude |
+| `birth_lon` | float | validated birthplace longitude |
+| `birth_country_qid` | string | country claim on the birthplace entity |
+| `birth_country` | string | English country label |
+| `resolution_status` | string | resolved or explicit QA failure reason |
+| `resolution_confidence` | float | 1 only for accepted DOB-validated records, otherwise 0 |
+
 ## population_admin.parquet
 
 | field | type | description |
