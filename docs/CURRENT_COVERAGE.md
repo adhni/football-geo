@@ -26,6 +26,8 @@ Only occupied cells are included in the static GeoJSON.
 The map displays every occupied cell, but the ranked hotspot list requires at
 least two selected players and at least 100,000 estimated residents. Dashed
 cells fall below one of those thresholds and should be interpreted cautiously.
+Hex colour uses a fixed continuous scale with reference points at 0, 2, 5, 10
+and 25+ players per million, so colours remain comparable after filtering.
 The rate describes birthplace production in the dashboard cohort; it is not a
 general participation rate or a causal measure of player development.
 

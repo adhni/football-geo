@@ -19,6 +19,10 @@ WORLDPOP_API = "https://api.worldpop.org/v2"
 WORLDPOP_SOURCE = "WorldPop Global 2 R2025A"
 
 
+def population_cache_key(cell_id: str, year: int, resolution: str) -> str:
+    return f"{year}:{resolution}:{cell_id}"
+
+
 def occupied_hexes(payload: dict[str, Any], resolution: int = 3) -> dict[str, dict[str, Any]]:
     """Assign each mapped player once to an H3 cell."""
     players: dict[str, dict[str, Any]] = {}
@@ -106,7 +110,10 @@ def build_population_hexes(
     cache: dict[str, dict[str, Any]] = {}
     if cache_path.exists():
         cache = json.loads(cache_path.read_text(encoding="utf-8"))
-    missing = [cell_id for cell_id in cells if cell_id not in cache]
+    missing = [
+        cell_id for cell_id in cells
+        if population_cache_key(cell_id, year, raster_resolution) not in cache
+    ]
     if missing:
         print(f"Querying WorldPop for {len(missing):,} of {len(cells):,} occupied cells...", flush=True)
         errors: list[str] = []
@@ -123,7 +130,7 @@ def build_population_hexes(
                     errors.append(str(error))
                     print(f"  failed {cell_id}: {error}", flush=True)
                 else:
-                    cache[cell_id] = result
+                    cache[population_cache_key(cell_id, year, raster_resolution)] = result
                     if index % 10 == 0 or index == len(missing):
                         _write_json(cache_path, cache)
                         print(f"  processed {index:,}/{len(missing):,} · cached {len(cache):,}", flush=True)
@@ -133,7 +140,7 @@ def build_population_hexes(
 
     features = []
     for cell_id, cell in cells.items():
-        population = cache[cell_id]
+        population = cache[population_cache_key(cell_id, year, raster_resolution)]
         player_ids = sorted(cell["player_ids"])
         players_per_million = len(player_ids) / population["population"] * 1_000_000 if population["population"] else None
         features.append(

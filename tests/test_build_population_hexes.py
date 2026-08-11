@@ -1,7 +1,12 @@
 import json
 from pathlib import Path
 
-from src.ftg.build_population_hexes import cell_polygon, occupied_hexes
+from src.ftg.build_population_hexes import (
+    build_population_hexes,
+    cell_polygon,
+    occupied_hexes,
+    population_cache_key,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,3 +46,23 @@ def test_published_population_layer_matches_mapped_player_scope():
     assert population["metadata"]["raster_resolution"] == "1km"
     assert sum(feature["properties"]["all_players"] for feature in population["features"]) == dashboard["summary"]["mapped_players"]
     assert all(feature["properties"]["population"] >= 0 for feature in population["features"])
+
+
+def test_population_cache_is_scoped_by_year_and_raster_resolution(tmp_path, monkeypatch):
+    payload = {"records": [{"id": "p1", "mapped": True, "lat": 51.5, "lon": -.1, "place": "London", "country": "United Kingdom"}]}
+    calls = []
+
+    def fake_population(cell_id, year, resolution):
+        calls.append((cell_id, year, resolution))
+        return {"population": year, "area_km2": 1, "population_density": 1, "data_year": year, "data_source": "test"}
+
+    monkeypatch.setattr("src.ftg.build_population_hexes._request_population", fake_population)
+    cache_path = tmp_path / "population.json"
+
+    first = build_population_hexes(payload, cache_path=cache_path, year=2024, raster_resolution="1km", workers=1)
+    second = build_population_hexes(payload, cache_path=cache_path, year=2025, raster_resolution="1km", workers=1)
+
+    assert first["features"][0]["properties"]["population"] == 2024
+    assert second["features"][0]["properties"]["population"] == 2025
+    assert [call[1] for call in calls] == [2024, 2025]
+    assert population_cache_key(calls[0][0], 2024, "1km") != population_cache_key(calls[0][0], 2025, "1km")

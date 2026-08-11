@@ -18,8 +18,10 @@ def test_static_map_explorer_assets_and_controls_are_wired():
     assert 'id="player-modal"' in html
     assert (ROOT / "docs" / "data" / "countries.geojson").exists()
     assert 'data-map-mode="population"' in html
+    assert 'id="population-scale"' in html
     assert "POPULATION_GEO_URL" in javascript
     assert "updatePopulationMap" in javascript
+    assert "populationRateColour" in javascript
 
 
 def test_age_profile_controls_and_outputs_are_wired():

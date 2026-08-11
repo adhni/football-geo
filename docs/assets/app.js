@@ -16,6 +16,13 @@ const LEAGUE_HOSTS = {
   "Serie A": "ITA",
   "Ligue 1": "FRA",
 };
+const POPULATION_RATE_STOPS = [
+  { value: 0, colour: [23, 49, 40] },
+  { value: 2, colour: [34, 86, 63] },
+  { value: 5, colour: [52, 125, 84] },
+  { value: 10, colour: [95, 191, 113] },
+  { value: 25, colour: [217, 255, 87] },
+];
 
 const state = {
   payload: null,
@@ -264,6 +271,18 @@ function aggregatePopulationCells(records) {
   }).filter(Boolean);
 }
 
+function populationRateColour(rate) {
+  if (rate === null) return "#26352f";
+  const clamped = Math.max(0, Math.min(rate, POPULATION_RATE_STOPS.at(-1).value));
+  const upperIndex = POPULATION_RATE_STOPS.findIndex((stop) => clamped <= stop.value);
+  if (upperIndex <= 0) return `rgb(${POPULATION_RATE_STOPS[0].colour.join(",")})`;
+  const lower = POPULATION_RATE_STOPS[upperIndex - 1];
+  const upper = POPULATION_RATE_STOPS[upperIndex];
+  const progress = (clamped - lower.value) / (upper.value - lower.value);
+  const colour = lower.colour.map((channel, index) => Math.round(channel + (upper.colour[index] - channel) * progress));
+  return `rgb(${colour.join(",")})`;
+}
+
 function aggregateLeagues(records) {
   const leagues = new Map();
   records.forEach((row) => {
@@ -389,6 +408,8 @@ function updateCityMap(places) {
   if ((state.team !== "all" || state.country !== "all" || state.placeQuery) && bounds.length > 1) state.map.fitBounds(bounds, { padding: [45, 45], maxZoom: 6 });
   else if (bounds.length === 1) state.map.setView(bounds[0], 7);
   else state.map.setView([20, 4], 2);
+  $("#map-legend").classList.remove("population");
+  $("#population-scale").hidden = true;
   $("#legend-prefix").textContent = "Circle size =";
   $("#legend-metric").textContent = metricLabel();
   setTimeout(() => state.map.invalidateSize(), 80);
@@ -422,6 +443,8 @@ function updateCountryMap(records) {
   const selected = countries.find((country) => country.country === state.country);
   if (selected && state.countryLayers.has(selected.code)) state.map.fitBounds(state.countryLayers.get(selected.code).getBounds(), { padding: [35, 35], maxZoom: 5 });
   else state.map.setView([20, 4], 2);
+  $("#map-legend").classList.remove("population");
+  $("#population-scale").hidden = true;
   $("#legend-prefix").textContent = "Country colour =";
   $("#legend-metric").textContent = metricLabel();
   setTimeout(() => state.map.invalidateSize(), 80);
@@ -434,17 +457,11 @@ function updatePopulationMap(records) {
   if (state.populationLayer) state.map.removeLayer(state.populationLayer);
   const cells = aggregatePopulationCells(records);
   const byId = new Map(cells.map((cell) => [cell.hexId, cell]));
-  const reliableRates = cells.filter((cell) => cell.stable).map((cell) => cell.rate).sort((a, b) => a - b);
-  const availableRates = cells.map((cell) => cell.rate).filter((rate) => rate !== null);
-  const cap = reliableRates[Math.floor((reliableRates.length - 1) * .95)] || Math.max(...availableRates, 1);
-  const palette = ["#173128", "#22563f", "#347d54", "#5fbf71", "#d9ff57"];
   state.populationLayers = new Map();
   state.populationLayer = L.geoJSON({ type: "FeatureCollection", features: cells.map((cell) => cell.feature) }, {
     style: (feature) => {
       const cell = byId.get(feature.properties.hex_id);
-      const scale = cell.rate === null ? 0 : Math.min(cell.rate / cap, 1);
-      const colour = palette[Math.min(palette.length - 1, Math.floor(scale * palette.length))];
-      return { color: cell.stable ? "#75958a" : "#51645d", weight: cell.stable ? .8 : .55, dashArray: cell.stable ? null : "3 3", fillColor: colour, fillOpacity: cell.stable ? .2 + scale * .62 : .2 };
+      return { color: cell.stable ? "#75958a" : "#51645d", weight: cell.stable ? .8 : .55, dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .72 : .24 };
     },
     onEachFeature: (feature, layer) => {
       const cell = byId.get(feature.properties.hex_id);
@@ -459,6 +476,8 @@ function updatePopulationMap(records) {
   if ((state.league !== "all" || state.team !== "all" || state.country !== "all" || state.ageBand !== "all") && cells.length) {
     state.map.fitBounds(state.populationLayer.getBounds(), { padding: [35, 35], maxZoom: 6 });
   } else state.map.setView([20, 4], 2);
+  $("#map-legend").classList.add("population");
+  $("#population-scale").hidden = false;
   $("#legend-prefix").textContent = "Hex colour =";
   $("#legend-metric").textContent = "players per 1M people";
   setTimeout(() => state.map.invalidateSize(), 80);
