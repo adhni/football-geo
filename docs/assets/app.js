@@ -22,6 +22,8 @@ const state = {
   team: "all",
   country: "all",
   ageBand: "all",
+  ageChartMode: "distribution",
+  ageGroupMode: "league",
   placeQuery: "",
   mapMode: "city",
   years: new Set(),
@@ -77,6 +79,57 @@ function median(values) {
   if (!sorted.length) return null;
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function quantile(sortedValues, probability) {
+  if (!sortedValues.length) return null;
+  const index = (sortedValues.length - 1) * probability;
+  const lower = Math.floor(index);
+  const fraction = index - lower;
+  return sortedValues[lower + 1] === undefined
+    ? sortedValues[lower]
+    : sortedValues[lower] + fraction * (sortedValues[lower + 1] - sortedValues[lower]);
+}
+
+function densityBandwidth(values) {
+  if (values.length < 2) return 1.2;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const deviation = Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1));
+  const iqr = quantile(sorted, .75) - quantile(sorted, .25);
+  const robustSpread = iqr > 0 ? Math.min(deviation, iqr / 1.34) : deviation;
+  const bandwidth = .9 * (robustSpread || 1.5) * values.length ** (-.2);
+  return Math.max(.75, Math.min(2.5, bandwidth));
+}
+
+function ageComparisonGroups(records) {
+  if (state.ageGroupMode === "league") {
+    const leagues = state.league === "all" ? state.payload.meta.leagues : [state.league];
+    return leagues.map((league) => {
+      const players = aggregatePlayers(records.filter((row) => row.league === league)).filter((player) => player.age !== null);
+      return { name: league, detail: "League", players, ages: players.map((player) => player.age) };
+    }).filter((group) => group.players.length);
+  }
+  const clubs = [...new Set(records.map((row) => row.team))].sort((a, b) => a.localeCompare(b));
+  return clubs.map((club) => {
+    const clubRecords = records.filter((row) => row.team === club);
+    const players = aggregatePlayers(clubRecords).filter((player) => player.age !== null);
+    return { name: club, detail: clubRecords[0]?.league || "Club", players, ages: players.map((player) => player.age) };
+  }).filter((group) => group.players.length)
+    .sort((a, b) => median(a.ages) - median(b.ages) || a.name.localeCompare(b.name));
+}
+
+function densitySeries(ages, minimum, maximum) {
+  const bandwidth = densityBandwidth(ages);
+  const points = Array.from({ length: 81 }, (_, index) => {
+    const age = minimum + (maximum - minimum) * index / 80;
+    const density = ages.reduce((sum, value) => {
+      const scaled = (age - value) / bandwidth;
+      return sum + Math.exp(-.5 * scaled ** 2) / Math.sqrt(2 * Math.PI);
+    }, 0) / (ages.length * bandwidth);
+    return { age, density };
+  });
+  return { bandwidth, points };
 }
 
 function prepareCountryMetadata() {
@@ -400,6 +453,47 @@ function updateLeagueComparison() {
   }).join("");
 }
 
+function renderAgeBandChart(groups) {
+  const rows = groups.map((group) => {
+    const counts = AGE_BANDS.map((band) => group.players.filter((player) => matchesAgeBand(player.age, band.id)).length);
+    const segments = AGE_BANDS.map((band, index) => {
+      const percentage = group.players.length ? counts[index] / group.players.length * 100 : 0;
+      const muted = state.ageBand !== "all" && state.ageBand !== band.id ? " muted" : "";
+      return `<i class="age-${index}${muted}" style="width:${percentage}%" title="${escapeHtml(band.label)}: ${counts[index]} players (${percentage.toFixed(1)}%)"></i>`;
+    }).join("");
+    return `<div class="age-league-row"><div><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(group.detail)} · ${group.players.length} players · median ${median(group.ages)?.toFixed(1) ?? "—"}</small></div><div class="age-stack">${segments}</div></div>`;
+  }).join("");
+  return `<div class="age-legend">${AGE_BANDS.map((band, index) => `<span><i class="age-${index}"></i>${escapeHtml(band.label)}</span>`).join("")}</div>${rows}`;
+}
+
+function renderAgeDensityChart(groups) {
+  const allAges = groups.flatMap((group) => group.ages);
+  if (!allAges.length) return { html: `<p class="age-chart-empty">No age data matches this selection.</p>`, bandwidths: [] };
+  const minimum = Math.floor(Math.min(...allAges) - 1);
+  const maximum = Math.ceil(Math.max(...allAges) + 1);
+  const width = 800;
+  const height = 66;
+  const baseline = 59;
+  const series = groups.map((group) => ({ ...group, density: densitySeries(group.ages, minimum, maximum) }));
+  const peak = Math.max(...series.flatMap((group) => group.density.points.map((point) => point.density)), .001);
+  const x = (age) => (age - minimum) / (maximum - minimum) * width;
+  const y = (density) => baseline - density / peak * 50;
+  const selectedBand = AGE_BANDS.find((band) => band.id === state.ageBand);
+  const highlight = selectedBand
+    ? `<rect class="density-highlight" x="${Math.max(0, x(selectedBand.min)).toFixed(1)}" y="4" width="${Math.max(0, Math.min(width, x(selectedBand.max + 1)) - Math.max(0, x(selectedBand.min))).toFixed(1)}" height="${baseline - 4}" />`
+    : "";
+  const ticks = [];
+  for (let age = Math.ceil(minimum / 5) * 5; age <= maximum; age += 5) ticks.push(age);
+  const axis = `<div class="density-axis"><span></span><div>${ticks.map((age) => `<i style="left:${x(age).toFixed(1) / width * 100}%"><b>${age}</b></i>`).join("")}</div></div>`;
+  const rows = series.map((group) => {
+    const line = group.density.points.map((point, index) => `${index ? "L" : "M"}${x(point.age).toFixed(1)},${y(point.density).toFixed(1)}`).join(" ");
+    const area = `M0,${baseline} ${line.replace(/^M/, "L")} L${width},${baseline} Z`;
+    const medianX = x(median(group.ages));
+    return `<div class="age-density-row"><div><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(group.detail)} · ${group.players.length} players · median ${median(group.ages)?.toFixed(1) ?? "—"} · h ${group.density.bandwidth.toFixed(1)}</small></div><svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Age distribution for ${escapeHtml(group.name)}">${highlight}<line class="density-baseline" x1="0" y1="${baseline}" x2="${width}" y2="${baseline}"/><path class="density-area" d="${area}"/><path class="density-line" d="${line}"/><line class="density-median" x1="${medianX.toFixed(1)}" y1="8" x2="${medianX.toFixed(1)}" y2="${baseline}"/></svg></div>`;
+  }).join("");
+  return { html: `${axis}${rows}`, bandwidths: series.map((group) => group.density.bandwidth) };
+}
+
 function updateAgeView() {
   const records = filteredRecords({ ignoreAge: true });
   const players = aggregatePlayers(records).filter((player) => player.age !== null);
@@ -411,17 +505,21 @@ function updateAgeView() {
     <article><span>Age 30+</span><strong>${formatNumber.format(ages.filter((age) => age >= 30).length)}</strong><small>${ages.length ? (ages.filter((age) => age >= 30).length / ages.length * 100).toFixed(1) : 0}% of players</small></article>
     <article><span>Exact ages</span><strong>${players.length ? (exact / players.length * 100).toFixed(1) : 0}%</strong><small>remaining values approximate</small></article>`;
 
-  const leagueRows = state.payload.meta.leagues.map((league) => {
-    const leaguePlayers = aggregatePlayers(records.filter((row) => row.league === league)).filter((player) => player.age !== null);
-    const counts = AGE_BANDS.map((band) => leaguePlayers.filter((player) => matchesAgeBand(player.age, band.id)).length);
-    const segments = AGE_BANDS.map((band, index) => {
-      const percentage = leaguePlayers.length ? counts[index] / leaguePlayers.length * 100 : 0;
-      const muted = state.ageBand !== "all" && state.ageBand !== band.id ? " muted" : "";
-      return `<i class="age-${index}${muted}" style="width:${percentage}%" title="${escapeHtml(band.label)}: ${counts[index]} players"></i>`;
-    }).join("");
-    return `<div class="age-league-row"><div><strong>${escapeHtml(league)}</strong><small>${leaguePlayers.length} players · median ${median(leaguePlayers.map((player) => player.age))?.toFixed(1) ?? "—"}</small></div><div class="age-stack">${segments}</div></div>`;
-  }).join("");
-  $("#age-chart").innerHTML = `<div class="age-legend">${AGE_BANDS.map((band, index) => `<span><i class="age-${index}"></i>${escapeHtml(band.label)}</span>`).join("")}</div>${leagueRows}`;
+  const groups = ageComparisonGroups(records);
+  const level = state.ageGroupMode === "league" ? "league" : "club";
+  $("#age-chart-kicker").textContent = `${level === "league" ? "League" : "Club"} distribution`;
+  $("#age-chart-title").textContent = `${state.ageChartMode === "distribution" ? "Age distribution" : "Age bands"} by ${level}`;
+  if (state.ageChartMode === "distribution") {
+    const density = renderAgeDensityChart(groups);
+    $("#age-chart").innerHTML = density.html;
+    const low = density.bandwidths.length ? Math.min(...density.bandwidths).toFixed(1) : "—";
+    const high = density.bandwidths.length ? Math.max(...density.bandwidths).toFixed(1) : "—";
+    $("#age-chart-meta").textContent = `Kernel density estimate · automatic Silverman bandwidth ${low}${low === high ? "" : `–${high}`} years · curves share one scale${level === "club" ? " · youngest median first" : ""}`;
+  } else {
+    $("#age-chart").innerHTML = groups.length ? renderAgeBandChart(groups) : `<p class="age-chart-empty">No age data matches this selection.</p>`;
+    $("#age-chart-meta").textContent = `Each row totals 100% of players with an available age${level === "club" ? " · youngest median first" : ""}`;
+  }
+  $("#age-chart").classList.toggle("club-comparison", state.ageGroupMode === "club");
 
   const ageLabel = (player) => `${player.ageExact ? "" : "≈"}${player.age}`;
   const playerRow = (player) => `<li><span><strong>${escapeHtml(player.name)}</strong><small>${escapeHtml([...player.teams].sort().join(", "))}</small></span><b>${ageLabel(player)}</b></li>`;
@@ -580,6 +678,26 @@ function bindControls() {
   });
   $("#team-filter").addEventListener("change", (event) => { state.team = event.target.value; render(); });
   $("#age-filter").addEventListener("change", (event) => { state.ageBand = event.target.value; render(); });
+  $("#age-chart-mode").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-age-chart]");
+    if (!button) return;
+    state.ageChartMode = button.dataset.ageChart;
+    $$("#age-chart-mode button").forEach((item) => {
+      item.classList.toggle("active", item === button);
+      item.setAttribute("aria-pressed", String(item === button));
+    });
+    updateAgeView();
+  });
+  $("#age-group-mode").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-age-group]");
+    if (!button) return;
+    state.ageGroupMode = button.dataset.ageGroup;
+    $$("#age-group-mode button").forEach((item) => {
+      item.classList.toggle("active", item === button);
+      item.setAttribute("aria-pressed", String(item === button));
+    });
+    updateAgeView();
+  });
   $("#country-filter").addEventListener("change", (event) => { state.country = event.target.value; render(); });
   $("#place-search").addEventListener("input", (event) => { state.placeQuery = event.target.value; renderMapExplorer(); });
   $("#clear-place-search").addEventListener("click", () => {

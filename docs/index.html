@@ -147,7 +147,15 @@
           <p id="age-scope">Age measured at 30 June 2026</p>
         </div>
         <div class="age-overview" id="age-overview"></div>
-        <div class="age-chart-card"><div class="card-heading"><div><span>League distribution</span><h3>Age bands by league</h3></div><span class="card-count">Season-end age</span></div><div id="age-chart"></div></div>
+        <div class="age-chart-card">
+          <div class="card-heading age-chart-heading"><div><span id="age-chart-kicker">League distribution</span><h3 id="age-chart-title">Age distribution by league</h3></div><span class="card-count">Season-end age</span></div>
+          <div class="age-chart-toolbar">
+            <div><span>View</span><div class="segmented" id="age-chart-mode" role="group" aria-label="Age chart view"><button class="active" data-age-chart="distribution" aria-pressed="true">Distribution</button><button data-age-chart="bands" aria-pressed="false">Age bands</button></div></div>
+            <div><span>Compare</span><div class="segmented" id="age-group-mode" role="group" aria-label="Age comparison level"><button class="active" data-age-group="league" aria-pressed="true">Leagues</button><button data-age-group="club" aria-pressed="false">Clubs</button></div></div>
+          </div>
+          <p class="age-chart-meta" id="age-chart-meta"></p>
+          <div class="age-chart-body" id="age-chart"></div>
+        </div>
         <div class="age-extremes"><article><div class="card-heading"><div><span>Emerging generation</span><h3>Youngest players</h3></div></div><ol id="youngest-players"></ol></article><article><div class="card-heading"><div><span>Veteran generation</span><h3>Oldest players</h3></div></div><ol id="oldest-players"></ol></article></div>
         <p class="age-note">Exact dates are used where DOB validation succeeded. A “≈” symbol marks ages estimated from birth year only.</p>
       </section>

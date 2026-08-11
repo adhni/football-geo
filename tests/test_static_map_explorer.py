@@ -27,6 +27,8 @@ def test_age_profile_controls_and_outputs_are_wired():
         "age-filter",
         "age-overview",
         "age-chart",
+        "age-chart-mode",
+        "age-group-mode",
         "youngest-players",
         "oldest-players",
         "profile-age",
@@ -35,3 +37,5 @@ def test_age_profile_controls_and_outputs_are_wired():
         assert f'$("#{element_id}")' in javascript
     assert 'new Date("2026-06-30T00:00:00Z")' in javascript
     assert 'exact: false' in javascript
+    assert "densityBandwidth" in javascript
+    assert "Silverman bandwidth" in javascript
