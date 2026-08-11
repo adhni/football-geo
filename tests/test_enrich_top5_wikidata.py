@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.ftg.enrich_top5_wikidata import choose_matches, sparql_query
+from src.ftg.enrich_top5_wikidata import choose_matches, choose_search_match, sparql_query
 
 
 def test_sparql_query_and_match_selection():
@@ -27,3 +27,26 @@ def test_sparql_query_and_match_selection():
     assert matches["p1"]["birth_place_qid"] == "Q10"
     assert matches["p2"]["resolution_status"] == "name_birth_year_not_found"
     assert matches["p3"]["resolution_status"] == "birth_year_missing"
+
+
+def test_search_match_requires_birth_year_and_birthplace():
+    results = [
+        {"id": "Q1", "description": "English association football player"},
+        {"id": "Q2", "description": "American actor"},
+    ]
+    entities = {
+        "Q1": {
+            "claims": {
+                "P569": [{"mainsnak": {"snaktype": "value", "datavalue": {"value": {"time": "+2000-02-03T00:00:00Z"}}}}],
+                "P19": [{"mainsnak": {"snaktype": "value", "datavalue": {"value": {"id": "Q10"}}}}],
+            }
+        },
+        "Q2": {
+            "claims": {
+                "P569": [{"mainsnak": {"snaktype": "value", "datavalue": {"value": {"time": "+1990-02-03T00:00:00Z"}}}}],
+                "P19": [{"mainsnak": {"snaktype": "value", "datavalue": {"value": {"id": "Q20"}}}}],
+            }
+        },
+    }
+    assert choose_search_match(results, entities, 2000)["wikidata_qid"] == "Q1"
+    assert choose_search_match(results, entities, 2001) is None

@@ -4,12 +4,15 @@ const state = {
   payload: null,
   league: "all",
   team: "all",
+  country: "all",
+  placeQuery: "",
   years: new Set(),
   metric: "starts",
   view: "map",
   search: "",
   map: null,
   markerLayer: null,
+  placeMarkers: new Map(),
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -33,6 +36,7 @@ function filteredRecords({ ignoreTeam = false } = {}) {
   return state.payload.records.filter((row) =>
     state.years.has(row.year)
     && (state.league === "all" || row.league === state.league)
+    && (state.country === "all" || row.country === state.country)
     && (ignoreTeam || state.team === "all" || row.team === state.team)
   );
 }
@@ -42,17 +46,23 @@ function aggregatePlaces(records) {
   records.filter((row) => row.mapped).forEach((row) => {
     const key = `${row.lat}|${row.lon}|${row.place ?? "Unknown"}`;
     if (!places.has(key)) {
-      places.set(key, { place: row.place || "Unnamed place", country: row.country || "Country unavailable", lat: row.lat, lon: row.lon, starts: 0, players: new Set(), starters: new Set(), teams: new Set() });
+      places.set(key, { place: row.place || "Unnamed place", country: row.country || "Country unavailable", lat: row.lat, lon: row.lon, starts: 0, playerRows: new Map(), starters: new Set(), teams: new Set() });
     }
     const place = places.get(key);
     place.starts += row.starts;
-    place.players.add(row.id);
+    if (!place.playerRows.has(row.id)) place.playerRows.set(row.id, { name: row.name, starts: 0, teams: new Set() });
+    const player = place.playerRows.get(row.id);
+    player.starts += row.starts;
+    player.teams.add(row.team);
     if (row.starts > 0) place.starters.add(row.id);
     place.teams.add(row.team);
   });
   return [...places.values()].map((place) => ({
     ...place,
-    players: place.players.size,
+    players: place.playerRows.size,
+    playerList: [...place.playerRows.values()]
+      .map((player) => ({ ...player, teams: [...player.teams].sort() }))
+      .sort((a, b) => b.starts - a.starts || a.name.localeCompare(b.name)),
     starters: place.starters.size,
     teams: [...place.teams].sort(),
   }));
@@ -124,12 +134,16 @@ function initMap() {
     subdomains: "abcd",
     attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
   }).addTo(state.map);
-  state.markerLayer = L.layerGroup().addTo(state.map);
+  state.markerLayer = L.markerClusterGroup
+    ? L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 42, showCoverageOnHover: false })
+    : L.layerGroup();
+  state.markerLayer.addTo(state.map);
 }
 
 function updateMap(places) {
   if (!state.map) initMap();
   state.markerLayer.clearLayers();
+  state.placeMarkers = new Map();
   const maxValue = Math.max(...places.map(selectedMetric), 1);
   const bounds = [];
   places.forEach((place) => {
@@ -143,11 +157,16 @@ function updateMap(places) {
       fillOpacity: .26 + scale * .58,
     });
     marker.bindTooltip(`<strong>${escapeHtml(place.place)}</strong><br><span>${escapeHtml(place.country)}</span><br>${formatNumber.format(value)} ${escapeHtml(metricLabel())}`, { direction: "top", offset: [0, -6] });
-    marker.bindPopup(`<strong>${escapeHtml(place.place)}, ${escapeHtml(place.country)}</strong><br>${formatNumber.format(place.starts)} starts · ${place.starters} starters · ${place.players} players<br><small>${escapeHtml(place.teams.join(", "))}</small>`);
+    const visiblePlayers = place.playerList.slice(0, 12);
+    const playerRows = visiblePlayers.map((player) => `<li><span>${escapeHtml(player.name)}</span><small>${escapeHtml(player.teams.join(", "))} · ${formatNumber.format(player.starts)} starts</small></li>`).join("");
+    const overflow = place.playerList.length > visiblePlayers.length ? `<p class="popup-overflow">+${place.playerList.length - visiblePlayers.length} more players</p>` : "";
+    marker.bindPopup(`<div class="place-popup"><strong>${escapeHtml(place.place)}, ${escapeHtml(place.country)}</strong><p>${formatNumber.format(place.starts)} starts · ${place.players} players</p><ul>${playerRows}</ul>${overflow}</div>`, { maxWidth: 340, minWidth: 250 });
     marker.addTo(state.markerLayer);
+    state.placeMarkers.set(`${place.lat}|${place.lon}`, marker);
     bounds.push([place.lat, place.lon]);
   });
-  if (state.team !== "all" && bounds.length > 1) state.map.fitBounds(bounds, { padding: [45, 45], maxZoom: 5 });
+  if ((state.team !== "all" || state.country !== "all" || state.placeQuery) && bounds.length > 1) state.map.fitBounds(bounds, { padding: [45, 45], maxZoom: 6 });
+  else if (bounds.length === 1) state.map.setView(bounds[0], 7);
   else state.map.setView([20, 4], 2);
   $("#legend-metric").textContent = metricLabel();
   setTimeout(() => state.map.invalidateSize(), 80);
@@ -160,11 +179,19 @@ function updateRanking(places) {
   $("#ranking-title").textContent = `By ${metricLabel()}`;
   $("#place-count").textContent = `${formatNumber.format(places.length)} places`;
   $("#place-ranking").innerHTML = top.map((place, index) => `
-    <li class="place-row" style="--bar:${(selectedMetric(place) / max) * 100}%">
+    <li class="place-row" style="--bar:${(selectedMetric(place) / max) * 100}%"><button class="place-jump" data-lat="${place.lat}" data-lon="${place.lon}" aria-label="Zoom to ${escapeHtml(place.place)}">
       <span class="place-rank">${String(index + 1).padStart(2, "0")}</span>
       <span class="place-name"><strong>${escapeHtml(place.place)}</strong><small>${escapeHtml(place.country)}</small></span>
       <span class="place-value">${formatNumber.format(selectedMetric(place))}</span>
-    </li>`).join("") || `<li class="place-row"><span class="place-name"><strong>No mapped records</strong></span></li>`;
+    </button></li>`).join("") || `<li class="place-row"><span class="place-name"><strong>No mapped records</strong></span></li>`;
+  $$(".place-jump").forEach((button) => button.addEventListener("click", () => {
+    const lat = Number(button.dataset.lat);
+    const lon = Number(button.dataset.lon);
+    state.map.setView([lat, lon], 8);
+    const marker = state.placeMarkers.get(`${lat}|${lon}`);
+    if (marker && state.markerLayer.zoomToShowLayer) state.markerLayer.zoomToShowLayer(marker, () => marker.openPopup());
+    else if (marker) setTimeout(() => marker.openPopup(), 250);
+  }));
 }
 
 function updateTeamChart() {
@@ -210,13 +237,29 @@ function updateQuality() {
 function updateFilterSummary() {
   const league = state.league === "all" ? "All five leagues" : state.league;
   const team = state.team === "all" ? "All clubs" : state.team;
-  $("#filter-summary").textContent = `${league} · ${team} · 2025–26`;
+  const country = state.country === "all" ? "All birth countries" : `Born in ${state.country}`;
+  $("#filter-summary").textContent = `${league} · ${team} · ${country}`;
+}
+
+function filteredPlaces() {
+  const query = state.placeQuery.trim().toLowerCase();
+  return aggregatePlaces(filteredRecords()).filter((place) =>
+    !query || `${place.place} ${place.country}`.toLowerCase().includes(query)
+  );
+}
+
+function renderMapExplorer() {
+  const places = filteredPlaces();
+  updateMap(places);
+  updateRanking(places);
 }
 
 function render() {
   const records = filteredRecords();
-  const places = aggregatePlaces(records);
-  updateKpis(records, places);
+  const allPlaces = aggregatePlaces(records);
+  const query = state.placeQuery.trim().toLowerCase();
+  const places = allPlaces.filter((place) => !query || `${place.place} ${place.country}`.toLowerCase().includes(query));
+  updateKpis(records, allPlaces);
   updateFilterSummary();
   updateMap(places);
   updateRanking(places);
@@ -241,6 +284,13 @@ function bindControls() {
     render();
   });
   $("#team-filter").addEventListener("change", (event) => { state.team = event.target.value; render(); });
+  $("#country-filter").addEventListener("change", (event) => { state.country = event.target.value; render(); });
+  $("#place-search").addEventListener("input", (event) => { state.placeQuery = event.target.value; renderMapExplorer(); });
+  $("#clear-place-search").addEventListener("click", () => {
+    state.placeQuery = "";
+    $("#place-search").value = "";
+    renderMapExplorer();
+  });
   $("#metric-control").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-metric]");
     if (!button) return;
@@ -251,11 +301,15 @@ function bindControls() {
   $("#reset-filters").addEventListener("click", () => {
     state.league = "all";
     state.team = "all";
+    state.country = "all";
+    state.placeQuery = "";
     state.years = new Set(state.payload.meta.years);
     state.metric = "starts";
     $("#league-filter").value = "all";
     populateTeamOptions();
     $("#team-filter").value = "all";
+    $("#country-filter").value = "all";
+    $("#place-search").value = "";
     $$("#metric-control button").forEach((button) => button.classList.toggle("active", button.dataset.metric === "starts"));
     render();
   });
@@ -275,6 +329,11 @@ function populateControls() {
   const { meta } = state.payload;
   state.years = new Set(meta.years);
   $("#league-filter").insertAdjacentHTML("beforeend", meta.leagues.map((league) => `<option value="${escapeHtml(league)}">${escapeHtml(league)}</option>`).join(""));
+  const mapped = state.payload.records.filter((row) => row.mapped);
+  const countries = [...new Set(mapped.map((row) => row.country).filter(Boolean))].sort();
+  const places = [...new Set(mapped.map((row) => row.place).filter(Boolean))].sort();
+  $("#country-filter").insertAdjacentHTML("beforeend", countries.map((country) => `<option value="${escapeHtml(country)}">${escapeHtml(country)}</option>`).join(""));
+  $("#place-options").innerHTML = places.map((place) => `<option value="${escapeHtml(place)}"></option>`).join("");
   populateTeamOptions();
 }
 

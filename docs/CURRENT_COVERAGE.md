@@ -1,6 +1,26 @@
 # Current data coverage
 
-## Available locally
+## Live GitHub Pages edition
+
+The published dashboard covers the completed 2025–26 Premier League, La Liga,
+Bundesliga, Serie A and Ligue 1 seasons.
+
+- Clubs: 96
+- Club-player rows: 2,839
+- Unique players with at least one league appearance: 2,690
+- Starts: 38,544
+- Appearance rows: 54,335
+- Lineup QA: every club has exactly `11 × league matches` starts
+- Mapped players: 2,423 of 2,690 (90.1%)
+- Starts mapped to POB: 37,015 of 38,544 (96.0%)
+- Unique mapped birthplace entities: 1,488
+- Unresolved POB identities: 267, retained in the QA queue
+
+Identities are resolved through exact Wikidata labels or Wikipedia title
+redirects and must match the source birth year. Ambiguous matches are not
+published.
+
+## World Cup fallback available locally
 
 The current processed dataset uses the Fjelstul World Cup Database pinned at commit `35a8667f518b07469182ae16d35574dd0e7a00fb`.
 

@@ -14,6 +14,8 @@ import requests
 from .enrich_wikidata import (
     API,
     _fetch_entities,
+    _fetch_title_qids,
+    claim_date,
     claim_coordinates,
     claim_entity,
     entity_label,
@@ -79,6 +81,118 @@ def choose_matches(
     return output
 
 
+def choose_search_match(search_results: list[dict], entities: dict[str, dict], birth_year: int) -> dict | None:
+    matches: dict[str, dict] = {}
+    descriptions = {row.get("id"): str(row.get("description", "")).casefold() for row in search_results}
+    for result in search_results:
+        qid = result.get("id")
+        entity = entities.get(qid, {})
+        dob = claim_date(entity)
+        place_qid = claim_entity(entity, "P19")
+        if not qid or not dob or int(dob[:4]) != int(birth_year) or not place_qid:
+            continue
+        matches[qid] = {
+            "wikidata_qid": qid,
+            "wikidata_dob": dob,
+            "birth_place_qid": place_qid,
+            "resolution_status": "resolved",
+        }
+    if len(matches) == 1:
+        return next(iter(matches.values()))
+    football_matches = [
+        match for qid, match in matches.items()
+        if "football" in descriptions.get(qid, "") or "soccer" in descriptions.get(qid, "")
+    ]
+    return football_matches[0] if len(football_matches) == 1 else None
+
+
+def _search_fallback(
+    client: CachedHttpClient,
+    players: pd.DataFrame,
+    *,
+    force: bool,
+) -> dict[str, dict]:
+    search_rows: dict[str, list[dict]] = {}
+    candidate_qids: set[str] = set()
+    eligible = players[players["birth_year"].notna()]
+    for number, row in enumerate(eligible.itertuples(index=False), start=1):
+        params = {
+            "action": "wbsearchentities",
+            "search": row.player_name,
+            "language": "en",
+            "uselang": "en",
+            "type": "item",
+            "limit": "10",
+            "format": "json",
+        }
+        digest = hashlib.sha1(f"{row.player_name}|{int(row.birth_year)}".encode("utf-8")).hexdigest()[:20]
+        response = client.fetch_text(
+            f"{API}?{urlencode(params)}",
+            CACHE / "entity_search" / f"{digest}.json",
+            force=force,
+        )
+        results = json.loads(response.text).get("search", [])
+        search_rows[row.player_id] = results
+        candidate_qids.update(result["id"] for result in results if result.get("id"))
+        if number % 25 == 0 or number == len(eligible):
+            print(f"Wikidata search fallback {number}/{len(eligible)}", flush=True)
+
+    entities = _fetch_entities(
+        client,
+        sorted(candidate_qids),
+        "top5_search_candidate_batches",
+        batch_size=30,
+        force=force,
+    )
+    output: dict[str, dict] = {}
+    for row in eligible.itertuples(index=False):
+        match = choose_search_match(search_rows.get(row.player_id, []), entities, int(row.birth_year))
+        if match:
+            output[row.player_id] = match
+    return output
+
+
+def _wikipedia_title_fallback(
+    client: CachedHttpClient,
+    players: pd.DataFrame,
+    *,
+    force: bool,
+) -> dict[str, dict]:
+    eligible = players[players["birth_year"].notna()].copy()
+    titles_by_player: dict[str, list[str]] = {}
+    all_titles: list[str] = []
+    for row in eligible.itertuples(index=False):
+        titles = [
+            row.player_name,
+            f"{row.player_name} (footballer)",
+            f"{row.player_name} (footballer, born {int(row.birth_year)})",
+        ]
+        titles_by_player[row.player_id] = titles
+        all_titles.extend(titles)
+    qids_by_title = _fetch_title_qids(client, all_titles, batch_size=50, force=force)
+    candidate_qids = {qid for qid in qids_by_title.values() if qid}
+    entities = _fetch_entities(
+        client,
+        sorted(candidate_qids),
+        "top5_wikipedia_candidate_batches",
+        batch_size=30,
+        force=force,
+    )
+    output: dict[str, dict] = {}
+    for row in eligible.itertuples(index=False):
+        qids = {
+            qids_by_title.get(title)
+            for title in titles_by_player[row.player_id]
+            if qids_by_title.get(title)
+        }
+        result_rows = [{"id": qid, "description": "association football player"} for qid in qids]
+        match = choose_search_match(result_rows, entities, int(row.birth_year))
+        if match:
+            output[row.player_id] = match
+    print(f"Wikipedia title fallback resolved {len(output):,}/{len(eligible):,}", flush=True)
+    return output
+
+
 def _reuse_existing(profiles: pd.DataFrame, path: Path | None) -> tuple[pd.DataFrame, set[str]]:
     profiles = profiles.copy()
     profiles["_normal_name"] = profiles["player_name"].map(_normal_name)
@@ -111,6 +225,8 @@ def run(
     batch_size: int = 50,
     delay: float = 0.25,
     force: bool = False,
+    wikipedia_fallback: bool = True,
+    search_fallback: bool = False,
 ) -> pd.DataFrame:
     source = pd.read_parquet(players_path)
     if source["player_id"].duplicated().any():
@@ -141,6 +257,22 @@ def run(
         for column, value in match.items():
             players.loc[index, column] = value
         players.loc[index, "resolution_method"] = "exact_english_label_and_birth_year"
+
+    if wikipedia_fallback:
+        unresolved = players[~players["resolution_status"].eq("resolved")].copy()
+        wikipedia_matches = _wikipedia_title_fallback(client, unresolved, force=force)
+        for index, row in players[players["player_id"].isin(wikipedia_matches)].iterrows():
+            for column, value in wikipedia_matches[row["player_id"]].items():
+                players.loc[index, column] = value
+            players.loc[index, "resolution_method"] = "wikipedia_title_and_birth_year"
+
+    if search_fallback:
+        unresolved = players[~players["resolution_status"].eq("resolved")].copy()
+        fallback_matches = _search_fallback(client, unresolved, force=force)
+        for index, row in players[players["player_id"].isin(fallback_matches)].iterrows():
+            for column, value in fallback_matches[row["player_id"]].items():
+                players.loc[index, column] = value
+            players.loc[index, "resolution_method"] = "wikidata_search_and_birth_year"
 
     accepted = players["resolution_status"].eq("resolved")
     place_qids = players.loc[accepted & players["birth_place_qid"].notna(), "birth_place_qid"].astype(str).tolist()
@@ -189,8 +321,18 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=50)
     parser.add_argument("--delay", type=float, default=0.25)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--no-wikipedia-fallback", action="store_true")
+    parser.add_argument("--search-fallback", action="store_true")
     args = parser.parse_args()
-    run(args.players, args.output, batch_size=args.batch_size, delay=args.delay, force=args.force)
+    run(
+        args.players,
+        args.output,
+        batch_size=args.batch_size,
+        delay=args.delay,
+        force=args.force,
+        wikipedia_fallback=not args.no_wikipedia_fallback,
+        search_fallback=args.search_fallback,
+    )
 
 
 if __name__ == "__main__":

@@ -10,6 +10,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     <link rel="stylesheet" href="./assets/styles.css" />
   </head>
   <body>
@@ -92,6 +94,11 @@
           <div><p class="eyebrow">Geographic distribution</p><h2 id="map-heading">Talent birthplace map</h2></div>
           <p id="filter-summary">All five leagues · All clubs · 2025–26</p>
         </div>
+        <div class="map-explorer" aria-label="Map exploration controls">
+          <label><span>Birth country</span><select id="country-filter"><option value="all">All birth countries</option></select></label>
+          <label class="place-search-control"><span>Find a birthplace</span><input id="place-search" list="place-options" type="search" placeholder="Try London, Paris, Dakar…" autocomplete="off" /><datalist id="place-options"></datalist></label>
+          <button id="clear-place-search" type="button">Clear place</button>
+        </div>
         <div class="map-layout">
           <div class="map-card">
             <div id="talent-map" aria-label="Interactive map of player birthplaces"></div>
@@ -149,7 +156,7 @@
           <article class="quality-card methodology-card">
             <span class="card-label">Resolution method</span>
             <h3>Identity first.<br />Geography second.</h3>
-            <ol><li>Match the exact player label and birth year.</li><li>Reject ambiguous Wikidata identities.</li><li>Resolve the birthplace entity and coordinates.</li><li>Queue every miss for manual QA.</li></ol>
+            <ol><li>Match an exact label or Wikipedia title redirect.</li><li>Require the player’s source birth year.</li><li>Resolve the birthplace entity and coordinates.</li><li>Queue every ambiguous match for manual QA.</li></ol>
           </article>
         </div>
         <div class="quality-lower">
@@ -176,6 +183,7 @@
 
     <div class="error-toast" id="error-toast" role="alert"></div>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="./assets/app.js"></script>
   </body>
 </html>
