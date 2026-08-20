@@ -96,5 +96,7 @@ def test_friendlier_dashboard_structure_and_accessibility_are_wired():
         assert behaviour in javascript
 
     assert 'class="player-row" data-player-id=' not in javascript
+    assert 'marker.on("popupopen"' not in javascript
+    assert 'event.target.closest(".popup-player[data-player-id]")' in javascript
     assert ".secondary-filters, .more-filters-grid { left: 0; right: auto; }" in stylesheet
     assert "thead { display: none; }" not in stylesheet

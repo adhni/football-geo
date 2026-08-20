@@ -474,15 +474,6 @@ function updateCityMap(places) {
     const playerRows = visiblePlayers.map((player) => `<li><button type="button" class="popup-player" data-player-id="${escapeHtml(player.id)}"><span>${escapeHtml(player.name)}</span><small>${escapeHtml(player.teams.join(", "))} · ${formatNumber.format(player.starts)} starts</small></button></li>`).join("");
     const overflow = place.playerList.length > visiblePlayers.length ? `<p class="popup-overflow">+${place.playerList.length - visiblePlayers.length} more players</p>` : "";
     marker.bindPopup(`<div class="place-popup"><strong>${escapeHtml(place.place)}, ${escapeHtml(place.country)}</strong><p>${formatNumber.format(place.starts)} starts · ${place.players} players</p><ul>${playerRows}</ul>${overflow}</div>`, { maxWidth: 340, minWidth: 250 });
-    marker.on("popupopen", (event) => {
-      event.popup.getElement()?.querySelectorAll(".popup-player[data-player-id]").forEach((button) => {
-        button.addEventListener("click", (clickEvent) => {
-          clickEvent.preventDefault();
-          clickEvent.stopPropagation();
-          openPlayerProfile(button.dataset.playerId, button);
-        });
-      });
-    });
     marker.addTo(state.markerLayer);
     state.placeMarkers.set(`${place.lat}|${place.lon}`, marker);
     bounds.push([place.lat, place.lon]);
