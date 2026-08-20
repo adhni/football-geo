@@ -6,6 +6,7 @@
     <meta name="description" content="Explore the birthplaces of every 2025–26 Big Five European league player." />
     <meta name="theme-color" content="#07110e" />
     <title>Football Talent Geography</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -15,6 +16,8 @@
     <link rel="stylesheet" href="./assets/styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+
     <div class="loading-screen" id="loading-screen" role="status" aria-live="polite">
       <div class="loading-mark"><span></span><span></span><span></span></div>
       <p>Building the talent map</p>
@@ -26,28 +29,24 @@
         <span>Football <b>Geo</b></span>
       </a>
       <div class="header-meta">
-        <span class="status-pill"><i></i> Data live</span>
+        <span class="status-pill"><i></i> 2025–26 snapshot</span>
         <a href="https://github.com/adhni/football-geo" target="_blank" rel="noreferrer">View source ↗</a>
       </div>
     </header>
 
-    <main>
+    <main id="main-content" tabindex="-1">
       <section class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Birthplace intelligence · Big Five leagues · 2025–26</p>
-          <h1>Where football<br /><em>talent begins.</em></h1>
-          <p class="hero-intro">Trace the birthplaces of every player who appeared in Europe’s five leading domestic leagues last season—from global patterns to individual careers.</p>
+          <p class="eyebrow">Big Five leagues · 2025–26</p>
+          <h1>Explore where<br /><em>players were born.</em></h1>
+          <p class="hero-intro">See the birthplace patterns behind Europe’s five leading domestic leagues, then explore individual players and clubs.</p>
+          <p class="hero-statline"><strong>2,690 players</strong><span>96 clubs</span><span>Five leagues</span></p>
         </div>
         <aside class="hero-note">
-          <span class="note-index">01 / SCOPE</span>
-          <p>One completed season. Five leagues, 96 clubs and 2,690 players. Every accepted birthplace matched using the player’s name and birth year.</p>
+          <span class="note-index">About this snapshot</span>
+          <p>Includes players with at least one domestic-league appearance. Birthplace is not the same as where a player grew up or developed.</p>
           <a href="#methodology" data-view-link="quality">Read the methodology <span>→</span></a>
         </aside>
-      </section>
-
-      <section class="scope-banner" aria-label="Dataset scope notice">
-        <span>Important scope</span>
-        <p>This edition covers players with at least one domestic-league appearance in the 2025–26 Premier League, La Liga, Bundesliga, Serie A or Ligue 1.</p>
       </section>
 
       <section class="controls" aria-label="Dashboard filters">
@@ -63,104 +62,116 @@
             <select id="team-filter"><option value="all">All 96 clubs</option></select>
           </div>
         </div>
-        <div class="control-group age-control">
-          <label for="age-filter">Age at season end</label>
-          <div class="select-wrap"><select id="age-filter"><option value="all">All ages</option><option value="u21">Under 21</option><option value="21-24">21–24</option><option value="25-29">25–29</option><option value="30-34">30–34</option><option value="35plus">35+</option></select></div>
-        </div>
-        <div class="control-group metric-control">
-          <label>Measure</label>
-          <div class="segmented" id="metric-control" role="group" aria-label="Map measure">
-            <button class="active" data-metric="starts">Starts</button>
-            <button data-metric="starters">Starters</button>
-            <button data-metric="players">Players</button>
+        <details class="more-filters" id="more-filters">
+          <summary>More filters <span id="more-filter-count"></span></summary>
+          <div class="secondary-filters">
+            <div class="control-group age-control">
+              <label for="age-filter">Age at season end</label>
+              <div class="select-wrap"><select id="age-filter"><option value="all">All ages</option><option value="u21">Under 21</option><option value="21-24">21–24</option><option value="25-29">25–29</option><option value="30-34">30–34</option><option value="35plus">35+</option></select></div>
+            </div>
+            <div class="control-group country-control">
+              <label for="country-filter">Birth country</label>
+              <div class="select-wrap"><select id="country-filter"><option value="all">All birth countries</option></select></div>
+            </div>
           </div>
-        </div>
-        <button class="reset-button" id="reset-filters" title="Reset filters" aria-label="Reset all filters">↺</button>
+        </details>
+        <button class="reset-button" id="reset-filters" type="button"><span class="reset-icon" aria-hidden="true">↺</span><span>Reset filters</span></button>
       </section>
+      <div class="active-filters" id="active-filters" aria-live="polite" hidden></div>
 
-      <section class="kpi-grid" aria-label="Current selection summary">
-        <article class="kpi"><span>Clubs</span><strong id="kpi-teams">—</strong><small>represented</small></article>
-        <article class="kpi"><span>Players</span><strong id="kpi-players">—</strong><small>in selection</small></article>
-        <article class="kpi accent"><span>League starts</span><strong id="kpi-starts">—</strong><small>starting XI places</small></article>
-        <article class="kpi"><span>Birthplaces</span><strong id="kpi-places">—</strong><small>mapped entities</small></article>
-        <article class="kpi"><span>POB coverage</span><strong id="kpi-coverage">—</strong><small>unique players</small></article>
-      </section>
-
-      <nav class="view-tabs" aria-label="Dashboard views">
-        <button class="active" data-view="map"><span>01</span> Talent map</button>
-        <button data-view="teams"><span>02</span> League comparison</button>
-        <button data-view="players"><span>03</span> Player index</button>
-        <button data-view="age"><span>04</span> Age profile</button>
-        <button data-view="quality"><span>05</span> Data notes</button>
+      <nav class="view-tabs" role="tablist" aria-label="Dashboard views">
+        <button class="active" id="tab-map" type="button" role="tab" data-view="map" aria-controls="view-map" aria-selected="true"><span aria-hidden="true">01</span> Explore</button>
+        <button id="tab-teams" type="button" role="tab" data-view="teams" aria-controls="view-teams" aria-selected="false" tabindex="-1"><span aria-hidden="true">02</span> Compare</button>
+        <button id="tab-players" type="button" role="tab" data-view="players" aria-controls="view-players" aria-selected="false" tabindex="-1"><span aria-hidden="true">03</span> Players</button>
+        <button id="tab-quality" type="button" role="tab" data-view="quality" aria-controls="view-quality" aria-selected="false" tabindex="-1"><span aria-hidden="true">04</span> About data</button>
       </nav>
 
-      <section class="view-panel active" id="view-map" aria-labelledby="map-heading">
+      <section class="view-panel active" id="view-map" role="tabpanel" aria-labelledby="tab-map" tabindex="0">
         <div class="section-heading">
           <div><p class="eyebrow">Geographic distribution</p><h2 id="map-heading">Talent birthplace map</h2></div>
           <p id="filter-summary">All five leagues · All clubs · 2025–26</p>
         </div>
         <div class="map-explorer" id="map-explorer" aria-label="Map exploration controls">
-          <div class="map-mode" id="map-mode" role="group" aria-label="Geography level"><button class="active" data-map-mode="city" aria-pressed="true">Birthplaces</button><button data-map-mode="country" aria-pressed="false">Countries</button><button data-map-mode="population" aria-pressed="false">Per 1M people</button></div>
-          <label><span>Birth country</span><select id="country-filter"><option value="all">All birth countries</option></select></label>
+          <div class="map-mode" id="map-mode" role="group" aria-label="Map view"><button class="active" type="button" data-map-mode="city" aria-pressed="true">Birthplaces</button><button type="button" data-map-mode="country" aria-pressed="false">Countries</button><button type="button" data-map-mode="population" aria-pressed="false">Players per 1M</button></div>
+          <div class="control-group metric-control">
+            <span class="control-label" id="metric-label">Map measure</span>
+            <div class="segmented" id="metric-control" role="group" aria-label="Map measure">
+              <button class="active" type="button" data-metric="starts" aria-pressed="true">Starts</button>
+              <button type="button" data-metric="starters" aria-pressed="false">Players with 1+ start</button>
+              <button type="button" data-metric="players" aria-pressed="false">Players</button>
+            </div>
+          </div>
           <label class="place-search-control"><span>Find a birthplace</span><input id="place-search" list="place-options" type="search" placeholder="Try London, Paris, Dakar…" autocomplete="off" /><datalist id="place-options"></datalist></label>
-          <button id="clear-place-search" type="button">Clear place</button>
+          <button id="clear-place-search" type="button" hidden>Clear search</button>
         </div>
         <div class="map-layout">
           <div class="map-card">
-            <div id="talent-map" aria-label="Interactive map of player birthplaces"></div>
-            <div class="map-legend" id="map-legend"><i></i><span><span id="legend-prefix">Circle size =</span> <b id="legend-metric">starts</b></span><div class="population-scale" id="population-scale" hidden><div></div><span><b>0</b><b>2</b><b>5</b><b>10</b><b>25+</b></span></div></div>
+            <div id="talent-map" role="region" aria-label="Interactive map of player birthplaces"></div>
+            <div class="map-legend" id="map-legend" role="group" aria-label="Map legend">
+              <div class="legend-size" aria-hidden="true"><i class="legend-dot legend-dot-small"></i><i class="legend-dot legend-dot-large"></i></div>
+              <span class="legend-copy"><span id="legend-prefix">Circle size =</span> <b id="legend-metric">starts</b></span>
+              <div class="population-scale" id="population-scale" aria-label="Players per million people colour scale" hidden><div aria-hidden="true"></div><span><b>0</b><b>2</b><b>5</b><b>10</b><b>25+</b></span></div>
+            </div>
           </div>
-          <aside class="ranking-card">
+          <aside class="ranking-card" aria-labelledby="ranking-title">
             <div class="card-heading"><div><span>Top locations</span><h3 id="ranking-title">By starts</h3></div><span class="card-count" id="place-count">— places</span></div>
             <ol class="place-ranking" id="place-ranking"></ol>
           </aside>
         </div>
+        <section class="kpi-grid map-kpis" aria-label="Current selection summary">
+          <article class="kpi"><span>Players</span><strong id="kpi-players">—</strong><small>in the current selection</small></article>
+          <article class="kpi accent"><span>Starting XI places</span><strong id="kpi-starts">—</strong><small>across the season</small></article>
+          <article class="kpi"><span>Birthplace coverage</span><strong id="kpi-coverage">—</strong><small>of selected players mapped</small></article>
+          <span id="kpi-teams" hidden>—</span>
+          <span id="kpi-places" hidden>—</span>
+        </section>
       </section>
 
-      <section class="view-panel" id="view-teams" aria-labelledby="teams-heading">
+      <section class="view-panel" id="view-teams" role="tabpanel" aria-labelledby="tab-teams" tabindex="0">
         <div class="section-heading">
-          <div><p class="eyebrow">Five-league comparison</p><h2 id="teams-heading">Where each league recruits</h2></div>
-          <p>Domestic share, birth countries, continents and diversity</p>
+          <div><p class="eyebrow">Leagues, clubs & generations</p><h2 id="teams-heading">Compare the competition</h2></div>
+          <p>Birthplace mix, player ages and club footprint</p>
         </div>
         <div class="league-comparison" id="league-comparison"></div>
-        <div class="subsection-heading"><div><p class="eyebrow">Club comparison</p><h3>Club footprint</h3></div><p>Starts and mapped birthplace coverage</p></div>
+        <div class="subsection-heading"><div><p class="eyebrow">Club comparison</p><h3>Birthplace footprint</h3></div><p>Starts and mapped birthplace coverage</p></div>
         <div class="team-chart" id="team-chart"></div>
+        <section class="compare-section" aria-labelledby="age-heading">
+          <div class="section-heading">
+            <div><p class="eyebrow">Age & generations</p><h2 id="age-heading">Who plays—and when</h2></div>
+            <p id="age-scope">Age measured at 30 June 2026</p>
+          </div>
+          <div class="age-overview" id="age-overview"></div>
+          <div class="age-chart-card">
+            <div class="card-heading age-chart-heading"><div><span id="age-chart-kicker">League distribution</span><h3 id="age-chart-title">Age distribution by league</h3></div><span class="card-count">Season-end age</span></div>
+            <div class="age-chart-toolbar">
+              <div><span>View</span><div class="segmented" id="age-chart-mode" role="group" aria-label="Age chart view"><button class="active" type="button" data-age-chart="distribution" aria-pressed="true">Distribution</button><button type="button" data-age-chart="bands" aria-pressed="false">Age bands</button></div></div>
+              <div><span>Compare</span><div class="segmented" id="age-group-mode" role="group" aria-label="Age comparison level"><button class="active" type="button" data-age-group="league" aria-pressed="true">Leagues</button><button type="button" data-age-group="club" aria-pressed="false">Clubs</button></div></div>
+            </div>
+            <p class="age-chart-meta" id="age-chart-meta"></p>
+            <div class="age-chart-body" id="age-chart"></div>
+          </div>
+          <div class="age-extremes"><article><div class="card-heading"><div><span>Emerging generation</span><h3>Youngest players</h3></div></div><ol id="youngest-players"></ol></article><article><div class="card-heading"><div><span>Veteran generation</span><h3>Oldest players</h3></div></div><ol id="oldest-players"></ol></article></div>
+          <p class="age-note">Exact dates are used where date-of-birth validation succeeded. A “≈” symbol marks ages estimated from birth year only.</p>
+        </section>
       </section>
 
-      <section class="view-panel" id="view-players" aria-labelledby="players-heading">
+      <section class="view-panel" id="view-players" role="tabpanel" aria-labelledby="tab-players" tabindex="0">
         <div class="section-heading player-heading">
-          <div><p class="eyebrow">Player-level detail</p><h2 id="players-heading">Player index</h2></div>
-          <label class="search-box"><span aria-hidden="true">⌕</span><input id="player-search" type="search" placeholder="Search player or birthplace" autocomplete="off" /></label>
+          <div><p class="eyebrow">Player-level detail</p><h2 id="players-heading">Find a player</h2></div>
+          <label class="search-box" for="player-search"><span class="sr-only">Search players</span><span aria-hidden="true">⌕</span><input id="player-search" type="search" placeholder="Search player or birthplace" autocomplete="off" /></label>
         </div>
         <div class="table-shell">
           <table>
-            <thead><tr><th>Player</th><th>Club</th><th>League</th><th>POB</th><th class="numeric">Apps</th><th class="numeric">Starts</th></tr></thead>
+            <caption class="sr-only">Players matching the current filters</caption>
+            <thead><tr><th scope="col">Player</th><th scope="col">Club</th><th scope="col">League</th><th scope="col">Birthplace</th><th scope="col" class="numeric">Apps</th><th scope="col" class="numeric">Starts</th></tr></thead>
             <tbody id="player-table"></tbody>
           </table>
-          <div class="table-footer" id="player-table-note"></div>
+          <div class="empty-state" id="player-empty-state" role="status" hidden><h3>No players found</h3><p>Try another search or clear your filters.</p></div>
+          <div class="table-footer"><span id="player-table-note" aria-live="polite"></span><button class="load-more-button" id="load-more-players" type="button" hidden>Show more players</button></div>
         </div>
       </section>
 
-      <section class="view-panel" id="view-age" aria-labelledby="age-heading">
-        <div class="section-heading">
-          <div><p class="eyebrow">Age & generations</p><h2 id="age-heading">Who plays—and when</h2></div>
-          <p id="age-scope">Age measured at 30 June 2026</p>
-        </div>
-        <div class="age-overview" id="age-overview"></div>
-        <div class="age-chart-card">
-          <div class="card-heading age-chart-heading"><div><span id="age-chart-kicker">League distribution</span><h3 id="age-chart-title">Age distribution by league</h3></div><span class="card-count">Season-end age</span></div>
-          <div class="age-chart-toolbar">
-            <div><span>View</span><div class="segmented" id="age-chart-mode" role="group" aria-label="Age chart view"><button class="active" data-age-chart="distribution" aria-pressed="true">Distribution</button><button data-age-chart="bands" aria-pressed="false">Age bands</button></div></div>
-            <div><span>Compare</span><div class="segmented" id="age-group-mode" role="group" aria-label="Age comparison level"><button class="active" data-age-group="league" aria-pressed="true">Leagues</button><button data-age-group="club" aria-pressed="false">Clubs</button></div></div>
-          </div>
-          <p class="age-chart-meta" id="age-chart-meta"></p>
-          <div class="age-chart-body" id="age-chart"></div>
-        </div>
-        <div class="age-extremes"><article><div class="card-heading"><div><span>Emerging generation</span><h3>Youngest players</h3></div></div><ol id="youngest-players"></ol></article><article><div class="card-heading"><div><span>Veteran generation</span><h3>Oldest players</h3></div></div><ol id="oldest-players"></ol></article></div>
-        <p class="age-note">Exact dates are used where DOB validation succeeded. A “≈” symbol marks ages estimated from birth year only.</p>
-      </section>
-
-      <section class="view-panel" id="view-quality" aria-labelledby="quality-heading">
+      <section class="view-panel" id="view-quality" role="tabpanel" aria-labelledby="tab-quality" tabindex="0">
         <div class="section-heading" id="methodology">
           <div><p class="eyebrow">Transparent by design</p><h2 id="quality-heading">Coverage & methodology</h2></div>
           <p>No inferred or guessed birthplaces</p>

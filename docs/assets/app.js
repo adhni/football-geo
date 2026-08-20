@@ -38,16 +38,22 @@ const state = {
   metric: "starts",
   view: "map",
   search: "",
+  playerLimit: 150,
   map: null,
   markerLayer: null,
   placeMarkers: new Map(),
   countryGeojson: null,
+  countryMetadataAvailable: false,
   countryLayer: null,
   countryLayers: new Map(),
   populationGeojson: null,
+  populationPromise: null,
+  populationUnavailable: false,
   populationLayer: null,
   populationLayers: new Map(),
   profileMap: null,
+  profileOpener: null,
+  profilePlayerId: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -147,11 +153,12 @@ function densitySeries(ages, minimum, maximum) {
 function prepareCountryMetadata() {
   const lookup = new Map();
   const fields = ["ADMIN", "NAME", "NAME_LONG", "SOVEREIGNT", "BRK_NAME", "FORMAL_EN"];
-  state.countryGeojson.features.forEach((feature) => {
+  (state.countryGeojson?.features || []).forEach((feature) => {
     const properties = feature.properties;
     const meta = { code: properties.ADM0_A3, continent: properties.CONTINENT, name: properties.ADMIN };
     fields.forEach((field) => { if (properties[field]) lookup.set(normalCountry(properties[field]), meta); });
   });
+  state.countryMetadataAvailable = lookup.size > 0;
   const manualContinents = { faroeislands: "Europe", guernsey: "Europe", monaco: "Europe" };
   state.payload.records.forEach((row) => {
     const normalized = normalCountry(row.country);
@@ -165,7 +172,11 @@ function prepareCountryMetadata() {
 }
 
 function metricLabel(metric = state.metric) {
-  return { starts: "starts", starters: "unique starters", players: "players" }[metric];
+  return { starts: "starts", starters: "players with 1+ start", players: "players" }[metric];
+}
+
+function emptyState(message, action = "Clear filters") {
+  return `<div class="empty-state"><p>${escapeHtml(message)}</p><button type="button" class="empty-state-action" data-clear-filters>${escapeHtml(action)}</button></div>`;
 }
 
 function filteredRecords({ ignoreTeam = false, ignoreAge = false } = {}) {
@@ -187,7 +198,7 @@ function aggregatePlaces(records) {
     }
     const place = places.get(key);
     place.starts += row.starts;
-    if (!place.playerRows.has(row.id)) place.playerRows.set(row.id, { name: row.name, starts: 0, teams: new Set() });
+    if (!place.playerRows.has(row.id)) place.playerRows.set(row.id, { id: row.id, name: row.name, starts: 0, teams: new Set() });
     const player = place.playerRows.get(row.id);
     player.starts += row.starts;
     player.teams.add(row.team);
@@ -245,8 +256,8 @@ function aggregatePopulationCells(records) {
   records.filter((row) => row.mapped).forEach((row) => {
     if (!players.has(row.id)) players.set(row.id, row);
   });
-  return state.populationGeojson.features.map((feature) => {
-    const selected = feature.properties.player_ids.filter((playerId) => players.has(playerId));
+  return (state.populationGeojson?.features || []).map((feature) => {
+    const selected = (feature.properties.player_ids || []).filter((playerId) => players.has(playerId));
     if (!selected.length) return null;
     const places = new Map();
     const countries = new Map();
@@ -269,6 +280,28 @@ function aggregatePopulationCells(records) {
       country: leadingCountry,
     };
   }).filter(Boolean);
+}
+
+async function loadPopulationGeometry() {
+  if (state.populationGeojson) return state.populationGeojson;
+  if (state.populationUnavailable) throw new Error("Population geometry is unavailable");
+  if (!state.populationPromise) {
+    state.populationPromise = fetch(POPULATION_GEO_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Population geometry request failed (${response.status})`);
+        return response.json();
+      })
+      .then((geojson) => {
+        state.populationGeojson = geojson;
+        return geojson;
+      })
+      .catch((error) => {
+        state.populationUnavailable = true;
+        state.populationPromise = null;
+        throw error;
+      });
+  }
+  return state.populationPromise;
 }
 
 function populationRateColour(rate) {
@@ -356,11 +389,17 @@ function updateKpis(records, places) {
   const players = aggregatePlayers(records);
   const teams = new Set(records.map((row) => row.team));
   const mapped = players.filter((player) => player.mapped).length;
-  $("#kpi-teams").textContent = formatNumber.format(teams.size);
-  $("#kpi-players").textContent = formatNumber.format(players.length);
-  $("#kpi-starts").textContent = formatNumber.format(records.reduce((sum, row) => sum + row.starts, 0));
-  $("#kpi-places").textContent = formatNumber.format(places.length);
-  $("#kpi-coverage").textContent = players.length ? `${((mapped / players.length) * 100).toFixed(1)}%` : "—";
+  if ($("#kpi-teams")) $("#kpi-teams").textContent = formatNumber.format(teams.size);
+  if ($("#kpi-players")) $("#kpi-players").textContent = formatNumber.format(players.length);
+  if ($("#kpi-starts")) $("#kpi-starts").textContent = formatNumber.format(records.reduce((sum, row) => sum + row.starts, 0));
+  if ($("#kpi-places")) $("#kpi-places").textContent = formatNumber.format(places.length);
+  if ($("#kpi-coverage")) $("#kpi-coverage").textContent = players.length ? `${((mapped / players.length) * 100).toFixed(1)}%` : "—";
+
+  const startsCard = $("#kpi-starts")?.closest(".kpi");
+  const coverageCard = $("#kpi-coverage")?.closest(".kpi");
+  if (startsCard?.querySelector("span")) startsCard.querySelector("span").textContent = "Starts";
+  if (coverageCard?.querySelector("span")) coverageCard.querySelector("span").textContent = "Birthplace coverage";
+  if (coverageCard?.querySelector("small")) coverageCard.querySelector("small").textContent = "players in selection";
 }
 
 function initMap() {
@@ -375,6 +414,40 @@ function initMap() {
     ? L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 42, showCoverageOnHover: false })
     : L.layerGroup();
   state.markerLayer.addTo(state.map);
+}
+
+function syncMapModeControls() {
+  $$("#map-mode button").forEach((button) => {
+    const active = button.dataset.mapMode === state.mapMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+    if (button.dataset.mapMode === "country") button.disabled = !state.countryGeojson;
+    if (button.dataset.mapMode === "population") button.disabled = state.populationUnavailable;
+  });
+  $("#map-explorer")?.classList.toggle("country-mode", state.mapMode !== "city");
+  const metricControl = $("#metric-control");
+  if (metricControl) {
+    const unavailable = state.mapMode === "population";
+    metricControl.classList.toggle("metric-unavailable", unavailable);
+    const metricGroup = metricControl.closest(".metric-control");
+    metricGroup?.classList.toggle("metric-unavailable", unavailable);
+    if (metricGroup) metricGroup.hidden = unavailable;
+    else metricControl.hidden = unavailable;
+    metricControl.querySelectorAll("button").forEach((button) => { button.disabled = unavailable; });
+  }
+}
+
+function showPopulationLoading() {
+  if (state.map?.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (state.map && state.countryLayer) state.map.removeLayer(state.countryLayer);
+  if (state.map && state.populationLayer) state.map.removeLayer(state.populationLayer);
+  if ($("#ranking-title")) $("#ranking-title").textContent = "Players per 1M people";
+  if ($("#place-count")) $("#place-count").textContent = "Loading population data…";
+  if ($("#place-ranking")) $("#place-ranking").innerHTML = `<li><div class="empty-state" role="status"><p>Preparing the population view…</p></div></li>`;
+  if ($("#map-legend")) $("#map-legend").classList.add("population");
+  if ($("#population-scale")) $("#population-scale").hidden = false;
+  if ($("#legend-prefix")) $("#legend-prefix").textContent = "Hex colour =";
+  if ($("#legend-metric")) $("#legend-metric").textContent = "players per 1M people";
 }
 
 function updateCityMap(places) {
@@ -398,9 +471,18 @@ function updateCityMap(places) {
     });
     marker.bindTooltip(`<strong>${escapeHtml(place.place)}</strong><br><span>${escapeHtml(place.country)}</span><br>${formatNumber.format(value)} ${escapeHtml(metricLabel())}`, { direction: "top", offset: [0, -6] });
     const visiblePlayers = place.playerList.slice(0, 12);
-    const playerRows = visiblePlayers.map((player) => `<li><span>${escapeHtml(player.name)}</span><small>${escapeHtml(player.teams.join(", "))} · ${formatNumber.format(player.starts)} starts</small></li>`).join("");
+    const playerRows = visiblePlayers.map((player) => `<li><button type="button" class="popup-player" data-player-id="${escapeHtml(player.id)}"><span>${escapeHtml(player.name)}</span><small>${escapeHtml(player.teams.join(", "))} · ${formatNumber.format(player.starts)} starts</small></button></li>`).join("");
     const overflow = place.playerList.length > visiblePlayers.length ? `<p class="popup-overflow">+${place.playerList.length - visiblePlayers.length} more players</p>` : "";
     marker.bindPopup(`<div class="place-popup"><strong>${escapeHtml(place.place)}, ${escapeHtml(place.country)}</strong><p>${formatNumber.format(place.starts)} starts · ${place.players} players</p><ul>${playerRows}</ul>${overflow}</div>`, { maxWidth: 340, minWidth: 250 });
+    marker.on("popupopen", (event) => {
+      event.popup.getElement()?.querySelectorAll(".popup-player[data-player-id]").forEach((button) => {
+        button.addEventListener("click", (clickEvent) => {
+          clickEvent.preventDefault();
+          clickEvent.stopPropagation();
+          openPlayerProfile(button.dataset.playerId, button);
+        });
+      });
+    });
     marker.addTo(state.markerLayer);
     state.placeMarkers.set(`${place.lat}|${place.lon}`, marker);
     bounds.push([place.lat, place.lon]);
@@ -494,7 +576,7 @@ function updateRanking(places) {
       <span class="place-rank">${String(index + 1).padStart(2, "0")}</span>
       <span class="place-name"><strong>${escapeHtml(place.place)}</strong><small>${escapeHtml(place.country)}</small></span>
       <span class="place-value">${formatNumber.format(selectedMetric(place))}</span>
-    </button></li>`).join("") || `<li class="place-row"><span class="place-name"><strong>No mapped records</strong></span></li>`;
+    </button></li>`).join("") || `<li>${emptyState("No birthplaces match this selection.")}</li>`;
   $$(".place-jump").forEach((button) => button.addEventListener("click", () => {
     const lat = Number(button.dataset.lat);
     const lon = Number(button.dataset.lon);
@@ -516,7 +598,7 @@ function updateCountryRanking(records) {
       <span class="place-rank">${String(index + 1).padStart(2, "0")}</span>
       <span class="place-name"><strong>${escapeHtml(country.country)}</strong><small>${escapeHtml(country.continent)}</small></span>
       <span class="place-value">${formatNumber.format(selectedMetric(country))}</span>
-    </button></li>`).join("");
+    </button></li>`).join("") || `<li>${emptyState("No countries match this selection.")}</li>`;
   $$(".country-jump").forEach((button) => button.addEventListener("click", () => {
     const layer = state.countryLayers.get(button.dataset.countryCode);
     if (layer) state.map.fitBounds(layer.getBounds(), { padding: [35, 35], maxZoom: 5 });
@@ -529,13 +611,13 @@ function updatePopulationRanking(records) {
   const top = reliable.slice(0, 10);
   const max = top[0]?.rate || 1;
   $("#ranking-title").textContent = "Players per 1M people";
-  $("#place-count").textContent = `${formatNumber.format(cells.length)} occupied hexes`;
+  $("#place-count").textContent = `${formatNumber.format(cells.length)} local areas`;
   $("#place-ranking").innerHTML = top.map((cell, index) => `
     <li class="place-row" style="--bar:${cell.rate / max * 100}%"><button class="place-jump population-jump" data-hex-id="${escapeHtml(cell.hexId)}" aria-label="Zoom to ${escapeHtml(cell.label)} area">
       <span class="place-rank">${String(index + 1).padStart(2, "0")}</span>
       <span class="place-name"><strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)} · ${cell.players} players / ${formatCompact.format(cell.population)} people</small></span>
       <span class="place-value">${cell.rate.toFixed(1)}</span>
-    </button></li>`).join("") || `<li class="place-row"><span class="place-name"><strong>No stable cells match this selection</strong><small>Rankings require at least two players and 100,000 residents.</small></span></li>`;
+    </button></li>`).join("") || `<li>${emptyState("No reliable local areas match this selection.")}</li>`;
   $$(".population-jump").forEach((button) => button.addEventListener("click", () => {
     const layer = state.populationLayers.get(button.dataset.hexId);
     if (layer) state.map.fitBounds(layer.getBounds(), { padding: [35, 35], maxZoom: 7 });
@@ -544,9 +626,20 @@ function updatePopulationRanking(records) {
 
 function updateMapAndRanking(records, places) {
   if (state.mapMode === "population") {
+    if (!state.populationGeojson) {
+      showPopulationLoading();
+      return;
+    }
     updatePopulationMap(records);
     updatePopulationRanking(records);
   } else if (state.mapMode === "country") {
+    if (!state.countryGeojson) {
+      state.mapMode = "city";
+      syncMapModeControls();
+      updateCityMap(places);
+      updateRanking(places);
+      return;
+    }
     updateCountryMap(records);
     updateCountryRanking(records);
   } else {
@@ -556,7 +649,11 @@ function updateMapAndRanking(records, places) {
 }
 
 function updateLeagueComparison() {
-  const leagues = aggregateLeagues(state.payload.records);
+  if (!state.countryMetadataAvailable) {
+    $("#league-comparison").innerHTML = `<div class="empty-state comparison-unavailable" role="status"><h3>Birth-country comparison unavailable</h3><p>Country reference data could not be loaded. Club and age comparisons are still available below.</p></div>`;
+    return;
+  }
+  const leagues = aggregateLeagues(filteredRecords());
   $("#league-comparison").innerHTML = leagues.map((league, index) => {
     const continents = league.continentCounts.map(([name, count]) => `<span>${escapeHtml(name)} <b>${count}</b></span>`).join("");
     const countries = league.topCountries.map(([name, count]) => `<li><span>${escapeHtml(name)}</span><b>${count}</b></li>`).join("");
@@ -568,18 +665,22 @@ function updateLeagueComparison() {
       <div class="league-detail"><div><span class="card-label">Leading birth countries</span><ol>${countries}</ol></div><div><span class="card-label">Continents</span><div class="continent-chips">${continents}</div></div></div>
       <div class="league-footer">${formatNumber.format(league.mapped)} of ${formatNumber.format(league.players)} players mapped</div>
     </article>`;
-  }).join("");
+  }).join("") || emptyState("No league comparison matches this selection.");
 }
 
 function renderAgeBandChart(groups) {
   const rows = groups.map((group) => {
     const counts = AGE_BANDS.map((band) => group.players.filter((player) => matchesAgeBand(player.age, band.id)).length);
+    const summary = AGE_BANDS.map((band, index) => {
+      const percentage = group.players.length ? counts[index] / group.players.length * 100 : 0;
+      return `${band.label}: ${counts[index]} players, ${percentage.toFixed(1)}%`;
+    }).join("; ");
     const segments = AGE_BANDS.map((band, index) => {
       const percentage = group.players.length ? counts[index] / group.players.length * 100 : 0;
       const muted = state.ageBand !== "all" && state.ageBand !== band.id ? " muted" : "";
-      return `<i class="age-${index}${muted}" style="width:${percentage}%" title="${escapeHtml(band.label)}: ${counts[index]} players (${percentage.toFixed(1)}%)"></i>`;
+      return `<i class="age-${index}${muted}" style="width:${percentage}%" aria-hidden="true" title="${escapeHtml(band.label)}: ${counts[index]} players (${percentage.toFixed(1)}%)"></i>`;
     }).join("");
-    return `<div class="age-league-row"><div><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(group.detail)} · ${group.players.length} players · median ${median(group.ages)?.toFixed(1) ?? "—"}</small></div><div class="age-stack">${segments}</div></div>`;
+    return `<div class="age-league-row"><div><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(group.detail)} · ${group.players.length} players · median ${median(group.ages)?.toFixed(1) ?? "—"}</small></div><div class="age-stack" role="img" aria-label="${escapeHtml(`${group.name} age bands. ${summary}`)}">${segments}</div></div>`;
   }).join("");
   return `<div class="age-legend">${AGE_BANDS.map((band, index) => `<span><i class="age-${index}"></i>${escapeHtml(band.label)}</span>`).join("")}</div>${rows}`;
 }
@@ -607,12 +708,14 @@ function renderAgeDensityChart(groups) {
     const line = group.density.points.map((point, index) => `${index ? "L" : "M"}${x(point.age).toFixed(1)},${y(point.density).toFixed(1)}`).join(" ");
     const area = `M0,${baseline} ${line.replace(/^M/, "L")} L${width},${baseline} Z`;
     const medianX = x(median(group.ages));
-    return `<div class="age-density-row"><div><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(group.detail)} · ${group.players.length} players · median ${median(group.ages)?.toFixed(1) ?? "—"} · h ${group.density.bandwidth.toFixed(1)}</small></div><svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Age distribution for ${escapeHtml(group.name)}">${highlight}<line class="density-baseline" x1="0" y1="${baseline}" x2="${width}" y2="${baseline}"/><path class="density-area" d="${area}"/><path class="density-line" d="${line}"/><line class="density-median" x1="${medianX.toFixed(1)}" y1="8" x2="${medianX.toFixed(1)}" y2="${baseline}"/></svg></div>`;
+    return `<div class="age-density-row"><div><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(group.detail)} · ${group.players.length} players · median ${median(group.ages)?.toFixed(1) ?? "—"}</small></div><svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Age distribution for ${escapeHtml(group.name)}">${highlight}<line class="density-baseline" x1="0" y1="${baseline}" x2="${width}" y2="${baseline}"/><path class="density-area" d="${area}"/><path class="density-line" d="${line}"/><line class="density-median" x1="${medianX.toFixed(1)}" y1="8" x2="${medianX.toFixed(1)}" y2="${baseline}"/></svg></div>`;
   }).join("");
   return { html: `${axis}${rows}`, bandwidths: series.map((group) => group.density.bandwidth) };
 }
 
 function updateAgeView() {
+  // Keep the complete age context visible and use the selected age band as a
+  // highlight. The age filter still applies to every other comparison/view.
   const records = filteredRecords({ ignoreAge: true });
   const players = aggregatePlayers(records).filter((player) => player.age !== null);
   const ages = players.map((player) => player.age);
@@ -630,9 +733,7 @@ function updateAgeView() {
   if (state.ageChartMode === "distribution") {
     const density = renderAgeDensityChart(groups);
     $("#age-chart").innerHTML = density.html;
-    const low = density.bandwidths.length ? Math.min(...density.bandwidths).toFixed(1) : "—";
-    const high = density.bandwidths.length ? Math.max(...density.bandwidths).toFixed(1) : "—";
-    $("#age-chart-meta").textContent = `Kernel density estimate · automatic Silverman bandwidth ${low}${low === high ? "" : `–${high}`} years · curves share one scale${level === "club" ? " · youngest median first" : ""}`;
+    $("#age-chart-meta").textContent = `Smoothed age distribution · curves share one scale${level === "club" ? " · youngest median first" : ""}`;
   } else {
     $("#age-chart").innerHTML = groups.length ? renderAgeBandChart(groups) : `<p class="age-chart-empty">No age data matches this selection.</p>`;
     $("#age-chart-meta").textContent = `Each row totals 100% of players with an available age${level === "club" ? " · youngest median first" : ""}`;
@@ -645,18 +746,21 @@ function updateAgeView() {
   const oldest = [...players].sort((a, b) => b.age - a.age || a.name.localeCompare(b.name)).slice(0, 10);
   $("#youngest-players").innerHTML = youngest.map(playerRow).join("");
   $("#oldest-players").innerHTML = oldest.map(playerRow).join("");
-  $("#age-scope").textContent = `${formatNumber.format(players.length)} players in the current league, club and birthplace scope`;
+  const selectedBand = AGE_BANDS.find((band) => band.id === state.ageBand);
+  $("#age-scope").textContent = selectedBand
+    ? `${formatNumber.format(players.length)} players · ${selectedBand.label} highlighted`
+    : `${formatNumber.format(players.length)} players in the current selection`;
 }
 
 function updateTeamChart() {
-  const teams = aggregateTeams(filteredRecords()).sort((a, b) => selectedMetric(b) - selectedMetric(a));
-  const max = Math.max(...teams.map(selectedMetric), 1);
+  const teams = aggregateTeams(filteredRecords()).sort((a, b) => b.starts - a.starts);
+  const max = Math.max(...teams.map((team) => team.starts), 1);
   $("#team-chart").innerHTML = teams.map((team) => `
     <div class="team-row">
       <div class="team-name"><strong>${escapeHtml(team.team)}</strong><small>${escapeHtml(team.leagues.join(", "))}</small></div>
-      <div class="team-track"><i style="width:${(selectedMetric(team) / max) * 100}%"></i></div>
-      <div class="team-value">${formatNumber.format(selectedMetric(team))}<small>${team.coverage.toFixed(1)}% POB</small></div>
-    </div>`).join("") || `<p>No teams match this selection.</p>`;
+      <div class="team-track"><i style="width:${(team.starts / max) * 100}%"></i></div>
+      <div class="team-value">${formatNumber.format(team.starts)}<small>${team.coverage.toFixed(1)}% birthplace coverage</small></div>
+    </div>`).join("") || emptyState("No clubs match this selection.");
 }
 
 function updatePlayerTable() {
@@ -664,21 +768,42 @@ function updatePlayerTable() {
   const players = aggregatePlayers(filteredRecords())
     .filter((player) => !query || [player.name, player.place, player.country, ...player.teams].some((value) => String(value ?? "").toLowerCase().includes(query)))
     .sort((a, b) => b.starts - a.starts || a.name.localeCompare(b.name));
-  const visible = players.slice(0, 150);
+  const visible = players.slice(0, state.playerLimit);
   $("#player-table").innerHTML = visible.map((player) => `
-    <tr class="player-row" data-player-id="${escapeHtml(player.id)}" tabindex="0"><td><strong>${escapeHtml(player.name)}</strong><br><small>${escapeHtml(player.dob || player.birthYear || "DOB unavailable")}</small></td>
-    <td>${escapeHtml([...player.teams].sort().join(", "))}</td>
-    <td>${escapeHtml([...player.leagues].sort().join(", "))}</td>
-    <td>${player.mapped ? `${escapeHtml(player.place)}<br><small>${escapeHtml(player.country || "")}</small>` : `<span style="color:var(--danger)">QA pending</span>`}</td>
-    <td class="numeric">${formatNumber.format(player.apps)}</td><td class="numeric">${formatNumber.format(player.starts)}</td></tr>`).join("");
-  $("#player-table-note").textContent = `Showing ${formatNumber.format(visible.length)} of ${formatNumber.format(players.length)} players in this selection`;
-  $$(".player-row").forEach((row) => {
-    row.addEventListener("click", () => openPlayerProfile(row.dataset.playerId));
-    row.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openPlayerProfile(row.dataset.playerId); } });
+    <tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(player.id)}" aria-label="Open profile for ${escapeHtml(player.name)}"><strong>${escapeHtml(player.name)}</strong><small>${escapeHtml(player.dob || player.birthYear || "DOB unavailable")}</small></button></td>
+    <td data-label="Club">${escapeHtml([...player.teams].sort().join(", "))}</td>
+    <td data-label="League">${escapeHtml([...player.leagues].sort().join(", "))}</td>
+    <td data-label="Birthplace">${player.mapped ? `${escapeHtml(player.place)}<br><small>${escapeHtml(player.country || "")}</small>` : `<span style="color:var(--danger)">Unavailable</span>`}</td>
+    <td class="numeric" data-label="Apps">${formatNumber.format(player.apps)}</td><td class="numeric" data-label="Starts">${formatNumber.format(player.starts)}</td></tr>`).join("");
+  const empty = $("#player-empty-state");
+  if (empty) {
+    empty.hidden = players.length > 0;
+    empty.innerHTML = players.length ? "" : `<h3>No players found</h3><p>${escapeHtml(query ? "Try another search or clear your filters." : "This selection has no players.")}</p><button type="button" class="empty-state-action" data-clear-filters>Clear filters</button>`;
+  }
+  const table = $("#player-table")?.closest("table");
+  if (table) table.hidden = players.length === 0;
+  $("#player-table-note").textContent = players.length
+    ? `Showing ${formatNumber.format(visible.length)} of ${formatNumber.format(players.length)} players in this selection`
+    : "No players to show";
+  const loadMore = $("#load-more-players");
+  if (loadMore) {
+    const remaining = Math.max(0, players.length - visible.length);
+    loadMore.hidden = remaining === 0;
+    loadMore.textContent = remaining ? `Show ${formatNumber.format(Math.min(150, remaining))} more` : "Show more players";
+    loadMore.setAttribute("aria-label", remaining ? `Show ${Math.min(150, remaining)} more players` : "All players shown");
+  }
+  $$(".player-open-button").forEach((button) => {
+    button.addEventListener("click", () => openPlayerProfile(button.dataset.playerId, button));
   });
 }
 
-function openPlayerProfile(playerId) {
+function setBackgroundInert(inert) {
+  [$(".site-header"), $("main"), $("footer")].filter(Boolean).forEach((element) => {
+    element.inert = inert;
+  });
+}
+
+function openPlayerProfile(playerId, opener = document.activeElement) {
   const player = aggregatePlayers(state.payload.records.filter((row) => row.id === playerId))[0];
   if (!player) return;
   $("#profile-name").textContent = player.name;
@@ -693,6 +818,9 @@ function openPlayerProfile(playerId) {
   $("#profile-birthplace").textContent = player.mapped ? `${player.place}, ${player.country}` : "Birthplace awaiting QA";
   $("#profile-dob").textContent = player.dob || player.birthYear || "Unavailable";
   $("#profile-age").textContent = player.age === null ? "Age unavailable" : `${player.ageExact ? "" : "≈ "}${player.age} years at season end`;
+  state.profileOpener = opener instanceof HTMLElement && !$("#player-modal").contains(opener) ? opener : document.activeElement;
+  state.profilePlayerId = String(playerId);
+  setBackgroundInert(true);
   $("#player-modal").classList.add("open");
   $("#player-modal").setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
@@ -702,6 +830,7 @@ function openPlayerProfile(playerId) {
   $("#player-mini-map").hidden = !player.mapped;
   if (player.mapped) {
     setTimeout(() => {
+      if (!$("#player-modal").classList.contains("open") || state.profilePlayerId !== String(playerId)) return;
       state.profileMap = L.map("player-mini-map", { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false }).setView([player.lat, player.lon], 6);
       L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd" }).addTo(state.profileMap);
       L.circleMarker([player.lat, player.lon], { radius: 8, color: "#d9ff57", fillColor: "#d9ff57", fillOpacity: .7 }).addTo(state.profileMap);
@@ -711,11 +840,45 @@ function openPlayerProfile(playerId) {
 }
 
 function closePlayerProfile() {
+  const opener = state.profileOpener;
+  const fallback = $(`.view-tabs button[data-view="${state.view}"]`);
+  setBackgroundInert(false);
+  const focusTarget = opener?.isConnected ? opener : fallback;
+  focusTarget?.focus({ preventScroll: true });
   $("#player-modal").classList.remove("open");
   $("#player-modal").setAttribute("aria-hidden", "true");
   document.body.classList.remove("modal-open");
   if (state.profileMap) state.profileMap.remove();
   state.profileMap = null;
+  state.profilePlayerId = null;
+  state.profileOpener = null;
+}
+
+function handleModalKeydown(event) {
+  const modal = $("#player-modal");
+  if (!modal?.classList.contains("open")) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closePlayerProfile();
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const focusable = [...modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+    .filter((element) => !element.hidden && element.getClientRects().length);
+  if (!focusable.length) {
+    event.preventDefault();
+    modal.focus();
+    return;
+  }
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function updateQuality() {
@@ -740,6 +903,53 @@ function updateFilterSummary() {
   $("#filter-summary").textContent = `${league} · ${team} · ${country} · ${age}`;
 }
 
+function updateActiveFilters() {
+  const container = $("#active-filters");
+  if (!container) return;
+  const filters = [
+    state.league !== "all" && { key: "league", label: `League: ${state.league}` },
+    state.team !== "all" && { key: "team", label: `Club: ${state.team}` },
+    state.country !== "all" && { key: "country", label: `Born in: ${state.country}` },
+    state.ageBand !== "all" && { key: "age", label: `Age: ${AGE_BANDS.find((band) => band.id === state.ageBand)?.label || state.ageBand}` },
+  ].filter(Boolean);
+  container.innerHTML = filters.map((filter) => `<button type="button" class="filter-chip" data-clear-filter="${filter.key}" aria-label="Remove ${escapeHtml(filter.label)} filter"><span>${escapeHtml(filter.label)}</span><span aria-hidden="true">×</span></button>`).join("");
+  container.hidden = filters.length === 0;
+  const moreCount = $("#more-filter-count");
+  if (moreCount) {
+    const count = Number(state.country !== "all") + Number(state.ageBand !== "all");
+    moreCount.textContent = count ? String(count) : "";
+    moreCount.setAttribute("aria-label", count ? `${count} active ${count === 1 ? "filter" : "filters"}` : "No active filters");
+  }
+  const resetButton = $("#reset-filters");
+  if (resetButton) {
+    const hasNonDefaultState = filters.length > 0
+      || Boolean(state.search.trim())
+      || Boolean(state.placeQuery.trim())
+      || state.metric !== "starts"
+      || state.mapMode !== "city"
+      || state.ageChartMode !== "distribution"
+      || state.ageGroupMode !== "league";
+    resetButton.disabled = !hasNonDefaultState;
+  }
+}
+
+function updateSnapshotCopy() {
+  const { meta, summary } = state.payload;
+  const generated = new Date(meta.generated_at);
+  const updated = Number.isNaN(generated.getTime())
+    ? ""
+    : generated.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" });
+  const status = $(".status-pill");
+  if (status && updated) {
+    status.innerHTML = `<i aria-hidden="true"></i> 2025–26 · Updated ${escapeHtml(updated)}`;
+    status.title = `Dataset generated ${updated}`;
+  }
+  const statline = $(".hero-statline");
+  if (statline) {
+    statline.innerHTML = `<strong>${formatNumber.format(summary.players)} players</strong><span>${formatNumber.format(summary.teams)} clubs</span><span>${formatNumber.format(meta.leagues.length)} leagues</span>`;
+  }
+}
+
 function filteredPlaces() {
   const query = state.placeQuery.trim().toLowerCase();
   return aggregatePlaces(filteredRecords()).filter((place) =>
@@ -750,6 +960,11 @@ function filteredPlaces() {
 function renderMapExplorer() {
   const records = filteredRecords();
   const places = filteredPlaces();
+  const clearPlaceButton = $("#clear-place-search");
+  const hasPlaceQuery = Boolean(state.placeQuery.trim());
+  if (clearPlaceButton) clearPlaceButton.hidden = !hasPlaceQuery;
+  $("#map-explorer")?.classList.toggle("has-place-query", hasPlaceQuery);
+  updateActiveFilters();
   updateMapAndRanking(records, places);
 }
 
@@ -760,6 +975,7 @@ function render() {
   const places = allPlaces.filter((place) => !query || `${place.place} ${place.country}`.toLowerCase().includes(query));
   updateKpis(records, allPlaces);
   updateFilterSummary();
+  updateActiveFilters();
   updateMapAndRanking(records, places);
   updateLeagueComparison();
   updateAgeView();
@@ -768,35 +984,130 @@ function render() {
   updateQuality();
 }
 
-function setView(view) {
-  state.view = view;
-  $$(".view-tabs button").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
-  $$(".view-panel").forEach((panel) => panel.classList.toggle("active", panel.id === `view-${view}`));
-  if (view === "map" && state.map) setTimeout(() => state.map.invalidateSize(), 100);
-  document.querySelector(".view-tabs").scrollIntoView({ behavior: "smooth", block: "start" });
+function setView(view, { scroll = true, updateHash = true, focusTab = false } = {}) {
+  const hashView = view === "methodology" ? "quality" : view;
+  const requested = hashView === "age" && !$("#view-age") ? "teams" : hashView;
+  const button = $(`.view-tabs button[data-view="${requested}"]`);
+  const panel = $(`#view-${requested}`);
+  if (!button || !panel) return;
+  state.view = requested;
+  $$(".view-tabs button").forEach((item) => {
+    const active = item === button;
+    item.classList.toggle("active", active);
+    item.setAttribute("aria-selected", String(active));
+    item.tabIndex = active ? 0 : -1;
+  });
+  $$(".view-panel").forEach((item) => {
+    const active = item === panel;
+    item.classList.toggle("active", active);
+    item.hidden = !active;
+  });
+  if (requested === "map" && state.map) setTimeout(() => state.map.invalidateSize(), 100);
+  if (updateHash && window.location.hash !== `#${requested}`) history.replaceState(null, "", `#${requested}`);
+  if (focusTab) button.focus();
+  if (scroll) $(".view-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function syncPressedButtons(selector, dataKey, value) {
+  $$(selector).forEach((button) => {
+    const active = button.dataset[dataKey] === value;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+function resetAllFilters() {
+  state.league = "all";
+  state.team = "all";
+  state.country = "all";
+  state.ageBand = "all";
+  state.placeQuery = "";
+  state.search = "";
+  state.years = new Set(state.payload.meta.years);
+  state.metric = "starts";
+  state.mapMode = "city";
+  state.ageChartMode = "distribution";
+  state.ageGroupMode = "league";
+  state.playerLimit = 150;
+  if ($("#league-filter")) $("#league-filter").value = "all";
+  populateTeamOptions();
+  if ($("#team-filter")) $("#team-filter").value = "all";
+  if ($("#country-filter")) $("#country-filter").value = "all";
+  if ($("#age-filter")) $("#age-filter").value = "all";
+  if ($("#place-search")) $("#place-search").value = "";
+  if ($("#player-search")) $("#player-search").value = "";
+  if ($("#more-filters")) $("#more-filters").open = false;
+  syncPressedButtons("#metric-control button", "metric", state.metric);
+  syncPressedButtons("#age-chart-mode button", "ageChart", state.ageChartMode);
+  syncPressedButtons("#age-group-mode button", "ageGroup", state.ageGroupMode);
+  syncMapModeControls();
+  render();
+}
+
+function clearFilter(key) {
+  if (key === "league") {
+    state.league = "all";
+    $("#league-filter").value = "all";
+    populateTeamOptions();
+    $("#team-filter").value = state.team;
+  } else if (key === "team") {
+    state.team = "all";
+    $("#team-filter").value = "all";
+  } else if (key === "country") {
+    state.country = "all";
+    $("#country-filter").value = "all";
+  } else if (key === "age") {
+    state.ageBand = "all";
+    $("#age-filter").value = "all";
+  } else if (key === "place") {
+    state.placeQuery = "";
+    $("#place-search").value = "";
+  } else return;
+  state.playerLimit = 150;
+  render();
+}
+
+async function activateMapMode(mode) {
+  if (mode === "country" && !state.countryGeojson) return;
+  if (mode === "population" && state.populationUnavailable) return;
+  if (mode !== "city" && state.placeQuery) {
+    state.placeQuery = "";
+    if ($("#place-search")) $("#place-search").value = "";
+  }
+  state.mapMode = mode;
+  syncMapModeControls();
+  renderMapExplorer();
+  if (mode !== "population" || state.populationGeojson) return;
+  try {
+    await loadPopulationGeometry();
+    if (state.mapMode === "population") renderMapExplorer();
+  } catch (error) {
+    console.error(error);
+    if (state.mapMode === "population") {
+      state.mapMode = "city";
+      syncMapModeControls();
+      renderMapExplorer();
+    }
+    showToast("The population view is unavailable right now. Birthplace and country views still work.");
+  }
 }
 
 function bindControls() {
-  $("#map-mode").addEventListener("click", (event) => {
+  $("#map-mode")?.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-map-mode]");
-    if (!button) return;
-    state.mapMode = button.dataset.mapMode;
-    $$("#map-mode button").forEach((item) => {
-      item.classList.toggle("active", item === button);
-      item.setAttribute("aria-pressed", String(item === button));
-    });
-    $("#map-explorer").classList.toggle("country-mode", state.mapMode !== "city");
-    renderMapExplorer();
+    if (!button || button.disabled) return;
+    activateMapMode(button.dataset.mapMode);
   });
-  $("#league-filter").addEventListener("change", (event) => {
+  $("#league-filter")?.addEventListener("change", (event) => {
     state.league = event.target.value;
     state.team = "all";
+    state.playerLimit = 150;
     populateTeamOptions();
     render();
   });
-  $("#team-filter").addEventListener("change", (event) => { state.team = event.target.value; render(); });
-  $("#age-filter").addEventListener("change", (event) => { state.ageBand = event.target.value; render(); });
-  $("#age-chart-mode").addEventListener("click", (event) => {
+  $("#team-filter")?.addEventListener("change", (event) => { state.team = event.target.value; state.playerLimit = 150; render(); });
+  $("#age-filter")?.addEventListener("change", (event) => { state.ageBand = event.target.value; state.playerLimit = 150; render(); });
+  $("#age-chart-mode")?.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-age-chart]");
     if (!button) return;
     state.ageChartMode = button.dataset.ageChart;
@@ -805,8 +1116,9 @@ function bindControls() {
       item.setAttribute("aria-pressed", String(item === button));
     });
     updateAgeView();
+    updateActiveFilters();
   });
-  $("#age-group-mode").addEventListener("click", (event) => {
+  $("#age-group-mode")?.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-age-group]");
     if (!button) return;
     state.ageGroupMode = button.dataset.ageGroup;
@@ -815,44 +1127,56 @@ function bindControls() {
       item.setAttribute("aria-pressed", String(item === button));
     });
     updateAgeView();
+    updateActiveFilters();
   });
-  $("#country-filter").addEventListener("change", (event) => { state.country = event.target.value; render(); });
-  $("#place-search").addEventListener("input", (event) => { state.placeQuery = event.target.value; renderMapExplorer(); });
-  $("#clear-place-search").addEventListener("click", () => {
+  $("#country-filter")?.addEventListener("change", (event) => { state.country = event.target.value; state.playerLimit = 150; render(); });
+  $("#place-search")?.addEventListener("input", (event) => { state.placeQuery = event.target.value; renderMapExplorer(); });
+  $("#clear-place-search")?.addEventListener("click", () => {
     state.placeQuery = "";
     $("#place-search").value = "";
     renderMapExplorer();
   });
-  $("#metric-control").addEventListener("click", (event) => {
+  $("#metric-control")?.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-metric]");
     if (!button) return;
     state.metric = button.dataset.metric;
-    $$("#metric-control button").forEach((item) => item.classList.toggle("active", item === button));
-    render();
+    syncPressedButtons("#metric-control button", "metric", state.metric);
+    renderMapExplorer();
   });
-  $("#reset-filters").addEventListener("click", () => {
-    state.league = "all";
-    state.team = "all";
-    state.country = "all";
-    state.ageBand = "all";
-    state.placeQuery = "";
-    state.years = new Set(state.payload.meta.years);
-    state.metric = "starts";
-    $("#league-filter").value = "all";
-    populateTeamOptions();
-    $("#team-filter").value = "all";
-    $("#country-filter").value = "all";
-    $("#age-filter").value = "all";
-    $("#place-search").value = "";
-    $$("#metric-control button").forEach((button) => button.classList.toggle("active", button.dataset.metric === "starts"));
-    render();
+  $("#reset-filters")?.addEventListener("click", resetAllFilters);
+  const tabs = $$(".view-tabs button[data-view]");
+  tabs.forEach((button) => {
+    button.addEventListener("click", () => setView(button.dataset.view));
+    button.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const current = tabs.indexOf(button);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+      setView(tabs[next].dataset.view, { scroll: false, focusTab: true });
+    });
   });
-  $$(".view-tabs button").forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
-  $$('[data-view-link]').forEach((link) => link.addEventListener("click", (event) => { event.preventDefault(); setView(link.dataset.viewLink); }));
-  $("#player-search").addEventListener("input", (event) => { state.search = event.target.value; updatePlayerTable(); });
-  $("#close-player-modal").addEventListener("click", closePlayerProfile);
-  $("#player-modal").addEventListener("click", (event) => { if (event.target === event.currentTarget) closePlayerProfile(); });
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape" && $("#player-modal").classList.contains("open")) closePlayerProfile(); });
+  $$('[data-view-link]').forEach((link) => link.addEventListener("click", (event) => { event.preventDefault(); setView(link.dataset.viewLink, { focusTab: true }); }));
+  $("#player-search")?.addEventListener("input", (event) => { state.search = event.target.value; state.playerLimit = 150; updatePlayerTable(); updateActiveFilters(); });
+  $("#load-more-players")?.addEventListener("click", () => { state.playerLimit += 150; updatePlayerTable(); });
+  $("#close-player-modal")?.addEventListener("click", closePlayerProfile);
+  $("#player-modal")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) closePlayerProfile(); });
+  document.addEventListener("click", (event) => {
+    const chip = event.target.closest("[data-clear-filter]");
+    if (chip) clearFilter(chip.dataset.clearFilter);
+    const clear = event.target.closest("[data-clear-filters]");
+    if (clear) resetAllFilters();
+    const popupPlayer = event.target.closest(".popup-player[data-player-id]");
+    if (popupPlayer) {
+      event.preventDefault();
+      event.stopPropagation();
+      openPlayerProfile(popupPlayer.dataset.playerId, popupPlayer);
+    }
+  });
+  document.addEventListener("keydown", handleModalKeydown);
+  window.addEventListener("hashchange", () => {
+    const view = window.location.hash.slice(1);
+    if (view) setView(view, { scroll: false, updateHash: false });
+  });
 }
 
 function populateTeamOptions() {
@@ -874,27 +1198,44 @@ function populateControls() {
   populateTeamOptions();
 }
 
-function showError(message) {
+function showToast(message) {
   const toast = $("#error-toast");
+  if (!toast) return;
   toast.textContent = message;
   toast.classList.add("show");
-  $("#loading-screen").classList.add("hidden");
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => toast.classList.remove("show"), 6000);
+}
+
+function showError(message) {
+  showToast(message);
+  $("#loading-screen")?.classList.add("hidden");
 }
 
 async function boot() {
   try {
-    const [response, countryResponse, populationResponse] = await Promise.all([fetch(DATA_URL), fetch(COUNTRY_GEO_URL), fetch(POPULATION_GEO_URL)]);
+    const countryRequest = fetch(COUNTRY_GEO_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Country geometry request failed (${response.status})`);
+        return response.json();
+      })
+      .then((geojson) => ({ geojson, error: null }))
+      .catch((error) => ({ geojson: null, error }));
+    const [response, countryResult] = await Promise.all([fetch(DATA_URL), countryRequest]);
     if (!response.ok) throw new Error(`Dataset request failed (${response.status})`);
-    if (!countryResponse.ok) throw new Error(`Country geometry request failed (${countryResponse.status})`);
-    if (!populationResponse.ok) throw new Error(`Population geometry request failed (${populationResponse.status})`);
     state.payload = await response.json();
-    state.countryGeojson = await countryResponse.json();
-    state.populationGeojson = await populationResponse.json();
+    state.countryGeojson = countryResult.geojson;
+    if (countryResult.error) console.error(countryResult.error);
     prepareCountryMetadata();
     populateControls();
+    updateSnapshotCopy();
     bindControls();
+    syncMapModeControls();
     render();
-    $("#loading-screen").classList.add("hidden");
+    const initialView = window.location.hash.slice(1) || "map";
+    setView(initialView, { scroll: false, updateHash: false });
+    $("#loading-screen")?.classList.add("hidden");
+    if (countryResult.error) showToast("Country boundaries could not be loaded. The rest of the dashboard is available.");
   } catch (error) {
     console.error(error);
     showError("The dashboard data could not be loaded. Please refresh or try again shortly.");
