@@ -97,6 +97,10 @@ main:focus { outline: 0; }
 .header-meta a { text-decoration: none; transition: color .2s ease; }.header-meta a:hover { color: var(--text); }
 .status-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 999px; color: #b7c7c1; }
 .status-pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 10px var(--mint); }
+.sport-switcher { padding: 3px; display: inline-flex; align-items: center; gap: 3px; border: 1px solid var(--line); background: rgba(10, 22, 18, .72); border-radius: 9px; }
+.sport-switcher a { min-height: 34px; padding: 0 13px; display: inline-flex; align-items: center; color: var(--muted); border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: 750; transition: color .18s ease, background .18s ease; }
+.sport-switcher a:hover { color: var(--text); }
+.sport-switcher a.active { color: #09110e; background: var(--accent); }
 
 .hero { min-height: 290px; padding: 42px 0 34px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); align-items: end; gap: clamp(38px, 6vw, 76px); }
 .eyebrow { margin: 0 0 12px; color: var(--mint); font: 500 11px/1.3 "DM Mono", monospace; letter-spacing: .13em; text-transform: uppercase; }
@@ -243,6 +247,8 @@ footer { min-height: 150px; padding: 36px 0; display: grid; grid-template-column
   .site-header { height: 64px; }
   .header-meta { gap: 12px; }
   .header-meta .status-pill { display: none; }
+  .header-meta > a { display: none; }
+  .sport-switcher a { min-height: 32px; padding-inline: 10px; }
   .hero { min-height: auto; padding: 34px 0 30px; grid-template-columns: 1fr; gap: 24px; }
   .hero h1 { max-width: 100%; font-size: clamp(38px, 10vw, 46px); line-height: .98; letter-spacing: -.055em; overflow-wrap: anywhere; }
   .hero-intro { margin-top: 16px; font-size: 14px; }

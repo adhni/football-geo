@@ -1,6 +1,9 @@
-# Football Talent Geography
+# Talent Geography
 
-A reproducible data + visualisation project that asks:
+A reproducible data + visualisation project that started with football and now
+includes an NBA edition in the same public site.
+
+The football project asks:
 
 > **Where do the world's leading men's national teams actually get their starters from, and which places over-produce elite footballers relative to population?**
 
@@ -77,7 +80,9 @@ streamlit run dashboard/app.py
 ## GitHub Pages dashboard
 
 The public, backend-free dashboard lives in `docs/` and is served directly by
-GitHub Pages. To refresh its bundled data and preview it locally:
+GitHub Pages. The football explorer lives at `/`; the NBA explorer lives at
+`/nba/`, with a sport switcher shared between them. To refresh the football
+data and preview both editions locally:
 
 ```bash
 python -m src.ftg.export_static_site
@@ -89,6 +94,17 @@ Then open `http://localhost:8000`. The generated dashboard data is committed at
 `docs/data/dashboard.json`; raw and intermediate datasets remain local.
 The population command queries only occupied H3 cells and resumes from the
 ignored `data/cache/` checkpoint.
+
+To refresh the NBA snapshot:
+
+```bash
+python -m src.ftg.build_nba_site
+```
+
+The command downloads a public NBA Stats API export, joins players to recorded
+Wikidata birthplaces through NBA.com player IDs and writes
+`docs/nba/data/dashboard.json`. See `docs/nba/DATA_SOURCES.md` for scope and
+attribution.
 
 To rebuild the current Big Five edition:
 

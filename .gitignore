@@ -15,4 +15,5 @@ data/cache/*
 *.html
 !tests/fixtures/*.html
 !docs/index.html
+!docs/nba/index.html
 *.zip
