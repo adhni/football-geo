@@ -115,6 +115,19 @@ def aggregate_snap_cohort(snaps: pd.DataFrame) -> list[dict[str, Any]]:
     cohort = []
     for player_id, rows in regular.groupby("pfr_player_id", sort=True):
         team_snaps = rows.groupby("team")["total_snaps"].sum().sort_values(ascending=False)
+        team_splits = []
+        for team_code in team_snaps.index:
+            team_rows = rows[rows["team"].eq(team_code)]
+            team_splits.append(
+                {
+                    "team_code": str(team_code),
+                    "games": int(team_rows["game_id"].nunique()),
+                    "snaps": int(team_rows["total_snaps"].sum()),
+                    "offense_snaps": int(team_rows["offense_snaps"].fillna(0).sum()),
+                    "defense_snaps": int(team_rows["defense_snaps"].fillna(0).sum()),
+                    "special_teams_snaps": int(team_rows["st_snaps"].fillna(0).sum()),
+                }
+            )
         position = rows["position"].dropna().astype(str).mode()
         names = rows["player"].dropna().astype(str).mode()
         cohort.append(
@@ -124,6 +137,7 @@ def aggregate_snap_cohort(snaps: pd.DataFrame) -> list[dict[str, Any]]:
                 "snap_position": position.iloc[0] if len(position) else None,
                 "team_code": str(team_snaps.index[0]),
                 "team_codes": [str(team) for team in team_snaps.index],
+                "team_splits": team_splits,
                 "games": int(rows["game_id"].nunique()),
                 "snaps": int(rows["total_snaps"].sum()),
                 "offense_snaps": int(rows["offense_snaps"].fillna(0).sum()),
@@ -159,6 +173,14 @@ def fetch_espn_athletes(
         except (json.JSONDecodeError, OSError):
             cache = {}
     ids = sorted({str(athlete_id) for athlete_id in athlete_ids if athlete_id and str(athlete_id) != "<NA>"})
+    # Transient request failures from older builds were once cached as permanent
+    # profile results. Keep only successful summaries so a normal build retries
+    # anything that failed previously.
+    cache = {
+        athlete_id: result
+        for athlete_id, result in cache.items()
+        if isinstance(result, dict) and not result.get("error")
+    }
     missing = ids if force else [athlete_id for athlete_id in ids if athlete_id not in cache]
 
     def fetch_one(athlete_id: str) -> tuple[str, dict[str, Any]]:
@@ -183,7 +205,8 @@ def fetch_espn_athletes(
             futures = [executor.submit(fetch_one, athlete_id) for athlete_id in missing]
             for index, future in enumerate(as_completed(futures), start=1):
                 athlete_id, result = future.result()
-                cache[athlete_id] = result
+                if not result.get("error"):
+                    cache[athlete_id] = result
                 if index % 100 == 0 or index == len(missing):
                     _write_json(cache_path, cache)
                     print(f"  fetched {index:,}/{len(missing):,}", flush=True)
@@ -245,8 +268,9 @@ def resolve_birthplace(
         return None
     candidates = city_index.get(normalize(city), [])
     country_code = country_aliases.get(normalize(athlete.get("birth_country")))
-    if country_code:
-        candidates = [candidate for candidate in candidates if candidate["country_code"] == country_code]
+    if not country_code:
+        return None
+    candidates = [candidate for candidate in candidates if candidate["country_code"] == country_code]
     state = str(athlete.get("birth_state") or "").upper()
     if country_code == "US" and state:
         candidates = [candidate for candidate in candidates if candidate["admin1"].upper() == state]
@@ -300,6 +324,8 @@ def build_payload(
         status = "resolved" if mapped else (
             "player identity unavailable" if player is None
             else "birth city unavailable" if not athlete.get("birth_city")
+            else "birth country unavailable" if not athlete.get("birth_country")
+            else "birth country unrecognized" if normalize(athlete.get("birth_country")) not in country_aliases
             else "birth city coordinates unavailable"
         )
         team_code = snap["team_code"]
@@ -316,6 +342,21 @@ def build_payload(
             "team": team,
             "teamCode": team_code,
             "teams": [TEAM_META[code][0] for code in snap["team_codes"] if code in TEAM_META],
+            "teamSplits": [
+                {
+                    "team": TEAM_META[split["team_code"]][0],
+                    "teamCode": split["team_code"],
+                    "conference": TEAM_META[split["team_code"]][1],
+                    "division": TEAM_META[split["team_code"]][2],
+                    "games": split["games"],
+                    "snaps": split["snaps"],
+                    "offenseSnaps": split["offense_snaps"],
+                    "defenseSnaps": split["defense_snaps"],
+                    "specialTeamsSnaps": split["special_teams_snaps"],
+                }
+                for split in snap["team_splits"]
+                if split["team_code"] in TEAM_META
+            ],
             "conference": conference,
             "division": division,
             "year": 2025,

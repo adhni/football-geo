@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from src.ftg.build_population_hexes import (
     build_population_hexes,
     cell_polygon,
@@ -37,6 +39,16 @@ def test_cell_polygon_is_closed_geojson():
     json.dumps(geometry)
 
 
+def test_cell_polygon_splits_antimeridian_cells():
+    geometry = cell_polygon("81bb3ffffffffff")
+
+    assert geometry["type"] == "MultiPolygon"
+    assert all(
+        max(point[0] for point in polygon[0]) - min(point[0] for point in polygon[0]) < 180
+        for polygon in geometry["coordinates"]
+    )
+
+
 def test_published_population_layer_matches_mapped_player_scope():
     population = json.loads((ROOT / "docs" / "data" / "population_hexes.geojson").read_text(encoding="utf-8"))
     dashboard = json.loads((ROOT / "docs" / "data" / "dashboard.json").read_text(encoding="utf-8"))
@@ -46,6 +58,18 @@ def test_published_population_layer_matches_mapped_player_scope():
     assert population["metadata"]["raster_resolution"] == "1km"
     assert sum(feature["properties"]["all_players"] for feature in population["features"]) == dashboard["summary"]["mapped_players"]
     assert all(feature["properties"]["population"] >= 0 for feature in population["features"])
+
+
+@pytest.mark.parametrize("sport", ["nba", "nfl"])
+@pytest.mark.parametrize("resolution", [1, 2, 3])
+def test_published_sport_population_layers_match_mapped_player_scope(sport, resolution):
+    population = json.loads((ROOT / "docs" / sport / "data" / f"population_hexes_r{resolution}.geojson").read_text(encoding="utf-8"))
+    dashboard = json.loads((ROOT / "docs" / sport / "data" / "dashboard.json").read_text(encoding="utf-8"))
+
+    assert population["metadata"]["h3_resolution"] == resolution
+    assert population["metadata"]["population_method"] == "official_country_rasters"
+    assert sum(feature["properties"]["all_players"] for feature in population["features"]) == dashboard["summary"]["mapped_players"]
+    assert all(feature["properties"]["population"] > 0 for feature in population["features"])
 
 
 def test_population_cache_is_scoped_by_year_and_raster_resolution(tmp_path, monkeypatch):

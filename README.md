@@ -1,7 +1,7 @@
 # Talent Geography
 
 A reproducible data + visualisation project that started with football and now
-includes an NBA edition in the same public site.
+includes NBA and NFL editions in the same public site.
 
 The football project asks:
 
@@ -101,8 +101,9 @@ To refresh the NBA snapshot:
 python -m src.ftg.build_nba_site
 python -m src.ftg.build_population_hexes \
   --input docs/nba/data/dashboard.json \
-  --output docs/nba/data/population_hexes.geojson \
-  --cache data/cache/nba_worldpop_population_2025.json
+  --output docs/nba/data/population_hexes_r3.geojson \
+  --cache data/cache/nba_worldpop_population_2025.json \
+  --h3-resolution 3 --use-rasters
 ```
 
 The command downloads a public NBA Stats API export, joins players to recorded
@@ -114,11 +115,19 @@ To refresh the snap-defined NFL snapshot:
 
 ```bash
 python -m src.ftg.build_nfl_site
+python -m src.ftg.build_population_hexes \
+  --input docs/nfl/data/dashboard.json \
+  --output docs/nfl/data/population_hexes_r3.geojson \
+  --cache data/cache/nfl_worldpop_population_2025.json \
+  --h3-resolution 3 --use-rasters
 ```
 
 This joins nflverse regular-season snap counts to ESPN birth-city fields and
 GeoNames coordinates. Players without a conservative city match remain in the
 published QA queue. See `docs/nfl/DATA_SOURCES.md` for scope and attribution.
+Run the population command at H3 resolutions 1, 2 and 3 to refresh the three
+selectable area sizes. Coarse layers use cached official WorldPop country
+rasters because the public polygon API limits requests to 50,000 km².
 
 To rebuild the current Big Five edition:
 

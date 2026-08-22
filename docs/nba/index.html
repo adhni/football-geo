@@ -99,6 +99,14 @@
               <button type="button" data-metric="games" aria-pressed="false">Games</button>
             </div>
           </div>
+          <div class="control-group resolution-control" hidden>
+            <span class="control-label">Area size</span>
+            <div class="segmented" id="resolution-control" role="group" aria-label="Population area size">
+              <button type="button" data-resolution="1" aria-pressed="false">Very broad</button>
+              <button type="button" data-resolution="2" aria-pressed="false">Large</button>
+              <button class="active" type="button" data-resolution="3" aria-pressed="true">Regional</button>
+            </div>
+          </div>
           <label class="place-search-control"><span>Find a birthplace</span><input id="place-search" list="place-options" type="search" placeholder="Try Chicago, Toronto, Paris…" autocomplete="off" /><datalist id="place-options"></datalist></label>
           <button id="clear-place-search" type="button" hidden>Clear search</button>
         </div>

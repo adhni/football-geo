@@ -1,6 +1,18 @@
 const DATA_URL = "./data/dashboard.json";
 const COUNTRY_GEO_URL = "../data/countries.geojson";
+const POPULATION_GEO_URLS = {
+  1: "./data/population_hexes_r1.geojson",
+  2: "./data/population_hexes_r2.geojson",
+  3: "./data/population_hexes_r3.geojson",
+};
 const PLAYER_BATCH = 100;
+const POPULATION_RATE_STOPS = [
+  { value: 0, colour: [51, 34, 136] },
+  { value: 2, colour: [17, 112, 170] },
+  { value: 5, colour: [68, 170, 153] },
+  { value: 10, colour: [238, 190, 72] },
+  { value: 25, colour: [238, 93, 80] },
+];
 
 const state = {
   payload: null,
@@ -10,6 +22,7 @@ const state = {
   country: "all",
   metric: "snaps",
   mapMode: "city",
+  populationResolution: 3,
   placeQuery: "",
   search: "",
   playerLimit: PLAYER_BATCH,
@@ -18,8 +31,13 @@ const state = {
   markerLayer: null,
   countryGeojson: null,
   countryLayer: null,
+  populationGeojson: new Map(),
+  populationPromises: new Map(),
+  populationUnavailable: new Set(),
+  populationLayer: null,
   placeMarkers: new Map(),
   countryLayers: new Map(),
+  populationLayers: new Map(),
   profileMap: null,
   profileOpener: null,
 };
@@ -48,13 +66,57 @@ function median(values) {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-function filteredRecords() {
-  return state.payload.records.filter((row) =>
-    (state.conference === "all" || row.conference === state.conference)
-    && (state.division === "all" || row.division === state.division)
-    && (state.team === "all" || row.team === state.team)
-    && (state.country === "all" || row.country === state.country)
+function rowTeamSplits(row) {
+  return row.teamSplits?.length ? row.teamSplits : [{
+    team: row.team,
+    teamCode: row.teamCode,
+    conference: row.conference,
+    division: row.division,
+    games: row.games,
+    snaps: row.snaps,
+    offenseSnaps: row.offenseSnaps,
+    defenseSnaps: row.defenseSnaps,
+    specialTeamsSnaps: row.specialTeamsSnaps,
+  }];
+}
+
+function matchingTeamSplits(row) {
+  return rowTeamSplits(row).filter((split) =>
+    (state.conference === "all" || split.conference === state.conference)
+    && (state.division === "all" || split.division === state.division)
+    && (state.team === "all" || split.team === state.team)
   );
+}
+
+function filteredRecords() {
+  const teamFilterActive = state.conference !== "all" || state.division !== "all" || state.team !== "all";
+  return state.payload.records.flatMap((row) => {
+    if (state.country !== "all" && row.country !== state.country) return [];
+    const splits = matchingTeamSplits(row);
+    if (!splits.length) return [];
+    if (!teamFilterActive) return [row];
+    const primary = [...splits].sort((a, b) => b.snaps - a.snaps)[0];
+    return [{
+      ...row,
+      team: primary.team,
+      teamCode: primary.teamCode,
+      teams: splits.map((split) => split.team),
+      conference: primary.conference,
+      division: primary.division,
+      games: splits.reduce((sum, split) => sum + split.games, 0),
+      snaps: splits.reduce((sum, split) => sum + split.snaps, 0),
+      offenseSnaps: splits.reduce((sum, split) => sum + split.offenseSnaps, 0),
+      defenseSnaps: splits.reduce((sum, split) => sum + split.defenseSnaps, 0),
+      specialTeamsSnaps: splits.reduce((sum, split) => sum + split.specialTeamsSnaps, 0),
+    }];
+  });
+}
+
+function filteredTeamRecords() {
+  return state.payload.records.flatMap((row) => {
+    if (state.country !== "all" && row.country !== state.country) return [];
+    return matchingTeamSplits(row).map((split) => ({ ...row, ...split, teams: [split.team] }));
+  });
 }
 
 function metricLabel(metric = state.metric) {
@@ -106,6 +168,64 @@ function aggregateCountries(records) {
   return [...countries.values()].map((country) => ({ ...country, players: country.playerRows.size }));
 }
 
+function aggregatePopulationCells(records) {
+  const players = new Map(records.filter((row) => row.mapped).map((row) => [row.id, row]));
+  const geojson = state.populationGeojson.get(state.populationResolution);
+  return (geojson?.features || []).map((feature) => {
+    const selected = (feature.properties.player_ids || []).filter((playerId) => players.has(playerId));
+    if (!selected.length) return null;
+    const playerRows = selected.map((playerId) => players.get(playerId));
+    const places = new Map();
+    const countries = new Map();
+    playerRows.forEach((row) => {
+      places.set(row.place, (places.get(row.place) || 0) + 1);
+      countries.set(row.country, (countries.get(row.country) || 0) + 1);
+    });
+    const population = feature.properties.population;
+    return {
+      feature,
+      hexId: feature.properties.hex_id,
+      players: selected.length,
+      population,
+      rate: population ? selected.length / population * 1_000_000 : null,
+      stable: selected.length >= 2 && population >= 100_000,
+      label: [...places.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || feature.properties.label,
+      country: [...countries.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || feature.properties.country,
+    };
+  }).filter(Boolean);
+}
+
+async function loadPopulationGeometry(resolution = state.populationResolution) {
+  if (state.populationGeojson.has(resolution)) return state.populationGeojson.get(resolution);
+  if (state.populationUnavailable.has(resolution)) throw new Error(`Population geometry is unavailable at H3 resolution ${resolution}`);
+  if (!state.populationPromises.has(resolution)) {
+    const promise = fetch(POPULATION_GEO_URLS[resolution])
+      .then((response) => {
+        if (!response.ok) throw new Error(`Population geometry request failed (${response.status})`);
+        return response.json();
+      })
+      .then((geojson) => { state.populationGeojson.set(resolution, geojson); return geojson; })
+      .catch((error) => { state.populationUnavailable.add(resolution); state.populationPromises.delete(resolution); throw error; });
+    state.populationPromises.set(resolution, promise);
+  }
+  return state.populationPromises.get(resolution);
+}
+
+function populationRateColour(rate) {
+  if (rate === null) return "#18263a";
+  const clamped = Math.max(0, Math.min(rate, POPULATION_RATE_STOPS.at(-1).value));
+  const upperIndex = POPULATION_RATE_STOPS.findIndex((stop) => clamped <= stop.value);
+  if (upperIndex <= 0) return `rgb(${POPULATION_RATE_STOPS[0].colour.join(",")})`;
+  const lower = POPULATION_RATE_STOPS[upperIndex - 1];
+  const upper = POPULATION_RATE_STOPS[upperIndex];
+  const progress = (clamped - lower.value) / (upper.value - lower.value);
+  return `rgb(${lower.colour.map((channel, index) => Math.round(channel + (upper.colour[index] - channel) * progress)).join(",")})`;
+}
+
+function populationResolutionLabel() {
+  return { 1: "Very broad", 2: "Large", 3: "Regional" }[state.populationResolution];
+}
+
 function aggregateTeams(records) {
   const teams = new Map();
   records.forEach((row) => {
@@ -122,19 +242,21 @@ function aggregateTeams(records) {
 function aggregateConferences(records) {
   return state.payload.meta.conferences.map((conference) => {
     const rows = records.filter((row) => row.conference === conference);
-    const mapped = rows.filter((row) => row.mapped);
+    const playerRows = new Map(rows.map((row) => [row.id, row]));
+    const players = [...playerRows.values()];
+    const mapped = players.filter((row) => row.mapped);
     const countries = new Map();
     mapped.forEach((row) => countries.set(row.country, (countries.get(row.country) || 0) + 1));
     const outsideUs = mapped.filter((row) => row.country !== "United States").length;
     return {
       conference,
-      players: rows.length,
+      players: players.length,
       teams: new Set(rows.map((row) => row.team)).size,
       divisions: new Set(rows.map((row) => row.division)).size,
       mapped: mapped.length,
       countries: countries.size,
       snaps: rows.reduce((sum, row) => sum + row.snaps, 0),
-      medianAge: median(rows.map((row) => row.age)),
+      medianAge: median(players.map((row) => row.age)),
       outsideUsPct: mapped.length ? outsideUs / mapped.length * 100 : 0,
       topCountries: [...countries.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 5),
     };
@@ -158,6 +280,7 @@ function popupPlayers(rows, maximum = 8) {
 
 function renderCityMap(places) {
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
+  if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
   if (!state.map.hasLayer(state.markerLayer)) state.markerLayer.addTo(state.map);
   state.markerLayer.clearLayers();
   state.placeMarkers.clear();
@@ -180,6 +303,7 @@ function countryColour(value, maximum) {
 function renderCountryMap(countries) {
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
+  if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
   state.countryLayers.clear();
   if (!state.countryGeojson) return;
   const byCode = new Map(countries.map((country) => [country.code, country]));
@@ -200,6 +324,54 @@ function renderCountryMap(countries) {
   }).addTo(state.map);
 }
 
+function showPopulationLoading() {
+  if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
+  if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
+  $("#ranking-title").textContent = "Players per 1M people";
+  $("#place-count").textContent = "Loading population data…";
+  $("#place-ranking").innerHTML = `<li><div class="empty-state" role="status"><p>Preparing the population view…</p></div></li>`;
+  $("#map-legend").classList.add("population");
+  $("#map-explorer").classList.add("country-mode");
+  $(".metric-control").hidden = true;
+  $(".resolution-control").hidden = false;
+  $("#population-scale").hidden = false;
+  $("#legend-prefix").textContent = "Colour =";
+  $("#legend-metric").textContent = "players per 1M people";
+}
+
+function renderPopulationMap(records) {
+  if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
+  if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
+  const cells = aggregatePopulationCells(records);
+  const byId = new Map(cells.map((cell) => [cell.hexId, cell]));
+  state.populationLayers.clear();
+  state.populationLayer = L.geoJSON({ type: "FeatureCollection", features: cells.map((cell) => cell.feature) }, {
+    style(feature) {
+      const cell = byId.get(feature.properties.hex_id);
+      return { color: cell.stable ? "#7ca8c9" : "#45627d", weight: cell.stable ? .8 : .55, dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .72 : .24 };
+    },
+    onEachFeature(feature, layer) {
+      const cell = byId.get(feature.properties.hex_id);
+      const rateLabel = cell.rate === null ? "Population estimate unavailable" : `${cell.rate.toFixed(1)} players per 1M`;
+      const caution = cell.stable ? "" : " · small sample";
+      layer.bindTooltip(`<strong>${escapeHtml(cell.label)} area</strong><br>${escapeHtml(cell.country)}<br>${rateLabel}<br>${cell.players} players · population ${cell.population ? compact.format(cell.population) : "unavailable"}${caution}`, { sticky: true });
+      layer.bindPopup(`<div class="map-popup"><strong>${escapeHtml(cell.label)} area</strong><small>${rateLabel}</small><p>${cell.players} mapped players · ${cell.population ? `${number.format(cell.population)} residents` : "population unavailable"}</p>${cell.stable ? "" : '<small class="popup-rest">Interpret carefully: fewer than two players or fewer than 100,000 residents.</small>'}</div>`, { maxWidth: 320 });
+      state.populationLayers.set(cell.hexId, layer);
+    },
+  }).addTo(state.map);
+  $("#ranking-title").textContent = "Players per 1M people";
+  $("#place-count").textContent = `${number.format(cells.length)} ${populationResolutionLabel().toLowerCase()} areas`;
+  const ranked = cells.filter((cell) => cell.rate !== null).sort((a, b) => Number(b.stable) - Number(a.stable) || b.rate - a.rate).slice(0, 12);
+  const maximum = Math.max(...ranked.map((cell) => cell.rate), 1);
+  $("#place-ranking").innerHTML = ranked.length ? ranked.map((cell, index) => `<li class="place-row" style="--bar:${cell.rate / maximum * 100}%"><button class="place-jump" type="button" data-hex-id="${escapeHtml(cell.hexId)}"><span class="place-rank">${String(index + 1).padStart(2, "0")}</span><span class="place-name"><strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)} · ${cell.players} players / ${compact.format(cell.population)} people</small></span><span class="place-value">${cell.rate.toFixed(1)}</span></button></li>`).join("") : `<li>${emptyState("Try widening the current selection.")}</li>`;
+  $("#map-legend").classList.add("population");
+  $("#population-scale").hidden = false;
+  $("#legend-prefix").textContent = "Colour =";
+  $("#legend-metric").textContent = "players per 1M people";
+}
+
 function renderRanking(items) {
   const sorted = [...items].sort((a, b) => metricValue(b) - metricValue(a) || (a.place || a.country).localeCompare(b.place || b.country));
   const visible = sorted.slice(0, 12);
@@ -218,11 +390,23 @@ function updateMap() {
   const records = filteredRecords();
   const places = aggregatePlaces(records);
   const countries = aggregateCountries(records);
+  if (state.mapMode === "population") {
+    if (!state.populationGeojson.has(state.populationResolution)) { showPopulationLoading(); return; }
+    renderPopulationMap(records);
+    $("#map-explorer").classList.add("country-mode");
+    $(".metric-control").hidden = true;
+    $(".resolution-control").hidden = false;
+    return;
+  }
   if (state.mapMode === "country" && state.countryGeojson) renderCountryMap(countries); else renderCityMap(places);
   renderRanking(state.mapMode === "city" ? places : countries);
+  $("#map-legend").classList.remove("population");
+  $("#population-scale").hidden = true;
   $("#legend-prefix").textContent = state.mapMode === "city" ? "Circle size =" : "Colour intensity =";
   $("#legend-metric").textContent = metricLabel();
   $("#map-explorer").classList.toggle("country-mode", state.mapMode === "country");
+  $(".metric-control").hidden = false;
+  $(".resolution-control").hidden = true;
 }
 
 function updateKpis() {
@@ -234,12 +418,12 @@ function updateKpis() {
 }
 
 function updateConferenceComparison() {
-  const conferences = aggregateConferences(filteredRecords());
+  const conferences = aggregateConferences(filteredTeamRecords());
   $("#conference-comparison").innerHTML = conferences.map((conference, index) => `<article class="league-card" style="--order:${index}"><header><div><span>0${index + 1}</span><h3>${conference.conference}</h3></div><strong>${conference.outsideUsPct.toFixed(1)}%<small>born outside US</small></strong></header><div class="league-primary"><div><b>${conference.players}</b><span>players</span></div><div><b>${conference.teams}</b><span>teams</span></div><div><b>${conference.countries}</b><span>birth countries</span></div></div><div class="domestic-track"><i style="width:${conference.outsideUsPct}%"></i></div><div class="league-detail"><div><span class="card-label">Leading birth countries</span><ol>${conference.topCountries.map(([country, count]) => `<li><span>${escapeHtml(country)}</span><b>${count}</b></li>`).join("")}</ol></div></div><div class="league-footer">Median age ${conference.medianAge?.toFixed(1) ?? "—"} · ${number.format(conference.snaps)} total snaps · ${conference.mapped} of ${conference.players} players mapped</div></article>`).join("") || emptyState("No conference matches the current selection.");
 }
 
 function updateTeamChart() {
-  const teams = aggregateTeams(filteredRecords()).sort((a, b) => b.snaps - a.snaps || a.team.localeCompare(b.team));
+  const teams = aggregateTeams(filteredTeamRecords()).sort((a, b) => b.snaps - a.snaps || a.team.localeCompare(b.team));
   const maximum = Math.max(...teams.map((team) => team.snaps), 1);
   $("#team-chart").innerHTML = teams.length ? teams.map((team) => `<div class="team-row"><div class="team-name"><strong>${escapeHtml(team.team)}</strong><small>${escapeHtml(team.division)} · ${team.players} players</small></div><div class="team-track"><i style="width:${team.snaps / maximum * 100}%"></i></div><div class="team-value">${number.format(team.snaps)}<small>${team.coverage.toFixed(1)}% mapped</small></div></div>`).join("") : emptyState("No teams match the current selection.");
 }
@@ -288,10 +472,11 @@ function updateQuality() {
 }
 
 function syncOptions() {
-  const allowedDivisions = new Set(state.payload.records.filter((row) => state.conference === "all" || row.conference === state.conference).map((row) => row.division));
+  const splits = state.payload.records.flatMap(rowTeamSplits);
+  const allowedDivisions = new Set(splits.filter((split) => state.conference === "all" || split.conference === state.conference).map((split) => split.division));
   [...$("#division-filter").options].forEach((option) => { if (option.value !== "all") option.hidden = !allowedDivisions.has(option.value); });
   if (state.division !== "all" && !allowedDivisions.has(state.division)) { state.division = "all"; $("#division-filter").value = "all"; }
-  const allowedTeams = new Set(state.payload.records.filter((row) => (state.conference === "all" || row.conference === state.conference) && (state.division === "all" || row.division === state.division)).map((row) => row.team));
+  const allowedTeams = new Set(splits.filter((split) => (state.conference === "all" || split.conference === state.conference) && (state.division === "all" || split.division === state.division)).map((split) => split.team));
   [...$("#team-filter").options].forEach((option) => { if (option.value !== "all") option.hidden = !allowedTeams.has(option.value); });
   if (state.team !== "all" && !allowedTeams.has(state.team)) { state.team = "all"; $("#team-filter").value = "all"; }
 }
@@ -333,8 +518,8 @@ function openPlayerProfile(playerId, opener = document.activeElement) {
   if (!player) return;
   $("#profile-name").textContent = player.name;
   $("#profile-meta").textContent = `${player.position || "Position unavailable"} · ${player.college || "College unavailable"}`;
-  $("#profile-team").textContent = player.teams.join(" · ");
-  $("#profile-division").textContent = `${player.conference} · ${player.division}`;
+  $("#profile-team").textContent = rowTeamSplits(player).map((split) => `${split.team} (${number.format(split.snaps)} snaps)`).join(" · ");
+  $("#profile-division").textContent = rowTeamSplits(player).length > 1 ? "Season totals shown · team contributions above" : `${player.conference} · ${player.division}`;
   $("#profile-games").textContent = number.format(player.games);
   $("#profile-snaps").textContent = number.format(player.snaps);
   $("#profile-offense").textContent = number.format(player.offenseSnaps);
@@ -378,11 +563,12 @@ function setView(view, { focus = false, updateHash = true } = {}) {
 }
 
 function resetAll() {
-  Object.assign(state, { conference: "all", division: "all", team: "all", country: "all", metric: "snaps", mapMode: "city", search: "", placeQuery: "", playerLimit: PLAYER_BATCH });
+  Object.assign(state, { conference: "all", division: "all", team: "all", country: "all", metric: "snaps", mapMode: "city", populationResolution: 3, search: "", placeQuery: "", playerLimit: PLAYER_BATCH });
   ["conference", "division", "team", "country"].forEach((key) => { $(`#${key}-filter`).value = "all"; });
   $("#player-search").value = ""; $("#place-search").value = ""; $("#clear-place-search").hidden = true;
   $$("#metric-control button").forEach((button) => { const active = button.dataset.metric === state.metric; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
   $$("#map-mode button").forEach((button) => { const active = button.dataset.mapMode === state.mapMode; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
+  $$("#resolution-control button").forEach((button) => { const active = Number(button.dataset.resolution) === state.populationResolution; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
   render();
 }
 
@@ -390,7 +576,27 @@ function bindEvents() {
   ["conference", "division", "team", "country"].forEach((key) => $(`#${key}-filter`).addEventListener("change", (event) => { state[key] = event.target.value; state.playerLimit = PLAYER_BATCH; render(); }));
   $("#reset-filters").addEventListener("click", resetAll);
   $("#metric-control").addEventListener("click", (event) => { const button = event.target.closest("button[data-metric]"); if (!button) return; state.metric = button.dataset.metric; $$("#metric-control button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active)); }); updateFilterUi(); updateMap(); });
-  $("#map-mode").addEventListener("click", (event) => { const button = event.target.closest("button[data-map-mode]"); if (!button || button.disabled) return; state.mapMode = button.dataset.mapMode; $$("#map-mode button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active)); }); updateFilterUi(); updateMap(); });
+  $("#map-mode").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-map-mode]"); if (!button || button.disabled) return;
+    state.mapMode = button.dataset.mapMode;
+    $$("#map-mode button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active)); });
+    updateFilterUi(); updateMap();
+    if (state.mapMode === "population" && !state.populationGeojson.has(state.populationResolution)) {
+      loadPopulationGeometry().then(() => { if (state.mapMode === "population") updateMap(); }).catch((error) => {
+        console.warn(error); state.mapMode = "city"; $("#map-mode button[data-map-mode='city']").click();
+        $("#error-toast").textContent = "The population view is unavailable. Birthplace and country views still work."; $("#error-toast").classList.add("show");
+      });
+    }
+  });
+  $("#resolution-control").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-resolution]"); if (!button) return;
+    state.populationResolution = Number(button.dataset.resolution);
+    $$("#resolution-control button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active)); });
+    showPopulationLoading();
+    loadPopulationGeometry().then(() => { if (state.mapMode === "population") updateMap(); }).catch((error) => {
+      console.warn(error); $("#error-toast").textContent = `${populationResolutionLabel()} population areas are unavailable. Try another size.`; $("#error-toast").classList.add("show");
+    });
+  });
   $("#place-search").addEventListener("change", (event) => { state.placeQuery = event.target.value.trim(); $("#clear-place-search").hidden = !state.placeQuery; const query = normalSearch(state.placeQuery); const place = aggregatePlaces(filteredRecords()).find((item) => normalSearch(`${item.place}, ${item.country}`) === query || normalSearch(item.place) === query); if (!place) return; if (state.mapMode !== "city") $("#map-mode button[data-map-mode='city']").click(); setTimeout(() => { state.map.setView([place.lat, place.lon], 6); const marker = state.placeMarkers.get(place.key); if (marker) state.markerLayer.zoomToShowLayer ? state.markerLayer.zoomToShowLayer(marker, () => marker.openPopup()) : marker.openPopup(); }, 40); updateFilterUi(); });
   $("#clear-place-search").addEventListener("click", () => { state.placeQuery = ""; $("#place-search").value = ""; $("#clear-place-search").hidden = true; updateFilterUi(); });
   $("#player-search").addEventListener("input", (event) => { state.search = event.target.value; state.playerLimit = PLAYER_BATCH; updatePlayerTable(); updateFilterUi(); });
@@ -402,7 +608,8 @@ function bindEvents() {
     if (event.target.closest("[data-clear-filters]")) { resetAll(); return; }
     const chip = event.target.closest("[data-clear-filter]"); if (chip) { const key = chip.dataset.clearFilter; state[key] = "all"; $(`#${key}-filter`).value = "all"; render(); return; }
     const placeButton = event.target.closest("[data-place-key]"); if (placeButton) { const marker = state.placeMarkers.get(placeButton.dataset.placeKey); if (marker) state.markerLayer.zoomToShowLayer ? state.markerLayer.zoomToShowLayer(marker, () => { state.map.setView(marker.getLatLng(), 6); marker.openPopup(); }) : marker.openPopup(); return; }
-    const countryButton = event.target.closest("[data-country-code]"); if (countryButton) { const layer = state.countryLayers.get(countryButton.dataset.countryCode); if (layer) { state.map.fitBounds(layer.getBounds(), { padding: [30, 30], maxZoom: 5 }); layer.openPopup(); } }
+    const countryButton = event.target.closest("[data-country-code]"); if (countryButton) { const layer = state.countryLayers.get(countryButton.dataset.countryCode); if (layer) { state.map.fitBounds(layer.getBounds(), { padding: [30, 30], maxZoom: 5 }); layer.openPopup(); } return; }
+    const populationButton = event.target.closest("[data-hex-id]"); if (populationButton) { const layer = state.populationLayers.get(populationButton.dataset.hexId); if (layer) { state.map.fitBounds(layer.getBounds(), { padding: [30, 30], maxZoom: 7 }); layer.openPopup(); } }
   });
   $$('[data-view-link]').forEach((link) => link.addEventListener("click", (event) => { event.preventDefault(); setView(link.dataset.viewLink); $("#methodology").scrollIntoView({ behavior: "smooth" }); }));
   $("#close-player-modal").addEventListener("click", closePlayerProfile); $("#player-modal").addEventListener("click", (event) => { if (event.target === $("#player-modal")) closePlayerProfile(); }); document.addEventListener("keydown", handleModalKeydown); window.addEventListener("hashchange", () => setView(location.hash.slice(1), { updateHash: false }));
