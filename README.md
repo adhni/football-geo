@@ -80,9 +80,9 @@ streamlit run dashboard/app.py
 ## GitHub Pages dashboard
 
 The public, backend-free dashboard lives in `docs/` and is served directly by
-GitHub Pages. The football explorer lives at `/`; the NBA explorer lives at
-`/nba/`, with a sport switcher shared between them. To refresh the football
-data and preview both editions locally:
+GitHub Pages. The football explorer lives at `/`, the NBA explorer at `/nba/`
+and the NFL explorer at `/nfl/`, with a sport switcher shared between them. To
+refresh the football data and preview every edition locally:
 
 ```bash
 python -m src.ftg.export_static_site
@@ -99,12 +99,26 @@ To refresh the NBA snapshot:
 
 ```bash
 python -m src.ftg.build_nba_site
+python -m src.ftg.build_population_hexes \
+  --input docs/nba/data/dashboard.json \
+  --output docs/nba/data/population_hexes.geojson \
+  --cache data/cache/nba_worldpop_population_2025.json
 ```
 
 The command downloads a public NBA Stats API export, joins players to recorded
 Wikidata birthplaces through NBA.com player IDs and writes
 `docs/nba/data/dashboard.json`. See `docs/nba/DATA_SOURCES.md` for scope and
 attribution.
+
+To refresh the snap-defined NFL snapshot:
+
+```bash
+python -m src.ftg.build_nfl_site
+```
+
+This joins nflverse regular-season snap counts to ESPN birth-city fields and
+GeoNames coordinates. Players without a conservative city match remain in the
+published QA queue. See `docs/nfl/DATA_SOURCES.md` for scope and attribution.
 
 To rebuild the current Big Five edition:
 

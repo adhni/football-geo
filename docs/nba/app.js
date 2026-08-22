@@ -1,7 +1,15 @@
 const DATA_URL = "./data/dashboard.json";
 const COUNTRY_GEO_URL = "../data/countries.geojson";
+const POPULATION_GEO_URL = "./data/population_hexes.geojson";
 const DEFAULT_VIEW = "map";
 const PLAYER_BATCH = 100;
+const POPULATION_RATE_STOPS = [
+  { value: 0, colour: [51, 34, 136] },
+  { value: 2, colour: [17, 112, 170] },
+  { value: 5, colour: [68, 170, 153] },
+  { value: 10, colour: [238, 190, 72] },
+  { value: 25, colour: [238, 93, 80] },
+];
 
 const state = {
   payload: null,
@@ -18,8 +26,13 @@ const state = {
   markerLayer: null,
   countryGeojson: null,
   countryLayer: null,
+  populationGeojson: null,
+  populationPromise: null,
+  populationUnavailable: false,
+  populationLayer: null,
   placeMarkers: new Map(),
   countryLayers: new Map(),
+  populationLayers: new Map(),
   profileMap: null,
   profileOpener: null,
 };
@@ -130,6 +143,58 @@ function aggregateCountries(records) {
   return [...countries.values()].map((country) => ({ ...country, players: country.playerRows.size }));
 }
 
+function aggregatePopulationCells(records) {
+  const players = new Map(records.filter((row) => row.mapped).map((row) => [row.id, row]));
+  return (state.populationGeojson?.features || []).map((feature) => {
+    const selected = (feature.properties.player_ids || []).filter((playerId) => players.has(playerId));
+    if (!selected.length) return null;
+    const playerRows = selected.map((playerId) => players.get(playerId));
+    const places = new Map();
+    const countries = new Map();
+    playerRows.forEach((row) => {
+      places.set(row.place, (places.get(row.place) || 0) + 1);
+      countries.set(row.country, (countries.get(row.country) || 0) + 1);
+    });
+    const population = feature.properties.population;
+    return {
+      feature,
+      hexId: feature.properties.hex_id,
+      players: selected.length,
+      population,
+      rate: population ? selected.length / population * 1_000_000 : null,
+      stable: selected.length >= 2 && population >= 100_000,
+      label: [...places.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || feature.properties.label,
+      country: [...countries.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || feature.properties.country,
+    };
+  }).filter(Boolean);
+}
+
+async function loadPopulationGeometry() {
+  if (state.populationGeojson) return state.populationGeojson;
+  if (state.populationUnavailable) throw new Error("Population geometry is unavailable");
+  if (!state.populationPromise) {
+    state.populationPromise = fetch(POPULATION_GEO_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Population geometry request failed (${response.status})`);
+        return response.json();
+      })
+      .then((geojson) => { state.populationGeojson = geojson; return geojson; })
+      .catch((error) => { state.populationUnavailable = true; state.populationPromise = null; throw error; });
+  }
+  return state.populationPromise;
+}
+
+function populationRateColour(rate) {
+  if (rate === null) return "#30251d";
+  const clamped = Math.max(0, Math.min(rate, POPULATION_RATE_STOPS.at(-1).value));
+  const upperIndex = POPULATION_RATE_STOPS.findIndex((stop) => clamped <= stop.value);
+  if (upperIndex <= 0) return `rgb(${POPULATION_RATE_STOPS[0].colour.join(",")})`;
+  const lower = POPULATION_RATE_STOPS[upperIndex - 1];
+  const upper = POPULATION_RATE_STOPS[upperIndex];
+  const progress = (clamped - lower.value) / (upper.value - lower.value);
+  return `rgb(${lower.colour.map((channel, index) => Math.round(channel + (upper.colour[index] - channel) * progress)).join(",")})`;
+}
+
 function aggregateTeams(records) {
   const teams = new Map();
   records.forEach((row) => {
@@ -197,6 +262,7 @@ function popupPlayers(rows, maximum = 8) {
 
 function renderCityMap(places) {
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
+  if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
   if (!state.map.hasLayer(state.markerLayer)) state.markerLayer.addTo(state.map);
   state.markerLayer.clearLayers();
   state.placeMarkers.clear();
@@ -228,6 +294,7 @@ function countryColour(value, maximum) {
 function renderCountryMap(countries) {
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
+  if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
   state.countryLayers.clear();
   if (!state.countryGeojson) return;
   const byCode = new Map(countries.map((country) => [country.code, country]));
@@ -249,6 +316,53 @@ function renderCountryMap(countries) {
   }).addTo(state.map);
 }
 
+function showPopulationLoading() {
+  if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
+  if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
+  $("#ranking-title").textContent = "Players per 1M people";
+  $("#place-count").textContent = "Loading population data…";
+  $("#place-ranking").innerHTML = `<li><div class="empty-state" role="status"><p>Preparing the population view…</p></div></li>`;
+  $("#map-legend").classList.add("population");
+  $("#map-explorer").classList.add("country-mode");
+  $(".metric-control").hidden = true;
+  $("#population-scale").hidden = false;
+  $("#legend-prefix").textContent = "Colour =";
+  $("#legend-metric").textContent = "players per 1M people";
+}
+
+function renderPopulationMap(records) {
+  if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
+  if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
+  const cells = aggregatePopulationCells(records);
+  const byId = new Map(cells.map((cell) => [cell.hexId, cell]));
+  state.populationLayers.clear();
+  state.populationLayer = L.geoJSON({ type: "FeatureCollection", features: cells.map((cell) => cell.feature) }, {
+    style(feature) {
+      const cell = byId.get(feature.properties.hex_id);
+      return { color: cell.stable ? "#a68b78" : "#695447", weight: cell.stable ? .8 : .55, dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .72 : .24 };
+    },
+    onEachFeature(feature, layer) {
+      const cell = byId.get(feature.properties.hex_id);
+      const rateLabel = cell.rate === null ? "Population estimate unavailable" : `${cell.rate.toFixed(1)} players per 1M`;
+      const caution = cell.stable ? "" : " · small sample";
+      layer.bindTooltip(`<strong>${escapeHtml(cell.label)} area</strong><br>${escapeHtml(cell.country)}<br>${rateLabel}<br>${cell.players} players · population ${cell.population ? compact.format(cell.population) : "unavailable"}${caution}`, { sticky: true });
+      layer.bindPopup(`<div class="map-popup"><strong>${escapeHtml(cell.label)} area</strong><small>${rateLabel}</small><p>${cell.players} mapped players · ${cell.population ? `${number.format(cell.population)} residents` : "population unavailable"}</p>${cell.stable ? "" : '<small class="popup-rest">Interpret carefully: fewer than two players or fewer than 100,000 residents.</small>'}</div>`, { maxWidth: 320 });
+      state.populationLayers.set(cell.hexId, layer);
+    },
+  }).addTo(state.map);
+  $("#ranking-title").textContent = "Players per 1M people";
+  $("#place-count").textContent = `${number.format(cells.length)} occupied areas`;
+  const ranked = cells.filter((cell) => cell.rate !== null).sort((a, b) => Number(b.stable) - Number(a.stable) || b.rate - a.rate).slice(0, 12);
+  const maximum = Math.max(...ranked.map((cell) => cell.rate), 1);
+  $("#place-ranking").innerHTML = ranked.length ? ranked.map((cell, index) => `<li class="place-row" style="--bar:${cell.rate / maximum * 100}%"><button class="place-jump" type="button" data-hex-id="${escapeHtml(cell.hexId)}"><span class="place-rank">${String(index + 1).padStart(2, "0")}</span><span class="place-name"><strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)} · ${cell.players} players / ${compact.format(cell.population)} people</small></span><span class="place-value">${cell.rate.toFixed(1)}</span></button></li>`).join("") : `<li>${emptyState("Try widening the current selection.")}</li>`;
+  $("#map-legend").classList.add("population");
+  $("#population-scale").hidden = false;
+  $("#legend-prefix").textContent = "Colour =";
+  $("#legend-metric").textContent = "players per 1M people";
+}
+
 function renderRanking(items) {
   const sorted = [...items].sort((a, b) => metricValue(b) - metricValue(a) || (a.place || a.country).localeCompare(b.place || b.country));
   const visible = sorted.slice(0, 12);
@@ -267,13 +381,23 @@ function updateMap() {
   const records = filteredRecords();
   const places = aggregatePlaces(records);
   const countries = aggregateCountries(records);
+  if (state.mapMode === "population") {
+    if (!state.populationGeojson) { showPopulationLoading(); return; }
+    renderPopulationMap(records);
+    $("#map-explorer").classList.add("country-mode");
+    $(".metric-control").hidden = true;
+    return;
+  }
   if (state.mapMode === "country" && state.countryGeojson) renderCountryMap(countries);
   else renderCityMap(places);
   renderRanking(state.mapMode === "city" ? places : countries);
+  $("#map-legend").classList.remove("population");
+  $("#population-scale").hidden = true;
   $("#legend-prefix").textContent = state.mapMode === "city" ? "Circle size =" : "Colour intensity =";
   $("#legend-metric").textContent = metricLabel();
   $("#map-legend").classList.toggle("country", state.mapMode === "country");
-  $("#map-explorer").classList.toggle("country-mode", state.mapMode === "country");
+  $("#map-explorer").classList.toggle("country-mode", state.mapMode !== "city");
+  $(".metric-control").hidden = false;
 }
 
 function updateKpis() {
@@ -553,6 +677,15 @@ function bindEvents() {
     $$("#map-mode button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active)); });
     updateFilterUi();
     updateMap();
+    if (state.mapMode === "population" && !state.populationGeojson) {
+      loadPopulationGeometry().then(() => { if (state.mapMode === "population") updateMap(); }).catch((error) => {
+        console.warn(error);
+        state.mapMode = "city";
+        $("#map-mode button[data-map-mode='city']").click();
+        $("#error-toast").textContent = "The population view is unavailable. Birthplace and country views still work.";
+        $("#error-toast").classList.add("show");
+      });
+    }
   });
   $("#place-search").addEventListener("change", (event) => {
     state.placeQuery = event.target.value.trim();
@@ -604,6 +737,12 @@ function bindEvents() {
     if (countryButton) {
       const layer = state.countryLayers.get(countryButton.dataset.countryCode);
       if (layer) { state.map.fitBounds(layer.getBounds(), { padding: [30, 30], maxZoom: 5 }); layer.openPopup(); }
+      return;
+    }
+    const populationButton = event.target.closest("[data-hex-id]");
+    if (populationButton) {
+      const layer = state.populationLayers.get(populationButton.dataset.hexId);
+      if (layer) { state.map.fitBounds(layer.getBounds(), { padding: [30, 30], maxZoom: 7 }); layer.openPopup(); }
     }
   });
   $$('[data-view-link]').forEach((link) => link.addEventListener("click", (event) => { event.preventDefault(); setView(link.dataset.viewLink); $("#methodology").scrollIntoView({ behavior: "smooth" }); }));
