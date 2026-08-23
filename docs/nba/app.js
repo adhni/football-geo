@@ -7,7 +7,7 @@ const POPULATION_GEO_URLS = {
 };
 const DEFAULT_VIEW = "map";
 const PLAYER_BATCH = 100;
-const POPULATION_RATE_COLOURS = [[51, 34, 136], [17, 112, 170], [68, 170, 153], [238, 190, 72], [238, 93, 80]];
+const POPULATION_RATE_COLOURS = [[20, 45, 58], [23, 96, 112], [22, 139, 133], [79, 195, 155], [198, 255, 220]];
 
 const state = {
   payload: null,
