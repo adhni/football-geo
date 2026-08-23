@@ -6,7 +6,7 @@ const POPULATION_GEO_URLS = {
   3: "./data/population_hexes_r3.geojson",
 };
 const PLAYER_BATCH = 100;
-const POPULATION_RATE_COLOURS = [[55, 106, 120], [46, 135, 144], [50, 168, 156], [112, 206, 176], [217, 255, 193]];
+const POPULATION_RATE_COLOURS = [[222, 241, 235], [166, 218, 204], [91, 178, 161], [27, 126, 122], [7, 66, 80]];
 
 const state = {
   payload: null,
