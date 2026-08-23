@@ -6,7 +6,7 @@ const POPULATION_GEO_URLS = {
   3: "./data/population_hexes_r3.geojson",
 };
 const PLAYER_BATCH = 100;
-const POPULATION_RATE_COLOURS = [[20, 45, 58], [23, 96, 112], [22, 139, 133], [79, 195, 155], [198, 255, 220]];
+const POPULATION_RATE_COLOURS = [[55, 106, 120], [46, 135, 144], [50, 168, 156], [112, 206, 176], [217, 255, 193]];
 
 const state = {
   payload: null,
@@ -22,6 +22,8 @@ const state = {
   playerLimit: PLAYER_BATCH,
   view: "map",
   map: null,
+  baseLayer: null,
+  populationBaseLayer: null,
   markerLayer: null,
   countryGeojson: null,
   countryLayer: null,
@@ -275,9 +277,17 @@ function initMap() {
   if (!window.L) throw new Error("The map library did not load");
   state.map = L.map("talent-map", { preferCanvas: true, zoomControl: false, worldCopyJump: true, minZoom: 1 }).setView([32, -35], 2);
   L.control.zoom({ position: "bottomright" }).addTo(state.map);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd", attribution: "&copy; OpenStreetMap contributors &copy; CARTO" }).addTo(state.map);
+  state.baseLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd", attribution: "&copy; OpenStreetMap contributors &copy; CARTO" }).addTo(state.map);
+  state.populationBaseLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd", attribution: "&copy; OpenStreetMap contributors &copy; CARTO" });
   state.markerLayer = L.markerClusterGroup ? L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 42, showCoverageOnHover: false }) : L.layerGroup();
   state.markerLayer.addTo(state.map);
+}
+
+function usePopulationBasemap(active) {
+  const show = active ? state.populationBaseLayer : state.baseLayer;
+  const hide = active ? state.baseLayer : state.populationBaseLayer;
+  if (hide && state.map.hasLayer(hide)) state.map.removeLayer(hide);
+  if (show && !state.map.hasLayer(show)) show.addTo(state.map);
 }
 
 function popupPlayers(rows, maximum = 8) {
@@ -287,6 +297,7 @@ function popupPlayers(rows, maximum = 8) {
 }
 
 function renderCityMap(places) {
+  usePopulationBasemap(false);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
   if (!state.map.hasLayer(state.markerLayer)) state.markerLayer.addTo(state.map);
@@ -309,6 +320,7 @@ function countryColour(value, maximum) {
 }
 
 function renderCountryMap(countries) {
+  usePopulationBasemap(false);
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
@@ -333,6 +345,7 @@ function renderCountryMap(countries) {
 }
 
 function showPopulationLoading() {
+  usePopulationBasemap(true);
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
@@ -349,6 +362,7 @@ function showPopulationLoading() {
 }
 
 function renderPopulationMap(records) {
+  usePopulationBasemap(true);
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
@@ -359,7 +373,7 @@ function renderPopulationMap(records) {
   state.populationLayer = L.geoJSON({ type: "FeatureCollection", features: cells.map((cell) => cell.feature) }, {
     style(feature) {
       const cell = byId.get(feature.properties.hex_id);
-      return { color: cell.stable ? "#7ca8c9" : "#45627d", weight: cell.stable ? .8 : .55, dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .72 : .24 };
+      return { color: cell.stable ? "#94c8b4" : "#62877d", weight: cell.stable ? .8 : .65, dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .82 : .42 };
     },
     onEachFeature(feature, layer) {
       const cell = byId.get(feature.properties.hex_id);

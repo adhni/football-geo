@@ -20,7 +20,7 @@ const LEAGUE_HOSTS = {
   "Serie A": "ITA",
   "Ligue 1": "FRA",
 };
-const POPULATION_RATE_COLOURS = [[20, 45, 58], [23, 96, 112], [22, 139, 133], [79, 195, 155], [198, 255, 220]];
+const POPULATION_RATE_COLOURS = [[55, 106, 120], [46, 135, 144], [50, 168, 156], [112, 206, 176], [217, 255, 193]];
 
 const state = {
   payload: null,
@@ -39,6 +39,8 @@ const state = {
   search: "",
   playerLimit: 150,
   map: null,
+  baseLayer: null,
+  populationBaseLayer: null,
   markerLayer: null,
   placeMarkers: new Map(),
   countryGeojson: null,
@@ -424,15 +426,23 @@ function updateKpis(records, places) {
 function initMap() {
   state.map = L.map("talent-map", { preferCanvas: true, zoomControl: false, worldCopyJump: true, minZoom: 1 }).setView([20, 4], 2);
   L.control.zoom({ position: "bottomright" }).addTo(state.map);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+  state.baseLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
     maxZoom: 19,
     subdomains: "abcd",
     attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
   }).addTo(state.map);
+  state.populationBaseLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd", attribution: "&copy; OpenStreetMap contributors &copy; CARTO" });
   state.markerLayer = L.markerClusterGroup
     ? L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 42, showCoverageOnHover: false })
     : L.layerGroup();
   state.markerLayer.addTo(state.map);
+}
+
+function usePopulationBasemap(active) {
+  const show = active ? state.populationBaseLayer : state.baseLayer;
+  const hide = active ? state.baseLayer : state.populationBaseLayer;
+  if (hide && state.map.hasLayer(hide)) state.map.removeLayer(hide);
+  if (show && !state.map.hasLayer(show)) show.addTo(state.map);
 }
 
 function syncMapModeControls() {
@@ -459,6 +469,7 @@ function syncMapModeControls() {
 }
 
 function showPopulationLoading() {
+  usePopulationBasemap(true);
   if (state.map?.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
   if (state.map && state.countryLayer) state.map.removeLayer(state.countryLayer);
   if (state.map && state.populationLayer) state.map.removeLayer(state.populationLayer);
@@ -473,6 +484,7 @@ function showPopulationLoading() {
 }
 
 function updateCityMap(places) {
+  usePopulationBasemap(false);
   if (!state.map) initMap();
   if (state.countryLayer) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer) state.map.removeLayer(state.populationLayer);
@@ -511,6 +523,7 @@ function updateCityMap(places) {
 }
 
 function updateCountryMap(records) {
+  usePopulationBasemap(false);
   if (!state.map) initMap();
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
   if (state.countryLayer) state.map.removeLayer(state.countryLayer);
@@ -546,6 +559,7 @@ function updateCountryMap(records) {
 }
 
 function updatePopulationMap(records) {
+  usePopulationBasemap(true);
   if (!state.map) initMap();
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
   if (state.countryLayer) state.map.removeLayer(state.countryLayer);
@@ -557,7 +571,7 @@ function updatePopulationMap(records) {
   state.populationLayer = L.geoJSON({ type: "FeatureCollection", features: cells.map((cell) => cell.feature) }, {
     style: (feature) => {
       const cell = byId.get(feature.properties.hex_id);
-      return { color: cell.stable ? "#75958a" : "#51645d", weight: cell.stable ? .8 : .55, dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .72 : .24 };
+      return { color: cell.stable ? "#94c8b4" : "#62877d", weight: cell.stable ? .8 : .65, dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .82 : .42 };
     },
     onEachFeature: (feature, layer) => {
       const cell = byId.get(feature.properties.hex_id);
