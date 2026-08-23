@@ -1,0 +1,40 @@
+.nfl-site {
+  --bg: #080d18;
+  --bg-raised: #0d1422;
+  --panel: #111c2d;
+  --panel-2: #17263b;
+  --line: #29415e;
+  --line-soft: rgba(136, 180, 224, .15);
+  --text: #f4f8ff;
+  --muted: #9cadc0;
+  --accent: #55baff;
+  --mint: #ff7581;
+  --focus-ring: rgba(85, 186, 255, .5);
+  background: radial-gradient(circle at 14% -10%, rgba(85,186,255,.15), transparent 30rem), radial-gradient(circle at 90% 10%, rgba(255,117,129,.08), transparent 30rem), var(--bg);
+}
+.nfl-site .gridiron-mark { position: relative; width: 31px; height: 21px; display: inline-block; border: 1px solid #7399bd; border-radius: 50%; transform: rotate(-12deg); }
+.nfl-site .gridiron-mark::before { content: ""; position: absolute; top: 9px; left: 4px; right: 4px; height: 1px; background: #7399bd; }
+.nfl-site .gridiron-mark i, .nfl-site .gridiron-mark i::before, .nfl-site .gridiron-mark i::after { position: absolute; width: 1px; height: 7px; background: #7399bd; }
+.nfl-site .gridiron-mark i { top: 6px; left: 14px; }.nfl-site .gridiron-mark i::before, .nfl-site .gridiron-mark i::after { content: ""; top: 0; }.nfl-site .gridiron-mark i::before { left: -4px; }.nfl-site .gridiron-mark i::after { left: 4px; }
+.nfl-site .sport-switcher { background: rgba(14, 24, 39, .86); }
+.nfl-site .sport-switcher a.active, .nfl-site .kpi.accent, .nfl-site .segmented button.active, .nfl-site .map-mode button.active { color: #07111c; }
+.nfl-site .segmented button.active, .nfl-site .map-mode button.active { border-color: var(--accent); background: var(--accent); }
+.nfl-site .status-pill i { background: var(--mint); box-shadow: 0 0 10px var(--mint); }
+.nfl-site .controls { background: rgba(11, 19, 32, .95); }
+.nfl-site select, .nfl-site .segmented button, .nfl-site .more-filters > summary, .nfl-site .map-explorer input, .nfl-site .map-explorer button { background: #0b1422; }
+.nfl-site .secondary-filters { border-color: #385778; background: #0d1726; }
+.nfl-site .filter-chip { color: #d9e8f6; border-color: #385778; background: rgba(23, 38, 59, .88); }
+.nfl-site .view-tabs { background: rgba(12, 22, 36, .72); }.nfl-site .view-tabs button { color: #8ea5ba; }.nfl-site .view-tabs button span { color: #637e97; }
+.nfl-site .nfl-secondary-filters { width: min(520px, calc(100vw - 48px)); }
+.nfl-site .nfl-map-explorer { grid-template-columns: minmax(250px, 290px) minmax(300px, 350px) minmax(220px, 1fr) auto; }
+.nfl-site .legend-dot { background: var(--accent); box-shadow: 0 0 10px rgba(85,186,255,.55); }
+.nfl-site .map-legend { color: #c3d4e4; background: rgba(8,15,26,.93); }
+.nfl-site .leaflet-tooltip, .nfl-site .leaflet-popup-content-wrapper, .nfl-site .leaflet-popup-tip { background: #0d1726; border-color: #385778; }.nfl-site .leaflet-control-zoom a { background: #101c2d !important; }
+.nfl-site .marker-cluster-small, .nfl-site .marker-cluster-medium, .nfl-site .marker-cluster-large { background: rgba(85,186,255,.22) !important; }.nfl-site .marker-cluster-small div, .nfl-site .marker-cluster-medium div, .nfl-site .marker-cluster-large div { background: var(--accent) !important; }
+.nfl-site .map-popup > strong, .nfl-site .map-popup > small, .nfl-site .popup-player span, .nfl-site .popup-player b, .nfl-site .popup-rest { display: block; }.nfl-site .map-popup > strong { margin-bottom: 4px; font-size: 14px; }.nfl-site .map-popup > small, .nfl-site .popup-rest { color: var(--muted); font-size: 11px; }.nfl-site .popup-player { display: flex; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid var(--line-soft); }.nfl-site .popup-player span { font-size: 11px; font-weight: 650; }.nfl-site .popup-player b { color: var(--accent); font: 500 10px "DM Mono", monospace; white-space: nowrap; }
+.nfl-site .nfl-conference-comparison { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }.nfl-site .nfl-conference-comparison .league-card { padding: 24px; }
+.nfl-site .nfl-country-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }.nfl-site .country-panel { padding: 24px; border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); }.nfl-site .country-panel h3 { margin: 5px 0 20px; font-size: 22px; letter-spacing: -.04em; }.nfl-site .country-list { list-style: none; margin: 0; padding: 0; }.nfl-site .country-list li { position: relative; padding: 11px 0; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; border-bottom: 1px solid var(--line-soft); overflow: hidden; }.nfl-site .country-list li::after { content: ""; position: absolute; left: 0; bottom: 0; width: var(--bar); height: 2px; background: var(--accent); opacity: .6; }.nfl-site .country-list span { font-size: 12px; }.nfl-site .country-list b { color: var(--accent); font: 500 12px "DM Mono", monospace; }
+.nfl-site .team-track, .nfl-site .domestic-track, .nfl-site .progress { background: #21344b; }.nfl-site .team-track i { background: linear-gradient(90deg, var(--accent), #9ed7ff); }.nfl-site th, .nfl-site .table-footer { background: #0b1422; }.nfl-site tbody tr:hover { background: rgba(85,186,255,.04); }
+.nfl-site .methodology-card { background: var(--accent); color: #071523; }.nfl-site .methodology-card .card-label { color: #275979; }.nfl-site .methodology-card ol { color: #173d56; }.nfl-site .profile-drawer { background: #0b1422; }.nfl-site .load-more-button:hover, .nfl-site .empty-state-action:hover { background: #9ed7ff; }.nfl-site .error-toast.show { pointer-events: auto; }
+@media (max-width: 1100px) { .nfl-site .nfl-map-explorer { grid-template-columns: minmax(260px,1fr) minmax(300px,1fr); } }
+@media (max-width: 720px) { .nfl-site .brand > span:last-child { display: none; }.nfl-site .hero-note { background: rgba(23,38,59,.6); }.nfl-site .nfl-map-explorer { grid-template-columns: minmax(0,1fr); }.nfl-site .nfl-conference-comparison, .nfl-site .nfl-country-grid { grid-template-columns: 1fr; } }

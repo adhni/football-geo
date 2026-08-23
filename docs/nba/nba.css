@@ -1,0 +1,83 @@
+.nba-site {
+  --bg: #100d0a;
+  --bg-raised: #17110d;
+  --panel: #211711;
+  --panel-2: #2b1d14;
+  --line: #483326;
+  --line-soft: rgba(226, 176, 135, .15);
+  --text: #fff8ef;
+  --muted: #b8a79a;
+  --accent: #ff9b54;
+  --mint: #ffd2a8;
+  --focus-ring: rgba(255, 155, 84, .5);
+  background:
+    radial-gradient(circle at 15% -10%, rgba(255, 155, 84, .16), transparent 30rem),
+    radial-gradient(circle at 92% 12%, rgba(255, 210, 168, .07), transparent 30rem),
+    var(--bg);
+}
+
+.nba-site .basketball-mark { position: relative; width: 29px; height: 29px; display: inline-block; overflow: hidden; border: 1px solid #b97b51; border-radius: 50%; background: rgba(255,155,84,.08); }
+.nba-site .basketball-mark::before, .nba-site .basketball-mark::after, .nba-site .basketball-mark i::before, .nba-site .basketball-mark i::after { content: ""; position: absolute; background: #b97b51; }
+.nba-site .basketball-mark::before { top: 13px; left: 0; width: 100%; height: 1px; }
+.nba-site .basketball-mark::after { top: 0; left: 13px; width: 1px; height: 100%; }
+.nba-site .basketball-mark i::before { top: -2px; left: 2px; width: 10px; height: 32px; border: 1px solid #b97b51; border-block: 0; border-radius: 50%; background: transparent; }
+.nba-site .basketball-mark i::after { top: -2px; right: 2px; width: 10px; height: 32px; border: 1px solid #b97b51; border-block: 0; border-radius: 50%; background: transparent; }
+.nba-site .status-pill i { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+.nba-site .sport-switcher { background: rgba(29, 19, 13, .84); }
+.nba-site .sport-switcher a.active, .nba-site .kpi.accent, .nba-site .segmented button.active, .nba-site .map-mode button.active { color: #1a0f08; }
+.nba-site .segmented button.active, .nba-site .map-mode button.active { border-color: var(--accent); background: var(--accent); }
+.nba-site .loading-mark span, .nba-site .team-track i { background: linear-gradient(90deg, var(--accent), #ffd2a8); }
+.nba-site .controls { background: rgba(28, 18, 12, .94); }
+.nba-site select, .nba-site .year-chips button, .nba-site .segmented button, .nba-site .more-filters > summary, .nba-site .map-explorer input, .nba-site .map-explorer button { background: #1a110c; }
+.nba-site .secondary-filters { border-color: #5a3d2b; background: #1b120d; }
+.nba-site .filter-chip { color: #ead8c9; border-color: #5a3d2b; background: rgba(43, 29, 20, .88); }
+.nba-site .view-tabs { background: rgba(28, 18, 12, .68); }
+.nba-site .view-tabs button { color: #a69080; }
+.nba-site .view-tabs button span { color: #806552; }
+.nba-site .nba-secondary-filters { grid-template-columns: 1fr; width: min(300px, calc(100vw - 48px)); }
+.nba-site .nba-map-explorer { grid-template-columns: minmax(250px, 290px) minmax(300px, 350px) minmax(220px, 1fr) auto; }
+.nba-site .nba-map-explorer.country-mode { grid-template-columns: minmax(250px, 290px) minmax(300px, 350px); }
+.nba-site .legend-dot { background: var(--accent); box-shadow: 0 0 10px rgba(255,155,84,.55); }
+.nba-site .map-legend { color: #d2c0b3; background: rgba(24, 15, 10, .92); }
+.nba-site .leaflet-tooltip, .nba-site .leaflet-popup-content-wrapper, .nba-site .leaflet-popup-tip { background: #1c120d; border-color: #5a3d2b; }
+.nba-site .leaflet-control-zoom a { background: #20150f !important; }
+.nba-site .marker-cluster-small, .nba-site .marker-cluster-medium, .nba-site .marker-cluster-large { background: rgba(255,155,84,.22) !important; }
+.nba-site .marker-cluster-small div, .nba-site .marker-cluster-medium div, .nba-site .marker-cluster-large div { background: var(--accent) !important; }
+.nba-site .map-popup > strong, .nba-site .map-popup > small, .nba-site .popup-player span, .nba-site .popup-player b, .nba-site .popup-rest { display: block; }
+.nba-site .map-popup > strong { margin-bottom: 4px; font-size: 14px; }
+.nba-site .map-popup > small, .nba-site .popup-rest { color: var(--muted); font-size: 11px; }
+.nba-site .popup-player { display: flex; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid var(--line-soft); }
+.nba-site .popup-player span { font-size: 11px; font-weight: 650; }
+.nba-site .popup-player b { color: var(--accent); font: 500 10px "DM Mono", monospace; white-space: nowrap; }
+.nba-site .popup-rest { padding-top: 8px; }
+.nba-site .nba-conference-comparison { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.nba-site .nba-conference-comparison .league-card { padding: 24px; }
+.nba-site .nba-country-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.nba-site .country-panel { padding: 24px; border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); }
+.nba-site .country-panel h3 { margin: 5px 0 20px; font-size: 22px; letter-spacing: -.04em; }
+.nba-site .country-list { list-style: none; margin: 0; padding: 0; }
+.nba-site .country-list li { position: relative; padding: 11px 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; border-bottom: 1px solid var(--line-soft); overflow: hidden; }
+.nba-site .country-list li::after { content: ""; position: absolute; left: 0; bottom: 0; width: var(--bar); height: 2px; background: var(--accent); opacity: .6; }
+.nba-site .country-list span { font-size: 12px; }
+.nba-site .country-list b { color: var(--accent); font: 500 12px "DM Mono", monospace; }
+.nba-site .team-track, .nba-site .domestic-track, .nba-site .progress { background: #3a281d; }
+.nba-site th, .nba-site .table-footer { background: #1a110c; }
+.nba-site tbody tr:hover { background: rgba(255,155,84,.04); }
+.nba-site .methodology-card { background: var(--accent); color: #24150c; }
+.nba-site .methodology-card .card-label { color: #70401f; }
+.nba-site .methodology-card ol { color: #4b2c18; }
+.nba-site .profile-drawer { background: #17100b; }
+.nba-site .load-more-button:hover, .nba-site .empty-state-action:hover, .nba-site .clear-filters:hover { background: #ffd2a8; }
+.nba-site .error-toast.show { pointer-events: auto; }
+
+@media (max-width: 1100px) {
+  .nba-site .nba-map-explorer { grid-template-columns: minmax(260px, 1fr) minmax(300px, 1fr); }
+  .nba-site .nba-map-explorer.country-mode { grid-template-columns: minmax(260px, 1fr) minmax(300px, 1fr); }
+}
+
+@media (max-width: 720px) {
+  .nba-site .brand > span:last-child { display: none; }
+  .nba-site .hero-note { background: rgba(43, 29, 20, .58); }
+  .nba-site .nba-map-explorer, .nba-site .nba-map-explorer.country-mode { grid-template-columns: minmax(0, 1fr); }
+  .nba-site .nba-conference-comparison, .nba-site .nba-country-grid { grid-template-columns: 1fr; }
+}

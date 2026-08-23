@@ -28,6 +28,11 @@
         <span class="brand-mark" aria-hidden="true"><i></i></span>
         <span>Football <b>Geo</b></span>
       </a>
+      <nav class="sport-switcher" aria-label="Choose a sport">
+        <a class="active" href="./" aria-current="page">Football</a>
+        <a href="./nba/">NBA</a>
+        <a href="./nfl/">NFL</a>
+      </nav>
       <div class="header-meta">
         <span class="status-pill"><i></i> 2025–26 snapshot</span>
         <a href="https://github.com/adhni/football-geo" target="_blank" rel="noreferrer">View source ↗</a>
@@ -99,6 +104,14 @@
               <button class="active" type="button" data-metric="starts" aria-pressed="true">Starts</button>
               <button type="button" data-metric="starters" aria-pressed="false">Players with 1+ start</button>
               <button type="button" data-metric="players" aria-pressed="false">Players</button>
+            </div>
+          </div>
+          <div class="control-group resolution-control" hidden>
+            <span class="control-label">Area size</span>
+            <div class="segmented" id="resolution-control" role="group" aria-label="Population area size">
+              <button type="button" data-resolution="1" aria-pressed="false">Very broad</button>
+              <button type="button" data-resolution="2" aria-pressed="false">Large</button>
+              <button class="active" type="button" data-resolution="3" aria-pressed="true">Regional</button>
             </div>
           </div>
           <label class="place-search-control"><span>Find a birthplace</span><input id="place-search" list="place-options" type="search" placeholder="Try London, Paris, Dakar…" autocomplete="off" /><datalist id="place-options"></datalist></label>

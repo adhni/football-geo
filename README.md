@@ -1,6 +1,9 @@
-# Football Talent Geography
+# Talent Geography
 
-A reproducible data + visualisation project that asks:
+A reproducible data + visualisation project that started with football and now
+includes NBA and NFL editions in the same public site.
+
+The football project asks:
 
 > **Where do the world's leading men's national teams actually get their starters from, and which places over-produce elite footballers relative to population?**
 
@@ -77,11 +80,15 @@ streamlit run dashboard/app.py
 ## GitHub Pages dashboard
 
 The public, backend-free dashboard lives in `docs/` and is served directly by
-GitHub Pages. To refresh its bundled data and preview it locally:
+GitHub Pages. The football explorer lives at `/`, the NBA explorer at `/nba/`
+and the NFL explorer at `/nfl/`, with a sport switcher shared between them. To
+refresh the football data and preview every edition locally:
 
 ```bash
 python -m src.ftg.export_static_site
-python -m src.ftg.build_population_hexes
+python -m src.ftg.build_population_hexes \
+  --output docs/data/population_hexes_r3.geojson \
+  --h3-resolution 3 --use-rasters
 python -m http.server 8000 --directory docs
 ```
 
@@ -89,6 +96,42 @@ Then open `http://localhost:8000`. The generated dashboard data is committed at
 `docs/data/dashboard.json`; raw and intermediate datasets remain local.
 The population command queries only occupied H3 cells and resumes from the
 ignored `data/cache/` checkpoint.
+
+To refresh the NBA snapshot:
+
+```bash
+python -m src.ftg.build_nba_site
+python -m src.ftg.build_population_hexes \
+  --input docs/nba/data/dashboard.json \
+  --output docs/nba/data/population_hexes_r3.geojson \
+  --cache data/cache/nba_worldpop_population_2025.json \
+  --h3-resolution 3 --use-rasters
+```
+
+The command downloads a public NBA Stats API export, joins players to recorded
+Wikidata birthplaces through NBA.com player IDs and writes
+`docs/nba/data/dashboard.json`. See `docs/nba/DATA_SOURCES.md` for scope and
+attribution.
+
+To refresh the snap-defined NFL snapshot:
+
+```bash
+python -m src.ftg.build_nfl_site
+python -m src.ftg.build_population_hexes \
+  --input docs/nfl/data/dashboard.json \
+  --output docs/nfl/data/population_hexes_r3.geojson \
+  --cache data/cache/nfl_worldpop_population_2025.json \
+  --h3-resolution 3 --use-rasters
+```
+
+This joins nflverse regular-season snap counts to ESPN birth-city fields and
+GeoNames coordinates. Players without a conservative city match remain in the
+published QA queue. See `docs/nfl/DATA_SOURCES.md` for scope and attribution.
+For each sport, run its population command at H3 resolutions 1, 2 and 3 to
+refresh the Very broad, Large, and Regional area sizes. The layers use cached
+official WorldPop country rasters because the public polygon API limits
+requests to 50,000 km². Each sport and area size derives a stable colour scale
+from its full unfiltered population-rate distribution.
 
 To rebuild the current Big Five edition:
 
