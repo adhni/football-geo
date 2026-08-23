@@ -86,7 +86,9 @@ refresh the football data and preview every edition locally:
 
 ```bash
 python -m src.ftg.export_static_site
-python -m src.ftg.build_population_hexes
+python -m src.ftg.build_population_hexes \
+  --output docs/data/population_hexes_r3.geojson \
+  --h3-resolution 3 --use-rasters
 python -m http.server 8000 --directory docs
 ```
 
@@ -125,9 +127,11 @@ python -m src.ftg.build_population_hexes \
 This joins nflverse regular-season snap counts to ESPN birth-city fields and
 GeoNames coordinates. Players without a conservative city match remain in the
 published QA queue. See `docs/nfl/DATA_SOURCES.md` for scope and attribution.
-Run the population command at H3 resolutions 1, 2 and 3 to refresh the three
-selectable area sizes. Coarse layers use cached official WorldPop country
-rasters because the public polygon API limits requests to 50,000 km².
+For each sport, run its population command at H3 resolutions 1, 2 and 3 to
+refresh the Very broad, Large, and Regional area sizes. The layers use cached
+official WorldPop country rasters because the public polygon API limits
+requests to 50,000 km². Each sport and area size derives a stable colour scale
+from its full unfiltered population-rate distribution.
 
 To rebuild the current Big Five edition:
 

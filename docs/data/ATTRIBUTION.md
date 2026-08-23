@@ -15,7 +15,8 @@ domain. The committed GeoJSON retains only the properties needed by the site.
 Local population totals for the population-normalized map come from
 [WorldPop Global 2](https://hub.worldpop.org/project/categories?id=3), 2025
 release R2025A, using the 1 km population grid under CC BY 4.0. Totals are
-calculated only for occupied H3 resolution-3 cells through the WorldPop API.
+calculated only for occupied H3 resolution-1, resolution-2, and resolution-3
+cells from the official country rasters.
 
 The dashboard includes every player with at least one domestic-league
 appearance in the Premier League, La Liga, Bundesliga, Serie A, or Ligue 1 in

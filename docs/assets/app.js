@@ -1,6 +1,10 @@
 const DATA_URL = "./data/dashboard.json";
 const COUNTRY_GEO_URL = "./data/countries.geojson";
-const POPULATION_GEO_URL = "./data/population_hexes.geojson";
+const POPULATION_GEO_URLS = {
+  1: "./data/population_hexes_r1.geojson",
+  2: "./data/population_hexes_r2.geojson",
+  3: "./data/population_hexes_r3.geojson",
+};
 const AGE_AS_OF = new Date("2026-06-30T00:00:00Z");
 const AGE_BANDS = [
   { id: "u21", label: "Under 21", min: 0, max: 20 },
@@ -16,13 +20,7 @@ const LEAGUE_HOSTS = {
   "Serie A": "ITA",
   "Ligue 1": "FRA",
 };
-const POPULATION_RATE_STOPS = [
-  { value: 0, colour: [51, 34, 136] },
-  { value: 2, colour: [17, 112, 170] },
-  { value: 5, colour: [68, 170, 153] },
-  { value: 10, colour: [238, 190, 72] },
-  { value: 25, colour: [238, 93, 80] },
-];
+const POPULATION_RATE_COLOURS = [[51, 34, 136], [17, 112, 170], [68, 170, 153], [238, 190, 72], [238, 93, 80]];
 
 const state = {
   payload: null,
@@ -34,6 +32,7 @@ const state = {
   ageGroupMode: "league",
   placeQuery: "",
   mapMode: "city",
+  populationResolution: 3,
   years: new Set(),
   metric: "starts",
   view: "map",
@@ -46,11 +45,12 @@ const state = {
   countryMetadataAvailable: false,
   countryLayer: null,
   countryLayers: new Map(),
-  populationGeojson: null,
-  populationPromise: null,
-  populationUnavailable: false,
+  populationGeojson: new Map(),
+  populationPromises: new Map(),
+  populationUnavailable: new Set(),
   populationLayer: null,
   populationLayers: new Map(),
+  populationRateStops: [],
   profileMap: null,
   profileOpener: null,
   profilePlayerId: null,
@@ -256,7 +256,8 @@ function aggregatePopulationCells(records) {
   records.filter((row) => row.mapped).forEach((row) => {
     if (!players.has(row.id)) players.set(row.id, row);
   });
-  return (state.populationGeojson?.features || []).map((feature) => {
+  const geojson = state.populationGeojson.get(state.populationResolution);
+  return (geojson?.features || []).map((feature) => {
     const selected = (feature.properties.player_ids || []).filter((playerId) => players.has(playerId));
     if (!selected.length) return null;
     const places = new Map();
@@ -282,38 +283,56 @@ function aggregatePopulationCells(records) {
   }).filter(Boolean);
 }
 
-async function loadPopulationGeometry() {
-  if (state.populationGeojson) return state.populationGeojson;
-  if (state.populationUnavailable) throw new Error("Population geometry is unavailable");
-  if (!state.populationPromise) {
-    state.populationPromise = fetch(POPULATION_GEO_URL)
+async function loadPopulationGeometry(resolution = state.populationResolution) {
+  if (state.populationGeojson.has(resolution)) return state.populationGeojson.get(resolution);
+  if (state.populationUnavailable.has(resolution)) throw new Error(`Population geometry is unavailable at H3 resolution ${resolution}`);
+  if (!state.populationPromises.has(resolution)) {
+    const promise = fetch(POPULATION_GEO_URLS[resolution])
       .then((response) => {
         if (!response.ok) throw new Error(`Population geometry request failed (${response.status})`);
         return response.json();
       })
       .then((geojson) => {
-        state.populationGeojson = geojson;
+        state.populationGeojson.set(resolution, geojson);
         return geojson;
       })
       .catch((error) => {
-        state.populationUnavailable = true;
-        state.populationPromise = null;
+        state.populationUnavailable.add(resolution);
+        state.populationPromises.delete(resolution);
         throw error;
       });
+    state.populationPromises.set(resolution, promise);
   }
-  return state.populationPromise;
+  return state.populationPromises.get(resolution);
+}
+
+function populationResolutionLabel() {
+  return { 1: "Very broad", 2: "Large", 3: "Regional" }[state.populationResolution];
 }
 
 function populationRateColour(rate) {
   if (rate === null) return "#26352f";
-  const clamped = Math.max(0, Math.min(rate, POPULATION_RATE_STOPS.at(-1).value));
-  const upperIndex = POPULATION_RATE_STOPS.findIndex((stop) => clamped <= stop.value);
-  if (upperIndex <= 0) return `rgb(${POPULATION_RATE_STOPS[0].colour.join(",")})`;
-  const lower = POPULATION_RATE_STOPS[upperIndex - 1];
-  const upper = POPULATION_RATE_STOPS[upperIndex];
-  const progress = (clamped - lower.value) / (upper.value - lower.value);
+  const stops = state.populationRateStops;
+  const clamped = Math.max(0, Math.min(rate, stops.at(-1).value));
+  const upperIndex = stops.findIndex((stop) => clamped <= stop.value);
+  if (upperIndex <= 0) return `rgb(${stops[0].colour.join(",")})`;
+  const lower = stops[upperIndex - 1];
+  const upper = stops[upperIndex];
+  const progress = upper.value === lower.value ? 1 : (clamped - lower.value) / (upper.value - lower.value);
   const colour = lower.colour.map((channel, index) => Math.round(channel + (upper.colour[index] - channel) * progress));
   return `rgb(${colour.join(",")})`;
+}
+
+function updatePopulationRateScale() {
+  const geojson = state.populationGeojson.get(state.populationResolution);
+  const allRates = (geojson?.features || []).map(({ properties }) => properties.population ? properties.all_players / properties.population * 1_000_000 : null).filter((rate) => rate !== null).sort((a, b) => a - b);
+  const reliableRates = (geojson?.features || []).filter(({ properties }) => properties.all_players >= 2 && properties.population >= 100_000).map(({ properties }) => properties.all_players / properties.population * 1_000_000).sort((a, b) => a - b);
+  const rates = reliableRates.length >= 5 ? reliableRates : allRates;
+  const quantile = (fraction) => rates[Math.min(rates.length - 1, Math.round((rates.length - 1) * fraction))] || 0;
+  const values = [0, quantile(.25), quantile(.5), quantile(.75), quantile(.95)];
+  state.populationRateStops = values.map((value, index) => ({ value, colour: POPULATION_RATE_COLOURS[index] }));
+  const formatRate = (value, index) => `${value < 10 ? value.toFixed(1) : Math.round(value)}${index === values.length - 1 ? "+" : ""}`;
+  $$("#population-scale b").forEach((label, index) => { label.textContent = index ? formatRate(values[index], index) : "0"; });
 }
 
 function aggregateLeagues(records) {
@@ -422,7 +441,7 @@ function syncMapModeControls() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
     if (button.dataset.mapMode === "country") button.disabled = !state.countryGeojson;
-    if (button.dataset.mapMode === "population") button.disabled = state.populationUnavailable;
+    if (button.dataset.mapMode === "population") button.disabled = state.populationUnavailable.size === Object.keys(POPULATION_GEO_URLS).length;
   });
   $("#map-explorer")?.classList.toggle("country-mode", state.mapMode !== "city");
   const metricControl = $("#metric-control");
@@ -435,6 +454,8 @@ function syncMapModeControls() {
     else metricControl.hidden = unavailable;
     metricControl.querySelectorAll("button").forEach((button) => { button.disabled = unavailable; });
   }
+  const resolutionControl = $(".resolution-control");
+  if (resolutionControl) resolutionControl.hidden = state.mapMode !== "population";
 }
 
 function showPopulationLoading() {
@@ -448,6 +469,7 @@ function showPopulationLoading() {
   if ($("#population-scale")) $("#population-scale").hidden = false;
   if ($("#legend-prefix")) $("#legend-prefix").textContent = "Hex colour =";
   if ($("#legend-metric")) $("#legend-metric").textContent = "players per 1M people";
+  if ($(".resolution-control")) $(".resolution-control").hidden = false;
 }
 
 function updateCityMap(places) {
@@ -529,6 +551,7 @@ function updatePopulationMap(records) {
   if (state.countryLayer) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer) state.map.removeLayer(state.populationLayer);
   const cells = aggregatePopulationCells(records);
+  updatePopulationRateScale();
   const byId = new Map(cells.map((cell) => [cell.hexId, cell]));
   state.populationLayers = new Map();
   state.populationLayer = L.geoJSON({ type: "FeatureCollection", features: cells.map((cell) => cell.feature) }, {
@@ -602,7 +625,7 @@ function updatePopulationRanking(records) {
   const top = reliable.slice(0, 10);
   const max = top[0]?.rate || 1;
   $("#ranking-title").textContent = "Players per 1M people";
-  $("#place-count").textContent = `${formatNumber.format(cells.length)} local areas`;
+  $("#place-count").textContent = `${formatNumber.format(cells.length)} ${populationResolutionLabel().toLowerCase()} areas`;
   $("#place-ranking").innerHTML = top.map((cell, index) => `
     <li class="place-row" style="--bar:${cell.rate / max * 100}%"><button class="place-jump population-jump" data-hex-id="${escapeHtml(cell.hexId)}" aria-label="Zoom to ${escapeHtml(cell.label)} area">
       <span class="place-rank">${String(index + 1).padStart(2, "0")}</span>
@@ -617,7 +640,7 @@ function updatePopulationRanking(records) {
 
 function updateMapAndRanking(records, places) {
   if (state.mapMode === "population") {
-    if (!state.populationGeojson) {
+    if (!state.populationGeojson.has(state.populationResolution)) {
       showPopulationLoading();
       return;
     }
@@ -1017,6 +1040,7 @@ function resetAllFilters() {
   state.years = new Set(state.payload.meta.years);
   state.metric = "starts";
   state.mapMode = "city";
+  state.populationResolution = 3;
   state.ageChartMode = "distribution";
   state.ageGroupMode = "league";
   state.playerLimit = 150;
@@ -1031,6 +1055,7 @@ function resetAllFilters() {
   syncPressedButtons("#metric-control button", "metric", state.metric);
   syncPressedButtons("#age-chart-mode button", "ageChart", state.ageChartMode);
   syncPressedButtons("#age-group-mode button", "ageGroup", state.ageGroupMode);
+  syncPressedButtons("#resolution-control button", "resolution", String(state.populationResolution));
   syncMapModeControls();
   render();
 }
@@ -1060,7 +1085,12 @@ function clearFilter(key) {
 
 async function activateMapMode(mode) {
   if (mode === "country" && !state.countryGeojson) return;
-  if (mode === "population" && state.populationUnavailable) return;
+  if (mode === "population" && state.populationUnavailable.has(state.populationResolution)) {
+    const fallback = [3, 2, 1].find((resolution) => !state.populationUnavailable.has(resolution));
+    if (!fallback) return;
+    state.populationResolution = fallback;
+    syncPressedButtons("#resolution-control button", "resolution", String(fallback));
+  }
   if (mode !== "city" && state.placeQuery) {
     state.placeQuery = "";
     if ($("#place-search")) $("#place-search").value = "";
@@ -1068,7 +1098,7 @@ async function activateMapMode(mode) {
   state.mapMode = mode;
   syncMapModeControls();
   renderMapExplorer();
-  if (mode !== "population" || state.populationGeojson) return;
+  if (mode !== "population" || state.populationGeojson.has(state.populationResolution)) return;
   try {
     await loadPopulationGeometry();
     if (state.mapMode === "population") renderMapExplorer();
@@ -1088,6 +1118,20 @@ function bindControls() {
     const button = event.target.closest("button[data-map-mode]");
     if (!button || button.disabled) return;
     activateMapMode(button.dataset.mapMode);
+  });
+  $("#resolution-control")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-resolution]");
+    if (!button) return;
+    state.populationResolution = Number(button.dataset.resolution);
+    syncPressedButtons("#resolution-control button", "resolution", String(state.populationResolution));
+    showPopulationLoading();
+    try {
+      await loadPopulationGeometry();
+      if (state.mapMode === "population") renderMapExplorer();
+    } catch (error) {
+      console.error(error);
+      showToast(`${populationResolutionLabel()} population areas are unavailable. Try another size.`);
+    }
   });
   $("#league-filter")?.addEventListener("change", (event) => {
     state.league = event.target.value;

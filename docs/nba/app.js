@@ -7,13 +7,7 @@ const POPULATION_GEO_URLS = {
 };
 const DEFAULT_VIEW = "map";
 const PLAYER_BATCH = 100;
-const POPULATION_RATE_STOPS = [
-  { value: 0, colour: [51, 34, 136] },
-  { value: 2, colour: [17, 112, 170] },
-  { value: 5, colour: [68, 170, 153] },
-  { value: 10, colour: [238, 190, 72] },
-  { value: 25, colour: [238, 93, 80] },
-];
+const POPULATION_RATE_COLOURS = [[51, 34, 136], [17, 112, 170], [68, 170, 153], [238, 190, 72], [238, 93, 80]];
 
 const state = {
   payload: null,
@@ -38,6 +32,7 @@ const state = {
   placeMarkers: new Map(),
   countryLayers: new Map(),
   populationLayers: new Map(),
+  populationRateStops: [],
   profileMap: null,
   profileOpener: null,
 };
@@ -193,13 +188,26 @@ async function loadPopulationGeometry(resolution = state.populationResolution) {
 
 function populationRateColour(rate) {
   if (rate === null) return "#30251d";
-  const clamped = Math.max(0, Math.min(rate, POPULATION_RATE_STOPS.at(-1).value));
-  const upperIndex = POPULATION_RATE_STOPS.findIndex((stop) => clamped <= stop.value);
-  if (upperIndex <= 0) return `rgb(${POPULATION_RATE_STOPS[0].colour.join(",")})`;
-  const lower = POPULATION_RATE_STOPS[upperIndex - 1];
-  const upper = POPULATION_RATE_STOPS[upperIndex];
-  const progress = (clamped - lower.value) / (upper.value - lower.value);
+  const stops = state.populationRateStops;
+  const clamped = Math.max(0, Math.min(rate, stops.at(-1).value));
+  const upperIndex = stops.findIndex((stop) => clamped <= stop.value);
+  if (upperIndex <= 0) return `rgb(${stops[0].colour.join(",")})`;
+  const lower = stops[upperIndex - 1];
+  const upper = stops[upperIndex];
+  const progress = upper.value === lower.value ? 1 : (clamped - lower.value) / (upper.value - lower.value);
   return `rgb(${lower.colour.map((channel, index) => Math.round(channel + (upper.colour[index] - channel) * progress)).join(",")})`;
+}
+
+function updatePopulationRateScale() {
+  const geojson = state.populationGeojson.get(state.populationResolution);
+  const allRates = (geojson?.features || []).map(({ properties }) => properties.population ? properties.all_players / properties.population * 1_000_000 : null).filter((rate) => rate !== null).sort((a, b) => a - b);
+  const reliableRates = (geojson?.features || []).filter(({ properties }) => properties.all_players >= 2 && properties.population >= 100_000).map(({ properties }) => properties.all_players / properties.population * 1_000_000).sort((a, b) => a - b);
+  const rates = reliableRates.length >= 5 ? reliableRates : allRates;
+  const quantile = (fraction) => rates[Math.min(rates.length - 1, Math.round((rates.length - 1) * fraction))] || 0;
+  const values = [0, quantile(.25), quantile(.5), quantile(.75), quantile(.95)];
+  state.populationRateStops = values.map((value, index) => ({ value, colour: POPULATION_RATE_COLOURS[index] }));
+  const formatRate = (value, index) => `${value < 10 ? value.toFixed(1) : Math.round(value)}${index === values.length - 1 ? "+" : ""}`;
+  $$("#population-scale b").forEach((label, index) => { label.textContent = index ? formatRate(values[index], index) : "0"; });
 }
 
 function populationResolutionLabel() {
@@ -348,6 +356,7 @@ function renderPopulationMap(records) {
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
   const cells = aggregatePopulationCells(records);
+  updatePopulationRateScale();
   const byId = new Map(cells.map((cell) => [cell.hexId, cell]));
   state.populationLayers.clear();
   state.populationLayer = L.geoJSON({ type: "FeatureCollection", features: cells.map((cell) => cell.feature) }, {

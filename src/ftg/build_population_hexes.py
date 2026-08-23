@@ -13,15 +13,32 @@ import requests
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT = ROOT / "docs" / "data" / "dashboard.json"
-DEFAULT_OUTPUT = ROOT / "docs" / "data" / "population_hexes.geojson"
+DEFAULT_OUTPUT = ROOT / "docs" / "data" / "population_hexes_r3.geojson"
 DEFAULT_CACHE = ROOT / "data" / "cache" / "worldpop_population_2025.json"
 DEFAULT_COUNTRY_GEOMETRY = ROOT / "docs" / "data" / "countries.geojson"
 DEFAULT_RASTER_CACHE = ROOT / "data" / "cache" / "worldpop_rasters_2025"
 WORLDPOP_API = "https://api.worldpop.org/v2"
 WORLDPOP_SOURCE = "WorldPop Global 2 R2025A"
 WORLDPOP_MAX_H3_POLYGON_RESOLUTION = 3
-WORLDPOP_COUNTRY_ALIASES = {"CYN": "CYP", "KOS": "SRB", "PSX": "PSE", "SDS": "SSD"}
+WORLDPOP_COUNTRY_ALIASES = {
+    "ATF": "FRA",  # French Southern Territories have no standalone WorldPop raster.
+    "CYN": "CYP",
+    "KOS": "SRB",
+    "PSX": "PSE",
+    "SAH": "MAR",  # Western Sahara is covered by the Morocco raster.
+    "SDS": "SSD",
+}
 WORLDPOP_COUNTRY_NAME_ALIASES = {"American Samoa": "ASM", "Saint Lucia": "LCA"}
+WORLDPOP_TERRITORY_BOUNDS = {
+    "FRO": (-7.0, 61.3, -6.0, 62.5),
+    "GLP": (-61.9, 15.8, -60.9, 16.6),
+    "GUF": (-54.7, 2.0, -51.5, 6.0),
+    "MTQ": (-61.3, 14.3, -60.7, 14.9),
+    "MYT": (44.9, -13.1, 45.4, -12.6),
+    "NCL": (163.5, -23.0, 168.5, -19.0),
+    "PYF": (-153.0, -28.0, -134.0, -7.0),
+    "REU": (55.1, -21.5, 55.9, -20.8),
+}
 
 
 def population_cache_key(cell_id: str, year: int, resolution: str) -> str:
@@ -107,7 +124,7 @@ def _cell_country_codes(
     country_geometry_path: Path,
     hinted_countries: dict[str, Iterable[str]] | None = None,
 ) -> dict[str, list[str]]:
-    from shapely.geometry import shape
+    from shapely.geometry import box, shape
 
     countries = json.loads(country_geometry_path.read_text(encoding="utf-8"))["features"]
     geometries = [
@@ -127,6 +144,10 @@ def _cell_country_codes(
     for cell_id in cell_ids:
         cell = shape(cell_polygon(cell_id))
         codes = {code for code, geometry in geometries if geometry.intersects(cell)}
+        codes.update(
+            code for code, bounds in WORLDPOP_TERRITORY_BOUNDS.items()
+            if cell.intersects(box(*bounds))
+        )
         codes.update(
             name_codes[name]
             for name in (hinted_countries or {}).get(cell_id, [])

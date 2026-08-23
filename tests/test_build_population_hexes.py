@@ -49,23 +49,16 @@ def test_cell_polygon_splits_antimeridian_cells():
     )
 
 
-def test_published_population_layer_matches_mapped_player_scope():
-    population = json.loads((ROOT / "docs" / "data" / "population_hexes.geojson").read_text(encoding="utf-8"))
-    dashboard = json.loads((ROOT / "docs" / "data" / "dashboard.json").read_text(encoding="utf-8"))
+@pytest.mark.parametrize("sport", ["football", "nba", "nfl"])
+@pytest.mark.parametrize("resolution", [1, 2, 3])
+def test_published_sport_population_layers_match_mapped_player_scope(sport, resolution):
+    directory = ROOT / "docs" if sport == "football" else ROOT / "docs" / sport
+    population = json.loads((directory / "data" / f"population_hexes_r{resolution}.geojson").read_text(encoding="utf-8"))
+    dashboard = json.loads((directory / "data" / "dashboard.json").read_text(encoding="utf-8"))
 
     assert population["type"] == "FeatureCollection"
     assert population["metadata"]["population_year"] == 2025
     assert population["metadata"]["raster_resolution"] == "1km"
-    assert sum(feature["properties"]["all_players"] for feature in population["features"]) == dashboard["summary"]["mapped_players"]
-    assert all(feature["properties"]["population"] >= 0 for feature in population["features"])
-
-
-@pytest.mark.parametrize("sport", ["nba", "nfl"])
-@pytest.mark.parametrize("resolution", [1, 2, 3])
-def test_published_sport_population_layers_match_mapped_player_scope(sport, resolution):
-    population = json.loads((ROOT / "docs" / sport / "data" / f"population_hexes_r{resolution}.geojson").read_text(encoding="utf-8"))
-    dashboard = json.loads((ROOT / "docs" / sport / "data" / "dashboard.json").read_text(encoding="utf-8"))
-
     assert population["metadata"]["h3_resolution"] == resolution
     assert population["metadata"]["population_method"] == "official_country_rasters"
     assert sum(feature["properties"]["all_players"] for feature in population["features"]) == dashboard["summary"]["mapped_players"]
