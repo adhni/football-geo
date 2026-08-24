@@ -116,3 +116,21 @@ def test_nhl_explorer_reuses_the_accessible_sport_shell():
     assert "projectTeamSplits" in shared_javascript
     assert "filteredTeamRecords" in shared_javascript
     assert (ROOT / "docs" / "nhl" / "data" / "dashboard.json").exists()
+
+
+def test_mlb_explorer_reuses_the_accessible_sport_shell():
+    html = (ROOT / "docs" / "mlb" / "index.html").read_text(encoding="utf-8")
+    shared_javascript = (ROOT / "docs" / "nba" / "app.js").read_text(encoding="utf-8")
+
+    assert 'class="mlb-site"' in html
+    assert 'window.TALENT_GEO_EDITION={name:"MLB"' in html
+    assert 'workloadLabel:"workload"' in html
+    assert 'profileOriginField:"birthCountry"' in html
+    assert 'teamSplitStats:["plateAppearances"' in html
+    assert 'src="../nba/app.js"' in html
+    assert 'data-map-mode="population"' in html
+    assert 'id="resolution-control"' in html
+    assert 'role="tablist"' in html
+    assert html.count('role="tab"') == 4
+    assert "EDITION.workloadLabel" in shared_javascript
+    assert (ROOT / "docs" / "mlb" / "data" / "dashboard.json").exists()

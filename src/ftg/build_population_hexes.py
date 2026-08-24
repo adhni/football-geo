@@ -28,7 +28,12 @@ WORLDPOP_COUNTRY_ALIASES = {
     "SAH": "MAR",  # Western Sahara is covered by the Morocco raster.
     "SDS": "SSD",
 }
-WORLDPOP_COUNTRY_NAME_ALIASES = {"American Samoa": "ASM", "Saint Lucia": "LCA"}
+WORLDPOP_COUNTRY_NAME_ALIASES = {
+    "American Samoa": "ASM",
+    "Aruba": "ABW",
+    "Curacao": "CUW",
+    "Saint Lucia": "LCA",
+}
 WORLDPOP_TERRITORY_BOUNDS = {
     "FRO": (-7.0, 61.3, -6.0, 62.5),
     "GLP": (-61.9, 15.8, -60.9, 16.6),
