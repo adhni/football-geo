@@ -1,7 +1,7 @@
 # Talent Geography
 
 A reproducible data + visualisation project that started with football and now
-includes NBA and NFL editions in the same public site.
+includes NBA, NFL and NHL editions in the same public site.
 
 The football project asks:
 
@@ -80,9 +80,10 @@ streamlit run dashboard/app.py
 ## GitHub Pages dashboard
 
 The public, backend-free dashboard lives in `docs/` and is served directly by
-GitHub Pages. The football explorer lives at `/`, the NBA explorer at `/nba/`
-and the NFL explorer at `/nfl/`, with a sport switcher shared between them. To
-refresh the football data and preview every edition locally:
+GitHub Pages. The football explorer lives at `/`, the NBA explorer at `/nba/`,
+the NFL explorer at `/nfl/` and the NHL explorer at `/nhl/`, with a sport
+switcher shared between them. To refresh the football data and preview every
+edition locally:
 
 ```bash
 python -m src.ftg.export_static_site
@@ -127,6 +128,22 @@ python -m src.ftg.build_population_hexes \
 This joins nflverse regular-season snap counts to ESPN birth-city fields and
 GeoNames coordinates. Players without a conservative city match remain in the
 published QA queue. See `docs/nfl/DATA_SOURCES.md` for scope and attribution.
+
+To refresh the NHL snapshot:
+
+```bash
+python -m src.ftg.build_nhl_site
+python -m src.ftg.build_population_hexes \
+  --input docs/nhl/data/dashboard.json \
+  --output docs/nhl/data/population_hexes_r3.geojson \
+  --cache data/cache/nhl_worldpop_population_2025.json \
+  --h3-resolution 3 --use-rasters
+```
+
+This reads exact per-team skater and goalie totals plus recorded birthplaces
+from the NHL public API, then matches coordinates conservatively through
+GeoNames. See `docs/nhl/DATA_SOURCES.md` for scope and attribution.
+
 For each sport, run its population command at H3 resolutions 1, 2 and 3 to
 refresh the Very broad, Large, and Regional area sizes. The layers use cached
 official WorldPop country rasters because the public polygon API limits

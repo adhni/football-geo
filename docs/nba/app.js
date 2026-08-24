@@ -8,6 +8,18 @@ const POPULATION_GEO_URLS = {
 const DEFAULT_VIEW = "map";
 const PLAYER_BATCH = 100;
 const POPULATION_RATE_COLOURS = [[222, 241, 235], [166, 218, 204], [91, 178, 161], [27, 126, 122], [7, 66, 80]];
+const EDITION = {
+  name: "NBA",
+  homeCountry: "United States",
+  outsideHomeLabel: "Born outside US",
+  markerStroke: "#ffd2a8",
+  markerFill: "#ff9b54",
+  countryHue: 25,
+  countrySaturation: 100,
+  countryEmpty: "#30251d",
+  profileStats: ["games", "minutes", "points", "rebounds", "assists"],
+  ...window.TALENT_GEO_EDITION,
+};
 
 const state = {
   payload: null,
@@ -68,12 +80,52 @@ function median(values) {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-function filteredRecords() {
-  return state.payload.records.filter((row) =>
-    (state.conference === "all" || row.conference === state.conference)
-    && (state.team === "all" || row.team === state.team)
-    && (state.country === "all" || row.country === state.country)
-  );
+function projectTeamSplits(row, splits) {
+  const primary = [...splits].sort((a, b) => b.minutes - a.minutes || a.team.localeCompare(b.team))[0];
+  const total = (key) => splits.reduce((sum, split) => sum + (split[key] || 0), 0);
+  return {
+    ...row,
+    team: primary.team,
+    teamCode: primary.teamCode,
+    teams: [...new Set(splits.map((split) => split.team))],
+    conference: primary.conference,
+    division: primary.division,
+    games: total("games"),
+    minutes: total("minutes"),
+    goals: total("goals"),
+    assists: total("assists"),
+    points: total("points"),
+    rebounds: splits.some((split) => Number.isFinite(split.goals)) ? total("goals") : row.rebounds,
+  };
+}
+
+function filteredRecords(conference = state.conference) {
+  return state.payload.records.flatMap((row) => {
+    if (state.country !== "all" && row.country !== state.country) return [];
+    if (!row.teamSplits?.length) {
+      return (conference === "all" || row.conference === conference)
+        && (state.team === "all" || row.team === state.team) ? [row] : [];
+    }
+    const splits = row.teamSplits.filter((split) =>
+      (conference === "all" || split.conference === conference)
+      && (state.team === "all" || split.team === state.team)
+    );
+    if (!splits.length) return [];
+    return conference === "all" && state.team === "all" ? [row] : [projectTeamSplits(row, splits)];
+  });
+}
+
+function filteredTeamRecords() {
+  return state.payload.records.flatMap((row) => {
+    if (state.country !== "all" && row.country !== state.country) return [];
+    if (!row.teamSplits?.length) {
+      return (state.conference === "all" || row.conference === state.conference)
+        && (state.team === "all" || row.team === state.team) ? [row] : [];
+    }
+    return row.teamSplits
+      .filter((split) => (state.conference === "all" || split.conference === state.conference) && (state.team === "all" || split.team === state.team))
+      .map((split) => projectTeamSplits(row, [split]));
+  });
 }
 
 function metricLabel(metric = state.metric) {
@@ -238,22 +290,23 @@ function aggregateTeams(records) {
   }));
 }
 
-function aggregateConferences(records) {
-  return state.payload.meta.conferences.map((conference) => {
-    const rows = records.filter((row) => row.conference === conference);
+function aggregateConferences() {
+  const conferences = state.conference === "all" ? state.payload.meta.conferences : [state.conference];
+  return conferences.map((conference) => {
+    const rows = filteredRecords(conference);
     const mapped = rows.filter((row) => row.mapped);
     const countries = new Map();
     mapped.forEach((row) => countries.set(row.country, (countries.get(row.country) || 0) + 1));
-    const outsideUs = mapped.filter((row) => row.country !== "United States").length;
+    const outsideHome = mapped.filter((row) => row.country !== EDITION.homeCountry).length;
     return {
       conference,
       players: rows.length,
-      teams: new Set(rows.map((row) => row.team)).size,
+      teams: new Set(rows.flatMap((row) => row.teams || [row.team])).size,
       mapped: mapped.length,
       countries: countries.size,
       minutes: rows.reduce((sum, row) => sum + row.minutes, 0),
       medianAge: median(rows.map((row) => row.age)),
-      outsideUsPct: mapped.length ? outsideUs / mapped.length * 100 : 0,
+      outsideHomePct: mapped.length ? outsideHome / mapped.length * 100 : 0,
       topCountries: [...countries.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 5),
     };
   }).filter((conference) => conference.players);
@@ -303,8 +356,8 @@ function renderCityMap(places) {
     const marker = L.circleMarker([place.lat, place.lon], {
       radius,
       weight: 1,
-      color: "#ffd2a8",
-      fillColor: "#ff9b54",
+      color: EDITION.markerStroke,
+      fillColor: EDITION.markerFill,
       fillOpacity: .68,
     });
     marker.bindTooltip(`${escapeHtml(place.place)}, ${escapeHtml(place.country)} · ${number.format(metricValue(place))} ${metricLabel()}`);
@@ -315,10 +368,10 @@ function renderCityMap(places) {
 }
 
 function countryColour(value, maximum) {
-  if (!value) return "#30251d";
+  if (!value) return EDITION.countryEmpty;
   const intensity = Math.sqrt(value / Math.max(maximum, 1));
   const lightness = 26 + intensity * 40;
-  return `hsl(25 100% ${lightness}%)`;
+  return `hsl(${EDITION.countryHue} ${EDITION.countrySaturation}% ${lightness}%)`;
 }
 
 function renderCountryMap(countries) {
@@ -445,19 +498,19 @@ function updateKpis() {
 }
 
 function updateConferenceComparison() {
-  const conferences = aggregateConferences(filteredRecords());
+  const conferences = aggregateConferences();
   $("#conference-comparison").innerHTML = conferences.map((conference, index) => `
     <article class="league-card" style="--order:${index}">
-      <header><div><span>0${index + 1}</span><h3>${escapeHtml(conference.conference)}</h3></div><strong>${conference.outsideUsPct.toFixed(0)}%<small>born outside US</small></strong></header>
+      <header><div><span>0${index + 1}</span><h3>${escapeHtml(conference.conference)}</h3></div><strong>${conference.outsideHomePct.toFixed(0)}%<small>${escapeHtml(EDITION.outsideHomeLabel.toLowerCase())}</small></strong></header>
       <div class="league-primary"><div><b>${conference.players}</b><span>players</span></div><div><b>${conference.teams}</b><span>teams</span></div><div><b>${conference.countries}</b><span>birth countries</span></div></div>
-      <div class="domestic-track"><i style="width:${conference.outsideUsPct}%"></i></div>
+      <div class="domestic-track"><i style="width:${conference.outsideHomePct}%"></i></div>
       <div class="league-detail"><div><span class="card-label">Leading birth countries</span><ol>${conference.topCountries.map(([country, count]) => `<li><span>${escapeHtml(country)}</span><b>${count}</b></li>`).join("")}</ol></div></div>
       <div class="league-footer">Median age ${conference.medianAge?.toFixed(1) ?? "—"} · ${number.format(conference.minutes)} total minutes · ${conference.mapped} of ${conference.players} players mapped</div>
     </article>`).join("") || emptyState("No conference matches the current selection.");
 }
 
 function updateTeamChart() {
-  const teams = aggregateTeams(filteredRecords()).sort((a, b) => b.minutes - a.minutes || a.team.localeCompare(b.team));
+  const teams = aggregateTeams(filteredTeamRecords()).sort((a, b) => b.minutes - a.minutes || a.team.localeCompare(b.team));
   const maximum = Math.max(...teams.map((team) => team.minutes), 1);
   $("#team-chart").innerHTML = teams.length ? teams.map((team) => `
     <div class="team-row"><div class="team-name"><strong>${escapeHtml(team.team)}</strong><small>${escapeHtml(team.conference.replace(" Conference", ""))} · ${team.players} players</small></div><div class="team-track"><i style="width:${team.minutes / maximum * 100}%"></i></div><div class="team-value">${number.format(team.minutes)}<small>${team.coverage.toFixed(1)}% mapped</small></div></div>`).join("") : emptyState("No teams match the current selection.");
@@ -466,13 +519,13 @@ function updateTeamChart() {
 function updateAgeAndCountry() {
   const records = filteredRecords();
   const ages = records.map((row) => row.age).filter(Number.isFinite);
-  const outsideUs = records.filter((row) => row.mapped && row.country !== "United States").length;
+  const outsideHome = records.filter((row) => row.mapped && row.country !== EDITION.homeCountry).length;
   const mapped = records.filter((row) => row.mapped).length;
   $("#age-overview").innerHTML = `
     <article><span>Median age</span><strong>${median(ages)?.toFixed(1) ?? "—"}</strong><small>player age in snapshot</small></article>
     <article><span>Under 23</span><strong>${number.format(ages.filter((age) => age < 23).length)}</strong><small>${ages.length ? (ages.filter((age) => age < 23).length / ages.length * 100).toFixed(1) : 0}% of players</small></article>
     <article><span>Age 30+</span><strong>${number.format(ages.filter((age) => age >= 30).length)}</strong><small>${ages.length ? (ages.filter((age) => age >= 30).length / ages.length * 100).toFixed(1) : 0}% of players</small></article>
-    <article><span>Born outside US</span><strong>${mapped ? (outsideUs / mapped * 100).toFixed(1) : 0}%</strong><small>of mapped players</small></article>`;
+    <article><span>${escapeHtml(EDITION.outsideHomeLabel)}</span><strong>${mapped ? (outsideHome / mapped * 100).toFixed(1) : 0}%</strong><small>of mapped players</small></article>`;
   const countries = aggregateCountries(records);
   const byPlayers = [...countries].sort((a, b) => b.players - a.players || a.country.localeCompare(b.country)).slice(0, 10);
   const byMinutes = [...countries].sort((a, b) => b.minutes - a.minutes || a.country.localeCompare(b.country)).slice(0, 10);
@@ -489,11 +542,11 @@ function updateAgeAndCountry() {
 function updatePlayerTable() {
   const query = normalSearch(state.search.trim());
   const players = filteredRecords()
-    .filter((row) => !query || [row.name, row.team, row.place, row.country].some((value) => normalSearch(value).includes(query)))
+    .filter((row) => !query || [row.name, row.team, ...(row.teams || []), row.place, row.country].some((value) => normalSearch(value).includes(query)))
     .sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name));
   const visible = players.slice(0, state.playerLimit);
   $("#player-table").innerHTML = visible.map((row) => `
-    <tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(row.id)}" aria-label="Open profile for ${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.position || "Position unavailable")}</small></button></td><td data-label="Team">${escapeHtml(row.team)}</td><td data-label="Conference">${escapeHtml(row.conference.replace(" Conference", ""))}</td><td data-label="Birthplace">${row.mapped ? `${escapeHtml(row.place)}<br><small>${escapeHtml(row.country)}</small>` : `<span style="color:var(--danger)">Awaiting QA</span>`}</td><td class="numeric" data-label="Games">${number.format(row.games)}</td><td class="numeric" data-label="Minutes">${number.format(row.minutes)}</td></tr>`).join("");
+    <tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(row.id)}" aria-label="Open profile for ${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.position || "Position unavailable")}</small></button></td><td data-label="Team">${escapeHtml((row.teams || [row.team]).join(", "))}</td><td data-label="Conference">${escapeHtml(row.conference.replace(" Conference", ""))}</td><td data-label="Birthplace">${row.mapped ? `${escapeHtml(row.place)}<br><small>${escapeHtml(row.country)}</small>` : `<span style="color:var(--danger)">Awaiting QA</span>`}</td><td class="numeric" data-label="Games">${number.format(row.games)}</td><td class="numeric" data-label="Minutes">${number.format(row.minutes)}</td></tr>`).join("");
   const empty = $("#player-empty-state");
   empty.hidden = players.length > 0;
   empty.innerHTML = players.length ? "" : `<h3>No players found</h3><p>${escapeHtml(query ? "Try another search or clear the current filters." : "This selection has no players.")}</p><button type="button" class="empty-state-action" data-clear-filters>Clear filters</button>`;
@@ -560,8 +613,9 @@ function syncTeamOptions() {
   const options = [...$("#team-filter").options];
   options.forEach((option) => {
     if (option.value === "all") return;
-    const record = state.payload.records.find((row) => row.team === option.value);
-    option.hidden = state.conference !== "all" && record?.conference !== state.conference;
+    const record = state.payload.records.find((row) => row.team === option.value || row.teamSplits?.some((split) => split.team === option.value));
+    const conference = record?.teamSplits?.find((split) => split.team === option.value)?.conference || record?.conference;
+    option.hidden = state.conference !== "all" && conference !== state.conference;
   });
   if (state.team !== "all" && $("#team-filter").selectedOptions[0]?.hidden) {
     state.team = "all";
@@ -583,15 +637,14 @@ function render() {
 function openPlayerProfile(playerId, opener = document.activeElement) {
   const player = state.payload.records.find((row) => row.id === playerId);
   if (!player) return;
+  const conferences = [...new Set((player.teamSplits || []).map((split) => split.conference))];
   $("#profile-name").textContent = player.name;
   $("#profile-meta").textContent = `${player.position || "Position unavailable"} · ${player.nationality || "Nationality unavailable"}`;
-  $("#profile-team").textContent = player.team;
-  $("#profile-conference").textContent = player.conference;
-  $("#profile-games").textContent = number.format(player.games);
-  $("#profile-minutes").textContent = number.format(player.minutes);
-  $("#profile-points").textContent = number.format(player.points);
-  $("#profile-rebounds").textContent = number.format(player.rebounds);
-  $("#profile-assists").textContent = number.format(player.assists);
+  $("#profile-team").textContent = (player.teams || [player.team]).join(" · ");
+  $("#profile-conference").textContent = (conferences.length ? conferences : [player.conference]).join(" · ");
+  ["#profile-games", "#profile-minutes", "#profile-points", "#profile-rebounds", "#profile-assists"].forEach((selector, index) => {
+    $(selector).textContent = number.format(player[EDITION.profileStats[index]] || 0);
+  });
   $("#profile-birthplace").textContent = player.mapped ? `${player.place}, ${player.country}` : "Birthplace awaiting QA";
   $("#profile-dob").textContent = player.dob || "Unavailable";
   $("#profile-age").textContent = Number.isFinite(player.age) ? `${player.age} years old` : "Age unavailable";
@@ -610,7 +663,7 @@ function openPlayerProfile(playerId, opener = document.activeElement) {
       if (!modal.classList.contains("open")) return;
       state.profileMap = L.map("player-mini-map", { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false }).setView([player.lat, player.lon], 6);
       L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd" }).addTo(state.profileMap);
-      L.circleMarker([player.lat, player.lon], { radius: 8, color: "#ffd2a8", fillColor: "#ff9b54", fillOpacity: .8 }).addTo(state.profileMap);
+      L.circleMarker([player.lat, player.lon], { radius: 8, color: EDITION.markerStroke, fillColor: EDITION.markerFill, fillOpacity: .8 }).addTo(state.profileMap);
     }, 80);
   }
   $("#close-player-modal").focus();
@@ -809,7 +862,7 @@ function bindEvents() {
 async function boot() {
   try {
     const dataResponse = await fetch(DATA_URL);
-    if (!dataResponse.ok) throw new Error(`NBA data request failed (${dataResponse.status})`);
+    if (!dataResponse.ok) throw new Error(`${EDITION.name} data request failed (${dataResponse.status})`);
     state.payload = await dataResponse.json();
     try {
       const countryResponse = await fetch(COUNTRY_GEO_URL);
@@ -835,7 +888,7 @@ async function boot() {
   } catch (error) {
     console.error(error);
     $("#loading-screen").classList.add("hidden");
-    $("#error-toast").innerHTML = `NBA data could not load. <button type="button" onclick="location.reload()">Retry</button>`;
+    $("#error-toast").innerHTML = `${escapeHtml(EDITION.name)} data could not load. <button type="button" onclick="location.reload()">Retry</button>`;
     $("#error-toast").classList.add("show");
   }
 }
