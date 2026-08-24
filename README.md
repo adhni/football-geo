@@ -1,7 +1,7 @@
 # Talent Geography
 
 A reproducible data + visualisation project that started with football and now
-includes NBA, NFL and NHL editions in the same public site.
+includes NBA, NFL, NHL and MLB editions in the same public site.
 
 The football project asks:
 
@@ -81,9 +81,9 @@ streamlit run dashboard/app.py
 
 The public, backend-free dashboard lives in `docs/` and is served directly by
 GitHub Pages. The football explorer lives at `/`, the NBA explorer at `/nba/`,
-the NFL explorer at `/nfl/` and the NHL explorer at `/nhl/`, with a sport
-switcher shared between them. To refresh the football data and preview every
-edition locally:
+the NFL explorer at `/nfl/`, the NHL explorer at `/nhl/` and the MLB explorer
+at `/mlb/`, with a sport switcher shared between them. To refresh the football
+data and preview every edition locally:
 
 ```bash
 python -m src.ftg.export_static_site
@@ -143,6 +143,21 @@ python -m src.ftg.build_population_hexes \
 This reads exact per-team skater and goalie totals plus recorded birthplaces
 from the NHL public API, then matches coordinates conservatively through
 GeoNames. See `docs/nhl/DATA_SOURCES.md` for scope and attribution.
+
+To refresh the MLB snapshot:
+
+```bash
+python -m src.ftg.build_mlb_site
+python -m src.ftg.build_population_hexes \
+  --input docs/mlb/data/dashboard.json \
+  --output docs/mlb/data/population_hexes_r3.geojson \
+  --cache data/cache/mlb_worldpop_population_2025.json \
+  --h3-resolution 3 --use-rasters
+```
+
+This reads exact per-team hitting and pitching lines plus recorded birthplaces
+from the official MLB Stats API. Workload is plate appearances plus batters
+faced. See `docs/mlb/DATA_SOURCES.md` for scope and attribution.
 
 For each sport, run its population command at H3 resolutions 1, 2 and 3 to
 refresh the Very broad, Large, and Regional area sizes. The layers use cached

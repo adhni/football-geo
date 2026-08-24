@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from src.ftg.build_population_hexes import (
+    WORLDPOP_COUNTRY_NAME_ALIASES,
     build_population_hexes,
     cell_polygon,
     occupied_hexes,
@@ -12,6 +13,11 @@ from src.ftg.build_population_hexes import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_small_caribbean_territories_use_their_official_worldpop_rasters():
+    assert WORLDPOP_COUNTRY_NAME_ALIASES["Aruba"] == "ABW"
+    assert WORLDPOP_COUNTRY_NAME_ALIASES["Curacao"] == "CUW"
 
 
 def test_occupied_hexes_deduplicates_players_and_keeps_nearby_places_together():
@@ -49,7 +55,7 @@ def test_cell_polygon_splits_antimeridian_cells():
     )
 
 
-@pytest.mark.parametrize("sport", ["football", "nba", "nfl", "nhl"])
+@pytest.mark.parametrize("sport", ["football", "nba", "nfl", "nhl", "mlb"])
 @pytest.mark.parametrize("resolution", [1, 2, 3])
 def test_published_sport_population_layers_match_mapped_player_scope(sport, resolution):
     directory = ROOT / "docs" if sport == "football" else ROOT / "docs" / sport

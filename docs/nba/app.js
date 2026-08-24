@@ -12,11 +12,15 @@ const EDITION = {
   name: "NBA",
   homeCountry: "United States",
   outsideHomeLabel: "Born outside US",
+  allConferenceLabel: "Both conferences",
+  conferenceLabel: "Conference",
   markerStroke: "#ffd2a8",
   markerFill: "#ff9b54",
   countryHue: 25,
   countrySaturation: 100,
   countryEmpty: "#30251d",
+  workloadLabel: "minutes",
+  workloadShort: "min",
   profileStats: ["games", "minutes", "points", "rebounds", "assists"],
   ...window.TALENT_GEO_EDITION,
 };
@@ -129,7 +133,7 @@ function filteredTeamRecords() {
 }
 
 function metricLabel(metric = state.metric) {
-  return { minutes: "minutes", players: "players", games: "games" }[metric];
+  return { minutes: EDITION.workloadLabel, players: "players", games: "games" }[metric];
 }
 
 function metricValue(item) {
@@ -337,7 +341,7 @@ function usePopulationBasemap(active) {
 
 function popupPlayers(rows, maximum = 8) {
   const visible = rows.slice(0, maximum);
-  const items = visible.map((row) => `<button type="button" class="popup-player" data-player-id="${escapeHtml(row.id)}"><span>${escapeHtml(row.name)}</span><b>${number.format(row.minutes)} min</b></button>`).join("");
+  const items = visible.map((row) => `<button type="button" class="popup-player" data-player-id="${escapeHtml(row.id)}"><span>${escapeHtml(row.name)}</span><b>${number.format(row.minutes)} ${escapeHtml(EDITION.workloadShort)}</b></button>`).join("");
   const rest = rows.length - visible.length;
   return `${items}${rest > 0 ? `<small class="popup-rest">+ ${rest} more player${rest === 1 ? "" : "s"}</small>` : ""}`;
 }
@@ -395,7 +399,7 @@ function renderCountryMap(countries) {
       state.countryLayers.set(code, layer);
       if (!country) return;
       layer.bindTooltip(`${escapeHtml(country.country)} · ${number.format(metricValue(country))} ${metricLabel()}`);
-      layer.bindPopup(`<div class="map-popup"><strong>${escapeHtml(country.country)}</strong><small>${country.players} player${country.players === 1 ? "" : "s"} · ${number.format(country.minutes)} minutes</small>${popupPlayers([...country.playerRows.values()].sort((a, b) => b.minutes - a.minutes))}</div>`, { maxWidth: 310 });
+      layer.bindPopup(`<div class="map-popup"><strong>${escapeHtml(country.country)}</strong><small>${country.players} player${country.players === 1 ? "" : "s"} · ${number.format(country.minutes)} ${escapeHtml(EDITION.workloadLabel)}</small>${popupPlayers([...country.playerRows.values()].sort((a, b) => b.minutes - a.minutes))}</div>`, { maxWidth: 310 });
     },
   }).addTo(state.map);
 }
@@ -505,7 +509,7 @@ function updateConferenceComparison() {
       <div class="league-primary"><div><b>${conference.players}</b><span>players</span></div><div><b>${conference.teams}</b><span>teams</span></div><div><b>${conference.countries}</b><span>birth countries</span></div></div>
       <div class="domestic-track"><i style="width:${conference.outsideHomePct}%"></i></div>
       <div class="league-detail"><div><span class="card-label">Leading birth countries</span><ol>${conference.topCountries.map(([country, count]) => `<li><span>${escapeHtml(country)}</span><b>${count}</b></li>`).join("")}</ol></div></div>
-      <div class="league-footer">Median age ${conference.medianAge?.toFixed(1) ?? "—"} · ${number.format(conference.minutes)} total minutes · ${conference.mapped} of ${conference.players} players mapped</div>
+      <div class="league-footer">Median age ${conference.medianAge?.toFixed(1) ?? "—"} · ${number.format(conference.minutes)} total ${escapeHtml(EDITION.workloadLabel)} · ${conference.mapped} of ${conference.players} players mapped</div>
     </article>`).join("") || emptyState("No conference matches the current selection.");
 }
 
@@ -534,7 +538,7 @@ function updateAgeAndCountry() {
     return `<article class="country-panel"><span class="card-label">Birth-country comparison</span><h3>${title}</h3><ol class="country-list">${items.map((country) => `<li style="--bar:${value(country) / maximum * 100}%"><span>${escapeHtml(country.country)}</span><b>${label(country)}</b></li>`).join("")}</ol></article>`;
   };
   $("#country-comparison").innerHTML = countries.length
-    ? `${panel("By players", (country) => number.format(country.players), byPlayers, (country) => country.players)}${panel("By minutes", (country) => compact.format(country.minutes), byMinutes, (country) => country.minutes)}`
+    ? `${panel("By players", (country) => number.format(country.players), byPlayers, (country) => country.players)}${panel(`By ${EDITION.workloadLabel}`, (country) => compact.format(country.minutes), byMinutes, (country) => country.minutes)}`
     : emptyState("No mapped birth countries match the current selection.");
   $("#age-scope").textContent = `${number.format(records.length)} players in the current selection`;
 }
@@ -546,12 +550,12 @@ function updatePlayerTable() {
     .sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name));
   const visible = players.slice(0, state.playerLimit);
   $("#player-table").innerHTML = visible.map((row) => `
-    <tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(row.id)}" aria-label="Open profile for ${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.position || "Position unavailable")}</small></button></td><td data-label="Team">${escapeHtml((row.teams || [row.team]).join(", "))}</td><td data-label="Conference">${escapeHtml(row.conference.replace(" Conference", ""))}</td><td data-label="Birthplace">${row.mapped ? `${escapeHtml(row.place)}<br><small>${escapeHtml(row.country)}</small>` : `<span style="color:var(--danger)">Awaiting QA</span>`}</td><td class="numeric" data-label="Games">${number.format(row.games)}</td><td class="numeric" data-label="Minutes">${number.format(row.minutes)}</td></tr>`).join("");
+    <tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(row.id)}" aria-label="Open profile for ${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.position || "Position unavailable")}</small></button></td><td data-label="Team">${escapeHtml((row.teams || [row.team]).join(", "))}</td><td data-label="${escapeHtml(EDITION.conferenceLabel)}">${escapeHtml(row.conference.replace(" Conference", ""))}</td><td data-label="Birthplace">${row.mapped ? `${escapeHtml(row.place)}<br><small>${escapeHtml(row.country)}</small>` : `<span style="color:var(--danger)">Awaiting QA</span>`}</td><td class="numeric" data-label="Games">${number.format(row.games)}</td><td class="numeric" data-label="${escapeHtml(EDITION.workloadLabel)}">${number.format(row.minutes)}</td></tr>`).join("");
   const empty = $("#player-empty-state");
   empty.hidden = players.length > 0;
   empty.innerHTML = players.length ? "" : `<h3>No players found</h3><p>${escapeHtml(query ? "Try another search or clear the current filters." : "This selection has no players.")}</p><button type="button" class="empty-state-action" data-clear-filters>Clear filters</button>`;
   $("#player-table").closest("table").hidden = players.length === 0;
-  $("#player-table-note").textContent = players.length ? `Showing ${number.format(visible.length)} of ${number.format(players.length)} players · sorted by minutes` : "No players to show";
+  $("#player-table-note").textContent = players.length ? `Showing ${number.format(visible.length)} of ${number.format(players.length)} players · sorted by ${EDITION.workloadLabel}` : "No players to show";
   const remaining = Math.max(0, players.length - visible.length);
   const loadMore = $("#load-more-players");
   loadMore.hidden = remaining === 0;
@@ -566,7 +570,7 @@ function updateQuality() {
   $("#quality-minute-bar").style.width = `${summary.minute_coverage_pct}%`;
   $("#quality-mapped-players").textContent = `${number.format(summary.mapped_players)} mapped`;
   $("#quality-unresolved").textContent = `${number.format(summary.unresolved_players)} unresolved`;
-  $("#quality-mapped-minutes").textContent = `${number.format(summary.mapped_minutes)} mapped minutes`;
+  $("#quality-mapped-minutes").textContent = `${number.format(summary.mapped_minutes)} mapped ${EDITION.workloadLabel}`;
   $("#quality-total-minutes").textContent = `${number.format(summary.minutes)} total`;
   $("#unresolved-count").textContent = `${number.format(summary.unresolved_players)} players`;
   $("#unresolved-list").innerHTML = unresolved.length ? unresolved.map((row) => `<div class="unresolved-row"><span>${escapeHtml(row.name)}</span><span>${escapeHtml(row.status)}</span></div>`).join("") : `<p>No unresolved players.</p>`;
@@ -583,7 +587,7 @@ function updateFilterUi() {
   container.hidden = filters.length === 0;
   $("#more-filter-count").textContent = state.country === "all" ? "" : "1";
   $("#reset-filters").disabled = filters.length === 0 && !state.search && !state.placeQuery && state.metric === "minutes" && state.mapMode === "city";
-  const conference = state.conference === "all" ? "Both conferences" : state.conference.replace(" Conference", "");
+  const conference = state.conference === "all" ? EDITION.allConferenceLabel : state.conference.replace(" Conference", "");
   const team = state.team === "all" ? "All teams" : state.team;
   const country = state.country === "all" ? "All birth countries" : `Born in ${state.country}`;
   $("#filter-summary").textContent = `${conference} · ${team} · ${country}`;
