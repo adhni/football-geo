@@ -100,3 +100,19 @@ def test_friendlier_dashboard_structure_and_accessibility_are_wired():
     assert 'event.target.closest(".popup-player[data-player-id]")' in javascript
     assert ".secondary-filters, .more-filters-grid { left: 0; right: auto; }" in stylesheet
     assert "thead { display: none; }" not in stylesheet
+
+
+def test_nhl_explorer_reuses_the_accessible_sport_shell():
+    html = (ROOT / "docs" / "nhl" / "index.html").read_text(encoding="utf-8")
+    shared_javascript = (ROOT / "docs" / "nba" / "app.js").read_text(encoding="utf-8")
+
+    assert 'class="nhl-site"' in html
+    assert 'window.TALENT_GEO_EDITION={name:"NHL"' in html
+    assert 'src="../nba/app.js"' in html
+    assert 'data-map-mode="population"' in html
+    assert 'id="resolution-control"' in html
+    assert 'role="tablist"' in html
+    assert html.count('role="tab"') == 4
+    assert "projectTeamSplits" in shared_javascript
+    assert "filteredTeamRecords" in shared_javascript
+    assert (ROOT / "docs" / "nhl" / "data" / "dashboard.json").exists()
