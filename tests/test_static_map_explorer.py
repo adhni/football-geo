@@ -125,6 +125,8 @@ def test_mlb_explorer_reuses_the_accessible_sport_shell():
     assert 'class="mlb-site"' in html
     assert 'window.TALENT_GEO_EDITION={name:"MLB"' in html
     assert 'workloadLabel:"workload"' in html
+    assert 'profileOriginField:"birthCountry"' in html
+    assert 'teamSplitStats:["plateAppearances"' in html
     assert 'src="../nba/app.js"' in html
     assert 'data-map-mode="population"' in html
     assert 'id="resolution-control"' in html

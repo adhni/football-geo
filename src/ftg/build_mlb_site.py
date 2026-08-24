@@ -242,6 +242,10 @@ def build_payload(
         )
         primary = team_meta[player["team_id"]]
         birth_country_code = country_aliases.get(normalize(profile.get("birth_country")))
+        birth_country = (
+            country_names.get(birth_country_code, profile.get("birth_country"))
+            if birth_country_code else profile.get("birth_country")
+        )
         record = {
             "id": f"mlb:{player['player_id']}",
             "mlbId": player["player_id"],
@@ -275,7 +279,9 @@ def build_payload(
             "rbi": player["rbi"],
             "pitchingStrikeouts": player["pitching_strikeouts"],
             "position": profile.get("position"),
-            "nationality": country_names.get(birth_country_code, profile.get("birth_country")) if birth_country_code else None,
+            "birthCity": profile.get("birth_city"),
+            "birthStateProvince": profile.get("birth_state"),
+            "birthCountry": birth_country,
             "bats": profile.get("bats"),
             "throws": profile.get("throws"),
             "age": age_on(profile.get("dob")),
@@ -290,7 +296,14 @@ def build_payload(
         }
         records.append(record)
         if not mapped:
-            unresolved.append({"name": record["name"], "status": status})
+            unresolved.append({
+                "mlbId": player["player_id"],
+                "name": record["name"],
+                "birthCity": profile.get("birth_city"),
+                "birthStateProvince": profile.get("birth_state"),
+                "birthCountry": profile.get("birth_country"),
+                "status": status,
+            })
 
     records.sort(key=lambda record: (record["team"], record["name"]))
     unresolved.sort(key=lambda record: record["name"])

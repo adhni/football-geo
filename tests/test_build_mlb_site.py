@@ -114,3 +114,36 @@ def test_build_mlb_payload_reports_workload_and_mapping_coverage():
     assert payload["summary"]["minutes"] == 58
     assert record["teamSplits"][0]["plateAppearances"] == 50
     assert record["country"] == "Canada"
+    assert record["birthCountry"] == "Canada"
+    assert "nationality" not in record
+
+
+def test_build_mlb_payload_preserves_raw_birthplace_fields_for_qa():
+    team_meta = {
+        "1": {"team": "Alpha", "code": "AAA", "conference": "American League", "division": "AL East"},
+    }
+    cohort = [{
+        "player_id": "9", "profile": {
+            "name": "QA Player", "birth_city": "Small Suburb", "birth_state": "CA",
+            "birth_country": "USA", "dob": "2000-01-02", "position": "P", "bats": "R", "throws": "R",
+        },
+        "team_id": "1", "team_ids": ["1"], "games": 1, "minutes": 3,
+        "plate_appearances": 0, "batters_faced": 3, "hits": 0, "home_runs": 0, "rbi": 0,
+        "pitching_strikeouts": 1,
+        "team_splits": [{
+            "team_id": "1", "team_code": "AAA", "team": "Alpha", "conference": "American League",
+            "division": "AL East", "games": 1, "minutes": 3, "plate_appearances": 0,
+            "batters_faced": 3, "hits": 0, "home_runs": 0, "rbi": 0, "pitching_strikeouts": 1,
+        }],
+    }]
+
+    payload = build_payload(
+        cohort, {}, {"usa": "US"}, {"US": "United States"}, {}, team_meta,
+        generated_at="2026-08-25T00:00:00+00:00",
+    )
+
+    assert payload["unresolved"] == [{
+        "mlbId": "9", "name": "QA Player", "birthCity": "Small Suburb",
+        "birthStateProvince": "CA", "birthCountry": "USA",
+        "status": "birth city coordinates unavailable",
+    }]

@@ -21,6 +21,9 @@ const EDITION = {
   countryEmpty: "#30251d",
   workloadLabel: "minutes",
   workloadShort: "min",
+  profileOriginField: "nationality",
+  profileOriginFallback: "Nationality unavailable",
+  teamSplitStats: ["goals", "assists", "points"],
   profileStats: ["games", "minutes", "points", "rebounds", "assists"],
   ...window.TALENT_GEO_EDITION,
 };
@@ -87,18 +90,18 @@ function median(values) {
 function projectTeamSplits(row, splits) {
   const primary = [...splits].sort((a, b) => b.minutes - a.minutes || a.team.localeCompare(b.team))[0];
   const total = (key) => splits.reduce((sum, split) => sum + (split[key] || 0), 0);
+  const projectedStats = Object.fromEntries(EDITION.teamSplitStats.map((key) => [key, total(key)]));
   return {
     ...row,
     team: primary.team,
     teamCode: primary.teamCode,
     teams: [...new Set(splits.map((split) => split.team))],
+    teamSplits: splits,
     conference: primary.conference,
     division: primary.division,
     games: total("games"),
     minutes: total("minutes"),
-    goals: total("goals"),
-    assists: total("assists"),
-    points: total("points"),
+    ...projectedStats,
     rebounds: splits.some((split) => Number.isFinite(split.goals)) ? total("goals") : row.rebounds,
   };
 }
@@ -639,11 +642,13 @@ function render() {
 }
 
 function openPlayerProfile(playerId, opener = document.activeElement) {
-  const player = state.payload.records.find((row) => row.id === playerId);
+  const player = filteredRecords().find((row) => row.id === playerId)
+    || state.payload.records.find((row) => row.id === playerId);
   if (!player) return;
   const conferences = [...new Set((player.teamSplits || []).map((split) => split.conference))];
+  const profileOrigin = player[EDITION.profileOriginField] || EDITION.profileOriginFallback;
   $("#profile-name").textContent = player.name;
-  $("#profile-meta").textContent = `${player.position || "Position unavailable"} · ${player.nationality || "Nationality unavailable"}`;
+  $("#profile-meta").textContent = `${player.position || "Position unavailable"} · ${profileOrigin}`;
   $("#profile-team").textContent = (player.teams || [player.team]).join(" · ");
   $("#profile-conference").textContent = (conferences.length ? conferences : [player.conference]).join(" · ");
   ["#profile-games", "#profile-minutes", "#profile-points", "#profile-rebounds", "#profile-assists"].forEach((selector, index) => {
