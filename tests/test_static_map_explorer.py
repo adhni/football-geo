@@ -135,6 +135,23 @@ def test_afl_explorer_uses_games_and_the_shared_accessible_shell():
     assert (ROOT / "docs" / "afl" / "data" / "dashboard.json").exists()
 
 
+def test_nrl_explorer_uses_games_and_the_shared_accessible_shell():
+    html = (ROOT / "docs" / "nrl" / "index.html").read_text(encoding="utf-8")
+    shared_javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")
+
+    assert 'class="nrl-site"' in html
+    assert 'window.TALENT_GEO_EDITION={name:"NRL"' in html
+    assert 'workloadField:"games"' in html
+    assert 'teamSplitStats:["points","tries","runMetres","tackles"]' in html
+    assert 'src="../assets/league-app.js"' in html
+    assert 'data-map-mode="population"' in html
+    assert 'id="resolution-control"' in html
+    assert 'role="tablist"' in html
+    assert html.count('role="tab"') == 4
+    assert "EDITION.workloadField" in shared_javascript
+    assert (ROOT / "docs" / "nrl" / "data" / "dashboard.json").exists()
+
+
 def test_mlb_explorer_reuses_the_accessible_sport_shell():
     html = (ROOT / "docs" / "mlb" / "index.html").read_text(encoding="utf-8")
     shared_javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")

@@ -34,6 +34,8 @@ WORLDPOP_COUNTRY_NAME_ALIASES = {
     "Aruba": "ABW",
     "Curacao": "CUW",
     "Saint Lucia": "LCA",
+    "Samoa": "WSM",
+    "Tonga": "TON",
 }
 WORLDPOP_TERRITORY_BOUNDS = {
     "FRO": (-7.0, 61.3, -6.0, 62.5),
