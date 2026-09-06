@@ -1,0 +1,15 @@
+.tennis-site{--bg:#061510;--panel:#0b2119;--panel-2:#113026;--text:#f2f8ed;--muted:#9bb9aa;--line:#285342;--line-soft:#18392d;--accent:#d9f244;--mint:#50c990;--danger:#ff9085}
+.tennis-site .tennis-mark{position:relative;width:26px;height:26px;display:inline-block;overflow:hidden;border:1px solid #d9f244;border-radius:50%;background:#a9c92c;transform:rotate(-18deg)}
+.tennis-site .tennis-mark:before,.tennis-site .tennis-mark:after{content:"";position:absolute;top:-3px;width:17px;height:30px;border:1px solid #efffc5;border-radius:50%}
+.tennis-site .tennis-mark:before{left:-12px}.tennis-site .tennis-mark:after{right:-12px}.tennis-site .tennis-mark i{display:none}
+.tennis-site .sport-switcher{background:rgba(6,21,16,.94)}.tennis-site .sport-switcher a.active,.tennis-site .kpi.accent,.tennis-site .segmented button.active,.tennis-site .map-mode button.active{color:#15210d}
+.tennis-site .segmented button.active,.tennis-site .map-mode button.active{border-color:var(--accent);background:var(--accent)}.tennis-site .status-pill i{background:var(--mint);box-shadow:0 0 10px var(--mint)}
+.tennis-site .controls{background:rgba(7,25,19,.96)}.tennis-site select,.tennis-site .segmented button,.tennis-site .more-filters>summary,.tennis-site .map-explorer input,.tennis-site .map-explorer button{background:#081c15}
+.tennis-site .secondary-filters{background:#0d251c}.tennis-site .filter-chip{color:#eaffcf;border-color:#4f6f2f;background:rgba(31,54,24,.94)}
+.tennis-site .tennis-secondary-filters{grid-template-columns:1fr;width:min(300px,calc(100vw - 48px))}.tennis-site .tennis-map-explorer{grid-template-columns:minmax(430px,1.4fr) minmax(250px,280px) minmax(220px,1fr) auto}
+.tennis-site .tennis-league-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}.tennis-site .tennis-country-grid{margin-top:18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.tennis-site .country-panel{padding:24px;border:1px solid var(--line);background:var(--panel);border-radius:var(--radius)}
+.tennis-site .country-panel h3{margin:5px 0 20px;font-size:22px}.tennis-site .country-list{list-style:none;margin:0;padding:0}.tennis-site .country-list li{position:relative;padding:11px 0;display:grid;grid-template-columns:1fr auto;border-bottom:1px solid var(--line-soft)}.tennis-site .country-list b{color:var(--accent);font:500 12px "DM Mono",monospace}
+.tennis-site .methodology-card{background:var(--accent);color:#15210d}.tennis-site .methodology-card .card-label,.tennis-site .methodology-card ol{color:#40551a}.tennis-site th,.tennis-site .table-footer,.tennis-site .profile-drawer{background:#081c15}
+.tennis-site #profile-conference{display:none}
+@media(max-width:1180px){.tennis-site .tennis-map-explorer{grid-template-columns:minmax(340px,1fr) minmax(260px,1fr)}}
+@media(max-width:720px){.tennis-site .brand>span:last-child{display:none}.tennis-site .tennis-map-explorer,.tennis-site .tennis-league-comparison,.tennis-site .tennis-country-grid{grid-template-columns:minmax(0,1fr)}.tennis-site .map-mode{overflow-x:auto;justify-content:flex-start}}

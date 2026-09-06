@@ -39,6 +39,12 @@ const EDITION = {
   qualityMappedPlayersField: "mapped_players",
   qualityWorkloadCoverageField: "minute_coverage_pct",
   qualityMappedWorkloadField: "mapped_minutes",
+  groupLabelPlural: "teams",
+  tableGroupLabel: "Team",
+  tableStatField: "games",
+  tableStatLabel: "Games",
+  showTeamFilter: true,
+  comparisonHighlight: "outsideHome",
   ...window.TALENT_GEO_EDITION,
 };
 
@@ -157,6 +163,16 @@ function metricValue(item) {
   return item[state.metric] || 0;
 }
 
+function isPopulationMode() {
+  return state.mapMode === "population" || state.mapMode === "population-workload";
+}
+
+function populationMeasure() {
+  return state.mapMode === "population-workload"
+    ? { label: `${EDITION.workloadLabel} per 1M people`, short: `${EDITION.workloadShort} per 1M`, workload: true }
+    : { label: "players per 1M people", short: "players per 1M", workload: false };
+}
+
 function emptyState(message) {
   return `<div class="empty-state"><h3>No results here</h3><p>${escapeHtml(message)}</p><button type="button" class="empty-state-action" data-clear-filters>Clear filters</button></div>`;
 }
@@ -236,12 +252,15 @@ function aggregatePopulationCells(records) {
       countries.set(countryName, (countries.get(countryName) || 0) + 1);
     });
     const population = feature.properties.population;
+    const workload = playerRows.reduce((sum, row) => sum + row.minutes, 0);
+    const value = populationMeasure().workload ? workload : selected.length;
     return {
       feature,
       hexId: feature.properties.hex_id,
       players: selected.length,
+      workload,
       population,
-      rate: population ? selected.length / population * 1_000_000 : null,
+      rate: population ? value / population * 1_000_000 : null,
       stable: selected.length >= 2 && population >= 100_000,
       label: [...places.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || feature.properties.label,
       country: [...countries.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || feature.properties.country,
@@ -278,14 +297,14 @@ function populationRateColour(rate) {
 }
 
 function updatePopulationRateScale() {
-  const geojson = state.populationGeojson.get(state.populationResolution);
-  const allRates = (geojson?.features || []).map(({ properties }) => properties.population ? properties.all_players / properties.population * 1_000_000 : null).filter((rate) => rate !== null).sort((a, b) => a - b);
-  const reliableRates = (geojson?.features || []).filter(({ properties }) => properties.all_players >= 2 && properties.population >= 100_000).map(({ properties }) => properties.all_players / properties.population * 1_000_000).sort((a, b) => a - b);
+  const cells = aggregatePopulationCells(state.payload.records);
+  const allRates = cells.map((cell) => cell.rate).filter((rate) => rate !== null).sort((a, b) => a - b);
+  const reliableRates = cells.filter((cell) => cell.stable).map((cell) => cell.rate).sort((a, b) => a - b);
   const rates = reliableRates.length >= 5 ? reliableRates : allRates;
   const quantile = (fraction) => rates[Math.min(rates.length - 1, Math.round((rates.length - 1) * fraction))] || 0;
   const values = [0, quantile(.25), quantile(.5), quantile(.75), quantile(.95)];
   state.populationRateStops = values.map((value, index) => ({ value, colour: POPULATION_RATE_COLOURS[index] }));
-  const formatRate = (value, index) => `${value < 10 ? value.toFixed(1) : Math.round(value)}${index === values.length - 1 ? "+" : ""}`;
+  const formatRate = (value, index) => `${value < 10 ? value.toFixed(1) : compact.format(value)}${index === values.length - 1 ? "+" : ""}`;
   $$("#population-scale b").forEach((label, index) => { label.textContent = index ? formatRate(values[index], index) : "0"; });
 }
 
@@ -426,11 +445,12 @@ function renderCountryMap(countries) {
 }
 
 function showPopulationLoading() {
+  const measure = populationMeasure();
   usePopulationBasemap(true);
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
-  $("#ranking-title").textContent = "Players per 1M people";
+  $("#ranking-title").textContent = measure.label;
   $("#place-count").textContent = "Loading population data…";
   $("#place-ranking").innerHTML = `<li><div class="empty-state" role="status"><p>Preparing the population view…</p></div></li>`;
   $("#map-legend").classList.add("population");
@@ -439,10 +459,11 @@ function showPopulationLoading() {
   $(".resolution-control").hidden = false;
   $("#population-scale").hidden = false;
   $("#legend-prefix").textContent = "Colour =";
-  $("#legend-metric").textContent = "players per 1M people";
+  $("#legend-metric").textContent = measure.label;
 }
 
 function renderPopulationMap(records) {
+  const measure = populationMeasure();
   usePopulationBasemap(true);
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
@@ -458,22 +479,22 @@ function renderPopulationMap(records) {
     },
     onEachFeature(feature, layer) {
       const cell = byId.get(feature.properties.hex_id);
-      const rateLabel = cell.rate === null ? "Population estimate unavailable" : `${cell.rate.toFixed(1)} players per 1M`;
+      const rateLabel = cell.rate === null ? "Population estimate unavailable" : `${compact.format(cell.rate)} ${measure.short}`;
       const caution = cell.stable ? "" : " · small sample";
-      layer.bindTooltip(`<strong>${escapeHtml(cell.label)} area</strong><br>${escapeHtml(cell.country)}<br>${rateLabel}<br>${cell.players} players · population ${cell.population ? compact.format(cell.population) : "unavailable"}${caution}`, { sticky: true });
-      layer.bindPopup(`<div class="map-popup"><strong>${escapeHtml(cell.label)} area</strong><small>${rateLabel}</small><p>${cell.players} mapped players · ${cell.population ? `${number.format(cell.population)} residents` : "population unavailable"}</p>${cell.stable ? "" : '<small class="popup-rest">Interpret carefully: fewer than two players or fewer than 100,000 residents.</small>'}</div>`, { maxWidth: 320 });
+      layer.bindTooltip(`<strong>${escapeHtml(cell.label)} area</strong><br>${escapeHtml(cell.country)}<br>${rateLabel}<br>${cell.players} players${measure.workload ? ` · ${number.format(cell.workload)} ${escapeHtml(EDITION.workloadShort)}` : ""} · population ${cell.population ? compact.format(cell.population) : "unavailable"}${caution}`, { sticky: true });
+      layer.bindPopup(`<div class="map-popup"><strong>${escapeHtml(cell.label)} area</strong><small>${rateLabel}</small><p>${cell.players} mapped players${measure.workload ? ` · ${number.format(cell.workload)} ${escapeHtml(EDITION.workloadLabel)}` : ""} · ${cell.population ? `${number.format(cell.population)} residents` : "population unavailable"}</p>${cell.stable ? "" : '<small class="popup-rest">Interpret carefully: fewer than two players or fewer than 100,000 residents.</small>'}</div>`, { maxWidth: 320 });
       state.populationLayers.set(cell.hexId, layer);
     },
   }).addTo(state.map);
-  $("#ranking-title").textContent = "Players per 1M people";
+  $("#ranking-title").textContent = measure.label;
   $("#place-count").textContent = `${number.format(cells.length)} ${populationResolutionLabel().toLowerCase()} areas`;
   const ranked = cells.filter((cell) => cell.rate !== null).sort((a, b) => Number(b.stable) - Number(a.stable) || b.rate - a.rate).slice(0, 12);
   const maximum = Math.max(...ranked.map((cell) => cell.rate), 1);
-  $("#place-ranking").innerHTML = ranked.length ? ranked.map((cell, index) => `<li class="place-row" style="--bar:${cell.rate / maximum * 100}%"><button class="place-jump" type="button" data-hex-id="${escapeHtml(cell.hexId)}"><span class="place-rank">${String(index + 1).padStart(2, "0")}</span><span class="place-name"><strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)} · ${cell.players} players / ${compact.format(cell.population)} people</small></span><span class="place-value">${cell.rate.toFixed(1)}</span></button></li>`).join("") : `<li>${emptyState("Try widening the current selection.")}</li>`;
+  $("#place-ranking").innerHTML = ranked.length ? ranked.map((cell, index) => `<li class="place-row" style="--bar:${cell.rate / maximum * 100}%"><button class="place-jump" type="button" data-hex-id="${escapeHtml(cell.hexId)}"><span class="place-rank">${String(index + 1).padStart(2, "0")}</span><span class="place-name"><strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)} · ${cell.players} players${measure.workload ? ` · ${number.format(cell.workload)} ${escapeHtml(EDITION.workloadShort)}` : ""} / ${compact.format(cell.population)} people</small></span><span class="place-value">${compact.format(cell.rate)}</span></button></li>`).join("") : `<li>${emptyState("Try widening the current selection.")}</li>`;
   $("#map-legend").classList.add("population");
   $("#population-scale").hidden = false;
   $("#legend-prefix").textContent = "Colour =";
-  $("#legend-metric").textContent = "players per 1M people";
+  $("#legend-metric").textContent = measure.label;
 }
 
 function renderRanking(items) {
@@ -494,7 +515,7 @@ function updateMap() {
   const records = filteredRecords();
   const places = aggregatePlaces(records);
   const countries = aggregateCountries(records);
-  if (state.mapMode === "population") {
+  if (isPopulationMode()) {
     if (!state.populationGeojson.has(state.populationResolution)) { showPopulationLoading(); return; }
     renderPopulationMap(records);
     $("#map-explorer").classList.add("country-mode");
@@ -526,9 +547,9 @@ function updateConferenceComparison() {
   const conferences = aggregateConferences();
   $("#conference-comparison").innerHTML = conferences.map((conference, index) => `
     <article class="league-card" style="--order:${index}">
-      <header><div><span>0${index + 1}</span><h3>${escapeHtml(conference.conference)}</h3></div><strong>${conference.outsideHomePct.toFixed(0)}%<small>${escapeHtml(EDITION.outsideHomeLabel.toLowerCase())}</small></strong></header>
-      <div class="league-primary"><div><b>${conference.players}</b><span>players</span></div><div><b>${conference.teams}</b><span>teams</span></div><div><b>${conference.countries}</b><span>${escapeHtml(EDITION.countryGroupLabel)}</span></div></div>
-      <div class="domestic-track"><i style="width:${conference.outsideHomePct}%"></i></div>
+      <header><div><span>0${index + 1}</span><h3>${escapeHtml(conference.conference)}</h3></div><strong>${EDITION.comparisonHighlight === "coverage" ? (conference.mapped / conference.players * 100).toFixed(0) : conference.outsideHomePct.toFixed(0)}%<small>${escapeHtml(EDITION.comparisonHighlight === "coverage" ? "birthplace mapped" : EDITION.outsideHomeLabel.toLowerCase())}</small></strong></header>
+      <div class="league-primary"><div><b>${conference.players}</b><span>players</span></div><div><b>${compact.format(conference.minutes)}</b><span>${escapeHtml(EDITION.workloadShort)}</span></div><div><b>${conference.countries}</b><span>${escapeHtml(EDITION.countryGroupLabel)}</span></div></div>
+      <div class="domestic-track"><i style="width:${EDITION.comparisonHighlight === "coverage" ? conference.mapped / conference.players * 100 : conference.outsideHomePct}%"></i></div>
       <div class="league-detail"><div><span class="card-label">Leading ${escapeHtml(EDITION.countryGroupLabel)}</span><ol>${conference.topCountries.map(([country, count]) => `<li><span>${escapeHtml(country)}</span><b>${count}</b></li>`).join("")}</ol></div></div>
       <div class="league-footer">Median age ${conference.medianAge?.toFixed(1) ?? "—"} · ${number.format(conference.minutes)} total ${escapeHtml(EDITION.workloadLabel)} · ${conference.mapped} of ${conference.players} players mapped</div>
     </article>`).join("") || emptyState("No conference matches the current selection.");
@@ -547,11 +568,12 @@ function updateAgeAndCountry() {
   const ages = records.map((row) => row.age).filter(Number.isFinite);
   const outsideHome = birthplaceRecords.filter((row) => row.mapped && row.country !== EDITION.homeCountry).length;
   const mapped = birthplaceRecords.filter((row) => row.mapped).length;
+  const representedCountries = new Set(records.map((row) => row.representedCountry).filter(Boolean)).size;
   $("#age-overview").innerHTML = `
     <article><span>Median age</span><strong>${median(ages)?.toFixed(1) ?? "—"}</strong><small>player age in snapshot</small></article>
     <article><span>Under 23</span><strong>${number.format(ages.filter((age) => age < 23).length)}</strong><small>${ages.length ? (ages.filter((age) => age < 23).length / ages.length * 100).toFixed(1) : 0}% of players</small></article>
     <article><span>Age 30+</span><strong>${number.format(ages.filter((age) => age >= 30).length)}</strong><small>${ages.length ? (ages.filter((age) => age >= 30).length / ages.length * 100).toFixed(1) : 0}% of players</small></article>
-    <article><span>${escapeHtml(EDITION.outsideHomeLabel)}</span><strong>${mapped ? (outsideHome / mapped * 100).toFixed(1) : 0}%</strong><small>of mapped players</small></article>`;
+    <article><span>${escapeHtml(EDITION.comparisonHighlight === "coverage" ? "Represented countries" : EDITION.outsideHomeLabel)}</span><strong>${EDITION.comparisonHighlight === "coverage" ? number.format(representedCountries) : `${mapped ? (outsideHome / mapped * 100).toFixed(1) : 0}%`}</strong><small>${EDITION.comparisonHighlight === "coverage" ? "ranking nationalities" : "of mapped players"}</small></article>`;
   const countries = aggregateCountries(birthplaceRecords);
   const byPlayers = [...countries].sort((a, b) => b.players - a.players || a.country.localeCompare(b.country)).slice(0, 10);
   const byMinutes = [...countries].sort((a, b) => b.minutes - a.minutes || a.country.localeCompare(b.country)).slice(0, 10);
@@ -572,7 +594,7 @@ function updatePlayerTable() {
     .sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name));
   const visible = players.slice(0, state.playerLimit);
   $("#player-table").innerHTML = visible.map((row) => `
-    <tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(row.id)}" aria-label="Open profile for ${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.position || "Position unavailable")}</small></button></td><td data-label="Team">${escapeHtml((row.teams || [row.team]).join(", "))}</td>${EDITION.showConferenceColumn ? `<td data-label="${escapeHtml(EDITION.conferenceLabel)}">${escapeHtml(row.conference.replace(" Conference", ""))}</td>` : ""}<td data-label="${escapeHtml(EDITION.locationLabel)}">${row.mapped ? `${escapeHtml(row.place)}<br><small>${escapeHtml(row.country)}</small>${EDITION.mixedLocationTypes ? `<span class="location-kind ${row.locationType === "football_origin" ? "origin" : "birthplace"}">${row.locationType === "football_origin" ? "Football origin" : "Birthplace"}</span>` : ""}` : `<span style="color:var(--danger)">Awaiting QA</span>`}</td><td class="numeric" data-label="Games">${number.format(row.games)}</td>${EDITION.showWorkloadColumn ? `<td class="numeric" data-label="${escapeHtml(EDITION.workloadLabel)}">${number.format(row.minutes)}</td>` : ""}</tr>`).join("");
+    <tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(row.id)}" aria-label="Open profile for ${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.position || "Position unavailable")}</small></button></td><td data-label="${escapeHtml(EDITION.tableGroupLabel)}">${escapeHtml((row.teams || [row.team]).join(", "))}</td>${EDITION.showConferenceColumn ? `<td data-label="${escapeHtml(EDITION.conferenceLabel)}">${escapeHtml(row.conference.replace(" Conference", ""))}</td>` : ""}<td data-label="${escapeHtml(EDITION.locationLabel)}">${row.mapped ? `${escapeHtml(row.place)}<br><small>${escapeHtml(row.country)}</small>${EDITION.mixedLocationTypes ? `<span class="location-kind ${row.locationType === "football_origin" ? "origin" : "birthplace"}">${row.locationType === "football_origin" ? "Football origin" : "Birthplace"}</span>` : ""}` : `<span style="color:var(--danger)">Awaiting QA</span>`}</td><td class="numeric" data-label="${escapeHtml(EDITION.tableStatLabel)}">${number.format(row[EDITION.tableStatField])}</td>${EDITION.showWorkloadColumn ? `<td class="numeric" data-label="${escapeHtml(EDITION.workloadLabel)}">${number.format(row.minutes)}</td>` : ""}</tr>`).join("");
   const empty = $("#player-empty-state");
   empty.hidden = players.length > 0;
   empty.innerHTML = players.length ? "" : `<h3>No players found</h3><p>${escapeHtml(query ? "Try another search or clear the current filters." : "This selection has no players.")}</p><button type="button" class="empty-state-action" data-clear-filters>Clear filters</button>`;
@@ -612,9 +634,9 @@ function updateFilterUi() {
   $("#more-filter-count").textContent = state.country === "all" ? "" : "1";
   $("#reset-filters").disabled = filters.length === 0 && !state.search && !state.placeQuery && state.metric === EDITION.defaultMetric && state.mapMode === "city";
   const conference = state.conference === "all" ? EDITION.allConferenceLabel : state.conference.replace(" Conference", "");
-  const team = state.team === "all" ? "All teams" : state.team;
+  const team = state.team === "all" ? `All ${EDITION.groupLabelPlural}` : state.team;
   const country = state.country === "all" ? `All ${EDITION.countryGroupLabel}` : `${EDITION.mixedLocationTypes ? "Located" : "Born"} in ${state.country}`;
-  $("#filter-summary").textContent = `${conference} · ${team} · ${country}`;
+  $("#filter-summary").textContent = [conference, EDITION.showTeamFilter && team, country].filter(Boolean).join(" · ");
 }
 
 function updateSnapshotCopy() {
@@ -622,7 +644,7 @@ function updateSnapshotCopy() {
   const generated = new Date(meta.generated_at);
   const updated = Number.isNaN(generated.getTime()) ? "" : generated.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" });
   if (updated) $(".status-pill").innerHTML = `<i aria-hidden="true"></i> ${escapeHtml(meta.season)} · Updated ${escapeHtml(updated)}`;
-  $(".hero-statline").innerHTML = `<strong>${number.format(summary.players)} players</strong><span>${number.format(summary.teams)} teams</span><span>${number.format(summary.birth_countries)} birth countries</span>`;
+  $(".hero-statline").innerHTML = `<strong>${number.format(summary.players)} players</strong><span>${number.format(summary.teams)} ${escapeHtml(EDITION.groupLabelPlural)}</span><span>${number.format(summary.birth_countries)} birth countries</span>`;
 }
 
 function populateFilters() {
@@ -805,8 +827,8 @@ function bindEvents() {
     $$("#map-mode button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active)); });
     updateFilterUi();
     updateMap();
-    if (state.mapMode === "population" && !state.populationGeojson.has(state.populationResolution)) {
-      loadPopulationGeometry().then(() => { if (state.mapMode === "population") updateMap(); }).catch((error) => {
+    if (isPopulationMode() && !state.populationGeojson.has(state.populationResolution)) {
+      loadPopulationGeometry().then(() => { if (isPopulationMode()) updateMap(); }).catch((error) => {
         console.warn(error);
         state.mapMode = "city";
         $("#map-mode button[data-map-mode='city']").click();
@@ -821,7 +843,7 @@ function bindEvents() {
     state.populationResolution = Number(button.dataset.resolution);
     $$("#resolution-control button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active)); });
     showPopulationLoading();
-    loadPopulationGeometry().then(() => { if (state.mapMode === "population") updateMap(); }).catch((error) => {
+    loadPopulationGeometry().then(() => { if (isPopulationMode()) updateMap(); }).catch((error) => {
       console.warn(error);
       $("#error-toast").textContent = `${populationResolutionLabel()} population areas are unavailable. Try another size.`;
       $("#error-toast").classList.add("show");

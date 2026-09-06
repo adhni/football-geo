@@ -19,4 +19,5 @@ data/cache/*
 !docs/nfl/index.html
 !docs/afl/index.html
 !docs/nrl/index.html
+!docs/tennis/index.html
 *.zip
