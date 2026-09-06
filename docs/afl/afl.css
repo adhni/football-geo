@@ -1,0 +1,13 @@
+.afl-site { --bg:#160f0b;--panel:#20150f;--panel-2:#291a12;--text:#f8eee8;--muted:#b99e90;--line:#4c3022;--line-soft:#352218;--accent:#ffb04a;--mint:#e5652f;--danger:#ff8f82; }
+.afl-site .sherrin-mark{position:relative;width:31px;height:21px;display:inline-block;border:1px solid #e78a61;border-radius:50%;transform:rotate(-13deg)}
+.afl-site .sherrin-mark:before{content:"";position:absolute;left:4px;right:4px;top:9px;height:1px;background:#e78a61}.afl-site .sherrin-mark i{position:absolute;left:14px;top:5px;width:1px;height:9px;background:#e78a61}
+.afl-site .sport-switcher{background:rgba(25,16,11,.9)}.afl-site .sport-switcher a.active,.afl-site .kpi.accent,.afl-site .segmented button.active,.afl-site .map-mode button.active{color:#211107}
+.afl-site .segmented button.active,.afl-site .map-mode button.active{border-color:var(--accent);background:var(--accent)}.afl-site .status-pill i{background:var(--mint);box-shadow:0 0 10px var(--mint)}
+.afl-site .controls{background:rgba(29,18,12,.96)}.afl-site select,.afl-site .segmented button,.afl-site .more-filters>summary,.afl-site .map-explorer input,.afl-site .map-explorer button{background:#1b110c}
+.afl-site .secondary-filters{border-color:#5c3927;background:#21150e}.afl-site .filter-chip{color:#f1ddd1;border-color:#5c3927;background:rgba(54,33,22,.92)}
+.afl-site .afl-secondary-filters{grid-template-columns:1fr;width:min(300px,calc(100vw - 48px))}.afl-site .afl-map-explorer{grid-template-columns:minmax(250px,290px) minmax(240px,280px) minmax(220px,1fr) auto}
+.afl-site .afl-league-comparison{grid-template-columns:minmax(0,1fr)}.afl-site .afl-country-grid{margin-top:18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.afl-site .country-panel{padding:24px;border:1px solid var(--line);background:var(--panel);border-radius:var(--radius)}
+.afl-site .country-panel h3{margin:5px 0 20px;font-size:22px}.afl-site .country-list{list-style:none;margin:0;padding:0}.afl-site .country-list li{position:relative;padding:11px 0;display:grid;grid-template-columns:1fr auto;border-bottom:1px solid var(--line-soft)}.afl-site .country-list b{color:var(--accent);font:500 12px "DM Mono",monospace}
+.afl-site .methodology-card{background:var(--accent);color:#241308}.afl-site .methodology-card .card-label,.afl-site .methodology-card ol{color:#71421e}.afl-site th,.afl-site .table-footer,.afl-site .profile-drawer{background:#1a100b}
+@media(max-width:1100px){.afl-site .afl-map-explorer{grid-template-columns:minmax(260px,1fr) minmax(280px,1fr)}}
+@media(max-width:720px){.afl-site .brand>span:last-child{display:none}.afl-site .afl-map-explorer,.afl-site .afl-country-grid{grid-template-columns:minmax(0,1fr)}}

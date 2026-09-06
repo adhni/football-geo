@@ -27,6 +27,7 @@ WORLDPOP_COUNTRY_ALIASES = {
     "PSX": "PSE",
     "SAH": "MAR",  # Western Sahara is covered by the Morocco raster.
     "SDS": "SSD",
+    "SOL": "SLB",
 }
 WORLDPOP_COUNTRY_NAME_ALIASES = {
     "American Samoa": "ASM",
@@ -54,7 +55,12 @@ def occupied_hexes(payload: dict[str, Any], resolution: int = 3) -> dict[str, di
     """Assign each mapped player once to an H3 cell."""
     players: dict[str, dict[str, Any]] = {}
     for row in payload["records"]:
-        if not row.get("mapped") or row.get("lat") is None or row.get("lon") is None:
+        if (
+            not row.get("mapped")
+            or row.get("locationType") == "football_origin"
+            or row.get("lat") is None
+            or row.get("lon") is None
+        ):
             continue
         players.setdefault(str(row["id"]), row)
 

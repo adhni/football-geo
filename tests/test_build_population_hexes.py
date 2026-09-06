@@ -26,6 +26,7 @@ def test_occupied_hexes_deduplicates_players_and_keeps_nearby_places_together():
             {"id": "p1", "mapped": True, "lat": 51.5072, "lon": -0.1276, "place": "London", "country": "United Kingdom"},
             {"id": "p1", "mapped": True, "lat": 51.5072, "lon": -0.1276, "place": "London", "country": "United Kingdom"},
             {"id": "p2", "mapped": True, "lat": 51.52, "lon": -0.1, "place": "London", "country": "United Kingdom"},
+            {"id": "p4", "mapped": True, "locationType": "football_origin", "lat": 51.52, "lon": -0.1, "place": "London club", "country": "United Kingdom"},
             {"id": "p3", "mapped": False, "lat": None, "lon": None, "place": None, "country": None},
         ]
     }
@@ -55,7 +56,7 @@ def test_cell_polygon_splits_antimeridian_cells():
     )
 
 
-@pytest.mark.parametrize("sport", ["football", "nba", "nfl", "nhl", "mlb"])
+@pytest.mark.parametrize("sport", ["football", "afl", "nba", "nfl", "nhl", "mlb"])
 @pytest.mark.parametrize("resolution", [1, 2, 3])
 def test_published_sport_population_layers_match_mapped_player_scope(sport, resolution):
     directory = ROOT / "docs" if sport == "football" else ROOT / "docs" / sport
@@ -67,7 +68,8 @@ def test_published_sport_population_layers_match_mapped_player_scope(sport, reso
     assert population["metadata"]["raster_resolution"] == "1km"
     assert population["metadata"]["h3_resolution"] == resolution
     assert population["metadata"]["population_method"] == "official_country_rasters"
-    assert sum(feature["properties"]["all_players"] for feature in population["features"]) == dashboard["summary"]["mapped_players"]
+    expected = dashboard["summary"].get("birthplace_mapped_players", dashboard["summary"]["mapped_players"])
+    assert sum(feature["properties"]["all_players"] for feature in population["features"]) == expected
     assert all(feature["properties"]["population"] > 0 for feature in population["features"])
 
 

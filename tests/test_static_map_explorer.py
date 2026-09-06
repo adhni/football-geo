@@ -104,11 +104,11 @@ def test_friendlier_dashboard_structure_and_accessibility_are_wired():
 
 def test_nhl_explorer_reuses_the_accessible_sport_shell():
     html = (ROOT / "docs" / "nhl" / "index.html").read_text(encoding="utf-8")
-    shared_javascript = (ROOT / "docs" / "nba" / "app.js").read_text(encoding="utf-8")
+    shared_javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")
 
     assert 'class="nhl-site"' in html
     assert 'window.TALENT_GEO_EDITION={name:"NHL"' in html
-    assert 'src="../nba/app.js"' in html
+    assert 'src="../assets/league-app.js"' in html
     assert 'data-map-mode="population"' in html
     assert 'id="resolution-control"' in html
     assert 'role="tablist"' in html
@@ -118,16 +118,33 @@ def test_nhl_explorer_reuses_the_accessible_sport_shell():
     assert (ROOT / "docs" / "nhl" / "data" / "dashboard.json").exists()
 
 
+def test_afl_explorer_uses_games_and_the_shared_accessible_shell():
+    html = (ROOT / "docs" / "afl" / "index.html").read_text(encoding="utf-8")
+    shared_javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")
+
+    assert 'class="afl-site"' in html
+    assert 'window.TALENT_GEO_EDITION={name:"AFL"' in html
+    assert 'workloadField:"games"' in html
+    assert 'defaultMetric:"games"' in html
+    assert 'src="../assets/league-app.js"' in html
+    assert 'data-map-mode="population"' in html
+    assert 'id="resolution-control"' in html
+    assert 'role="tablist"' in html
+    assert html.count('role="tab"') == 4
+    assert "EDITION.workloadField" in shared_javascript
+    assert (ROOT / "docs" / "afl" / "data" / "dashboard.json").exists()
+
+
 def test_mlb_explorer_reuses_the_accessible_sport_shell():
     html = (ROOT / "docs" / "mlb" / "index.html").read_text(encoding="utf-8")
-    shared_javascript = (ROOT / "docs" / "nba" / "app.js").read_text(encoding="utf-8")
+    shared_javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")
 
     assert 'class="mlb-site"' in html
     assert 'window.TALENT_GEO_EDITION={name:"MLB"' in html
     assert 'workloadLabel:"workload"' in html
     assert 'profileOriginField:"birthCountry"' in html
     assert 'teamSplitStats:["plateAppearances"' in html
-    assert 'src="../nba/app.js"' in html
+    assert 'src="../assets/league-app.js"' in html
     assert 'data-map-mode="population"' in html
     assert 'id="resolution-control"' in html
     assert 'role="tablist"' in html

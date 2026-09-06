@@ -97,7 +97,7 @@ main:focus { outline: 0; }
 .header-meta a { text-decoration: none; transition: color .2s ease; }.header-meta a:hover { color: var(--text); }
 .status-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 999px; color: #b7c7c1; }
 .status-pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 10px var(--mint); }
-.sport-switcher { padding: 3px; display: inline-flex; align-items: center; gap: 3px; border: 1px solid var(--line); background: rgba(10, 22, 18, .72); border-radius: 9px; }
+.sport-switcher { max-width: 100%; padding: 3px; display: inline-flex; flex: 0 1 auto; align-items: center; gap: 3px; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; border: 1px solid var(--line); background: rgba(10, 22, 18, .72); border-radius: 9px; }
 .sport-switcher a { min-height: 34px; padding: 0 13px; display: inline-flex; align-items: center; color: var(--muted); border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: 750; transition: color .18s ease, background .18s ease; }
 .sport-switcher a:hover { color: var(--text); }
 .sport-switcher a.active { color: #09110e; background: var(--accent); }
@@ -195,6 +195,9 @@ select:focus-visible, input:focus-visible { border-color: var(--mint); box-shado
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { color: var(--text); background: #0a1713; }.leaflet-popup-content { margin: 16px; font-family: "Manrope", sans-serif; }.place-popup > strong { font-size: 14px; }.place-popup > p { margin: 6px 0 12px; color: var(--muted); font-size: 11px; }.place-popup ul { max-height: 230px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }.place-popup li { padding: 0; border-top: 1px solid var(--line-soft); }.place-popup li span, .place-popup li small { display: block; }.place-popup li span { font-size: 11px; font-weight: 650; }.place-popup li small, .popup-overflow { margin-top: 3px; color: var(--muted); font-size: 11px; }.popup-overflow { margin-bottom: 0; }
 .popup-player { width: 100%; min-height: 44px; padding: 8px 0; color: inherit; border: 0; background: transparent; text-align: left; cursor: pointer; }
 .popup-player:hover span { color: var(--accent); }
+.location-kind { display: inline-block; margin: .25rem 0 0 .45rem; padding: .08rem .35rem; border: 1px solid currentColor; border-radius: 999px; color: var(--accent); font: 500 .58rem/1.2 "DM Mono", monospace; letter-spacing: .04em; text-transform: uppercase; vertical-align: middle; }
+.location-kind.origin { color: #52a9c7; }
+.popup-player .location-kind { display: block; margin: .2rem 0 0; width: max-content; }
 
 .ranking-card { min-width: 0; padding: 20px; }.card-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }.card-heading span:first-child { color: var(--muted); font: 500 11px/1.3 "DM Mono", monospace; letter-spacing: .09em; text-transform: uppercase; }.card-heading h3 { margin: 7px 0 0; font-size: 20px; letter-spacing: -.04em; }.card-count { white-space: nowrap; color: var(--mint) !important; font: 500 11px "DM Mono", monospace !important; }
 .place-ranking { list-style: none; margin: 4px 0 0; padding: 0; }.place-row { position: relative; padding: 0; border-bottom: 1px solid var(--line-soft); overflow: hidden; }.place-row:last-child { border-bottom: 0; }.place-row::before { content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: var(--bar); background: var(--accent); opacity: .55; }.place-jump { position: relative; z-index: 1; width: 100%; min-height: 54px; padding: 11px 0; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; color: inherit; border: 0; background: transparent; text-align: left; cursor: pointer; }.place-jump:hover .place-name strong { color: var(--accent); }.place-rank { color: #879991; font: 500 11px "DM Mono", monospace; }.place-name { min-width: 0; }.place-name strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; transition: color .15s ease; }.place-name small { display: block; margin-top: 3px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }.place-value { color: var(--accent); font: 500 12px "DM Mono", monospace; }
@@ -245,6 +248,8 @@ footer { min-height: 150px; padding: 36px 0; display: grid; grid-template-column
 @media (max-width: 720px) {
   .site-header, main, footer { width: calc(100% - 28px); }
   .site-header { height: 64px; }
+  .brand { flex: 0 0 auto; }
+  .sport-switcher { margin-inline: 10px; }
   .header-meta { gap: 12px; }
   .header-meta .status-pill { display: none; }
   .header-meta > a { display: none; }

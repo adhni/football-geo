@@ -1,7 +1,7 @@
 # Talent Geography
 
 A reproducible data + visualisation project that started with football and now
-includes NBA, NFL, NHL and MLB editions in the same public site.
+includes AFL, NBA, NFL, NHL and MLB editions in the same public site.
 
 The football project asks:
 
@@ -80,7 +80,7 @@ streamlit run dashboard/app.py
 ## GitHub Pages dashboard
 
 The public, backend-free dashboard lives in `docs/` and is served directly by
-GitHub Pages. The football explorer lives at `/`, the NBA explorer at `/nba/`,
+GitHub Pages. The football explorer lives at `/`, the AFL explorer at `/afl/`, the NBA explorer at `/nba/`,
 the NFL explorer at `/nfl/`, the NHL explorer at `/nhl/` and the MLB explorer
 at `/mlb/`, with a sport switcher shared between them. To refresh the football
 data and preview every edition locally:
@@ -97,6 +97,27 @@ Then open `http://localhost:8000`. The generated dashboard data is committed at
 `docs/data/dashboard.json`; raw and intermediate datasets remain local.
 The population command queries only occupied H3 cells and resumes from the
 ignored `data/cache/` checkpoint.
+
+To refresh the completed 2025 AFL home-and-away snapshot:
+
+```bash
+python -m src.ftg.build_afl_site \
+  --stats-input data/cache/afl_afltables_player_stats.parquet \
+  --output docs/afl/data/dashboard.json \
+  --wikidata-cache data/cache/afl_wikidata_2025.json
+python -m src.ftg.build_population_hexes \
+  --input docs/afl/data/dashboard.json \
+  --output docs/afl/data/population_hexes_r3.geojson \
+  --cache data/cache/afl_worldpop_population_2025.json \
+  --h3-resolution 3 --use-rasters
+```
+
+The AFL builder keeps numeric rounds only, validates all 18 clubs, preserves
+club splits, and resolves verified birthplaces from Wikidata or explicit English
+Wikipedia infobox fields. When birthplace is unavailable, it uses a separately
+labelled, DOB-verified Wikipedia `originalteam` fallback and resolves the club's
+documented base or venue. Population layers remain verified-birthplace-only.
+See `docs/afl/DATA_SOURCES.md` for scope, coverage, and attribution.
 
 To refresh the NBA snapshot:
 
