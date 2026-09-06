@@ -168,6 +168,43 @@ def test_tennis_explorer_uses_points_and_population_modes():
     assert (ROOT / "docs" / "tennis" / "data" / "dashboard.json").exists()
 
 
+def test_padel_explorer_uses_points_and_population_modes():
+    html = (ROOT / "docs" / "padel" / "index.html").read_text(encoding="utf-8")
+    shared_javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")
+
+    assert 'class="padel-site"' in html
+    assert 'window.TALENT_GEO_EDITION={name:"Padel"' in html
+    assert 'workloadField:"points"' in html
+    assert 'data-map-mode="population-workload"' in html
+    assert 'src="../assets/league-app.js"' in html
+    assert 'role="tablist"' in html
+    assert html.count('role="tab"') == 4
+    assert "isPopulationMode" in shared_javascript
+    assert "populationMeasure" in shared_javascript
+    assert (ROOT / "docs" / "padel" / "data" / "dashboard.json").exists()
+
+
+def test_cached_population_mode_restores_area_size_controls():
+    shared_javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")
+
+    population_branch = shared_javascript.split("function updateMap()", 1)[1].split(
+        "function updateKpis()", 1
+    )[0]
+    assert '$(".resolution-control").hidden = false;' in population_branch
+
+
+def test_every_sport_switcher_links_to_padel_after_tennis():
+    pages = [ROOT / "docs" / "index.html"] + [
+        ROOT / "docs" / sport / "index.html"
+        for sport in ("tennis", "padel", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+    ]
+
+    for page in pages:
+        html = page.read_text(encoding="utf-8")
+        assert html.count(">Padel</a>") == 1
+        assert html.index(">Tennis</a>") < html.index(">Padel</a>")
+
+
 def test_mlb_explorer_reuses_the_accessible_sport_shell():
     html = (ROOT / "docs" / "mlb" / "index.html").read_text(encoding="utf-8")
     shared_javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")

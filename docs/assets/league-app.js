@@ -516,6 +516,9 @@ function updateMap() {
   const places = aggregatePlaces(records);
   const countries = aggregateCountries(records);
   if (isPopulationMode()) {
+    // A previously loaded population layer skips showPopulationLoading(), so
+    // restore its controls here as well when returning from another map mode.
+    $(".resolution-control").hidden = false;
     if (!state.populationGeojson.has(state.populationResolution)) { showPopulationLoading(); return; }
     renderPopulationMap(records);
     $("#map-explorer").classList.add("country-mode");

@@ -1,7 +1,7 @@
 # Talent Geography
 
 A reproducible data + visualisation project that started with football and now
-includes tennis, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
+includes tennis, padel, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
 
 The football project asks:
 
@@ -81,9 +81,10 @@ streamlit run dashboard/app.py
 
 The public, backend-free dashboard lives in `docs/` and is served directly by
 GitHub Pages. The football explorer lives at `/`, the tennis explorer at
-`/tennis/`, the AFL explorer at `/afl/`, the NRL explorer at `/nrl/`, the NBA
-explorer at `/nba/`, the NFL explorer at `/nfl/`, the NHL explorer at `/nhl/`
-and the MLB explorer at `/mlb/`, with a sport switcher shared between them. To
+`/tennis/`, the padel explorer at `/padel/`, the AFL explorer at `/afl/`, the
+NRL explorer at `/nrl/`, the NBA explorer at `/nba/`, the NFL explorer at
+`/nfl/`, the NHL explorer at `/nhl/` and the MLB explorer at `/mlb/`, with a
+sport switcher shared between them. To
 refresh the football data and preview every edition locally:
 
 ```bash
@@ -155,6 +156,23 @@ official 2025 year-end ranking dates. It preserves rank and ranking points,
 uses stable player IDs and DOB checks for birthplace resolution, and keeps
 unresolved players in public QA. See `docs/tennis/DATA_SOURCES.md` for scope,
 ranking semantics and attribution.
+
+To refresh the completed 2025 FIP padel ranking snapshot:
+
+```bash
+python -m src.ftg.build_padel_site
+python -m src.ftg.build_population_hexes \
+  --input docs/padel/data/dashboard.json \
+  --output docs/padel/data/population_hexes_r3.geojson \
+  --cache data/cache/padel_worldpop_population_2025.json \
+  --h3-resolution 3 --use-rasters
+```
+
+The padel builder freezes 100 men and 100 women from the final 2025 FIP
+individual ranking. Official FIP profiles supply DOB and birthplace text;
+GeoNames supplies coordinates. Region-only birthplaces remain in public QA.
+See `docs/padel/DATA_SOURCES.md` for the women's carry-forward snapshot note,
+resolution method and attribution.
 
 To refresh the NBA snapshot:
 

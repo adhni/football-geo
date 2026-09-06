@@ -1,0 +1,15 @@
+.padel-site{--bg:#07151d;--panel:#0c222c;--panel-2:#12313d;--text:#effbfc;--muted:#98b9c0;--line:#285363;--line-soft:#173946;--accent:#58ddd2;--mint:#ffcc66;--danger:#ff8b85}
+.padel-site .padel-mark{position:relative;width:26px;height:26px;display:inline-block;overflow:hidden;border:1px solid #85fff4;border-radius:50%;background:#35bdb5;transform:rotate(-18deg)}
+.padel-site .padel-mark:before,.padel-site .padel-mark:after{content:"";position:absolute;top:-3px;width:17px;height:30px;border:1px solid #dffffc;border-radius:50%}
+.padel-site .padel-mark:before{left:-12px}.padel-site .padel-mark:after{right:-12px}.padel-site .padel-mark i{display:none}
+.padel-site .sport-switcher{background:rgba(7,21,29,.94)}.padel-site .sport-switcher a.active,.padel-site .kpi.accent,.padel-site .segmented button.active,.padel-site .map-mode button.active{color:#092327}
+.padel-site .segmented button.active,.padel-site .map-mode button.active{border-color:var(--accent);background:var(--accent)}.padel-site .status-pill i{background:var(--mint);box-shadow:0 0 10px var(--mint)}
+.padel-site .controls{background:rgba(7,23,31,.96)}.padel-site select,.padel-site .segmented button,.padel-site .more-filters>summary,.padel-site .map-explorer input,.padel-site .map-explorer button{background:#081c25}
+.padel-site .secondary-filters{background:#0d2732}.padel-site .filter-chip{color:#dffffc;border-color:#35766f;background:rgba(19,58,62,.94)}
+.padel-site .padel-secondary-filters{grid-template-columns:1fr;width:min(300px,calc(100vw - 48px))}.padel-site .padel-map-explorer{grid-template-columns:minmax(430px,1.4fr) minmax(250px,280px) minmax(220px,1fr) auto}
+.padel-site .padel-league-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}.padel-site .padel-country-grid{margin-top:18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.padel-site .country-panel{padding:24px;border:1px solid var(--line);background:var(--panel);border-radius:var(--radius)}
+.padel-site .country-panel h3{margin:5px 0 20px;font-size:22px}.padel-site .country-list{list-style:none;margin:0;padding:0}.padel-site .country-list li{position:relative;padding:11px 0;display:grid;grid-template-columns:1fr auto;border-bottom:1px solid var(--line-soft)}.padel-site .country-list b{color:var(--accent);font:500 12px "DM Mono",monospace}
+.padel-site .methodology-card{background:var(--accent);color:#092327}.padel-site .methodology-card .card-label,.padel-site .methodology-card ol{color:#1f5053}.padel-site th,.padel-site .table-footer,.padel-site .profile-drawer{background:#081c25}
+.padel-site #profile-conference{display:none}
+@media(max-width:1180px){.padel-site .padel-map-explorer{grid-template-columns:minmax(340px,1fr) minmax(260px,1fr)}}
+@media(max-width:720px){.padel-site .brand>span:last-child{display:none}.padel-site .padel-map-explorer,.padel-site .padel-league-comparison,.padel-site .padel-country-grid{grid-template-columns:minmax(0,1fr)}.padel-site .map-mode{overflow-x:auto;justify-content:flex-start}}
