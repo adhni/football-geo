@@ -18,4 +18,5 @@ data/cache/*
 !docs/nba/index.html
 !docs/nfl/index.html
 !docs/afl/index.html
+!docs/nrl/index.html
 *.zip

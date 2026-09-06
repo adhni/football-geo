@@ -20,6 +20,11 @@ def test_small_caribbean_territories_use_their_official_worldpop_rasters():
     assert WORLDPOP_COUNTRY_NAME_ALIASES["Curacao"] == "CUW"
 
 
+def test_small_pacific_islands_use_their_official_worldpop_rasters():
+    assert WORLDPOP_COUNTRY_NAME_ALIASES["Samoa"] == "WSM"
+    assert WORLDPOP_COUNTRY_NAME_ALIASES["Tonga"] == "TON"
+
+
 def test_occupied_hexes_deduplicates_players_and_keeps_nearby_places_together():
     payload = {
         "records": [
@@ -56,7 +61,7 @@ def test_cell_polygon_splits_antimeridian_cells():
     )
 
 
-@pytest.mark.parametrize("sport", ["football", "afl", "nba", "nfl", "nhl", "mlb"])
+@pytest.mark.parametrize("sport", ["football", "afl", "nrl", "nba", "nfl", "nhl", "mlb"])
 @pytest.mark.parametrize("resolution", [1, 2, 3])
 def test_published_sport_population_layers_match_mapped_player_scope(sport, resolution):
     directory = ROOT / "docs" if sport == "football" else ROOT / "docs" / sport

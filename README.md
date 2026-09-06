@@ -1,7 +1,7 @@
 # Talent Geography
 
 A reproducible data + visualisation project that started with football and now
-includes AFL, NBA, NFL, NHL and MLB editions in the same public site.
+includes AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
 
 The football project asks:
 
@@ -80,7 +80,7 @@ streamlit run dashboard/app.py
 ## GitHub Pages dashboard
 
 The public, backend-free dashboard lives in `docs/` and is served directly by
-GitHub Pages. The football explorer lives at `/`, the AFL explorer at `/afl/`, the NBA explorer at `/nba/`,
+GitHub Pages. The football explorer lives at `/`, the AFL explorer at `/afl/`, the NRL explorer at `/nrl/`, the NBA explorer at `/nba/`,
 the NFL explorer at `/nfl/`, the NHL explorer at `/nhl/` and the MLB explorer
 at `/mlb/`, with a sport switcher shared between them. To refresh the football
 data and preview every edition locally:
@@ -118,6 +118,25 @@ Wikipedia infobox fields. When birthplace is unavailable, it uses a separately
 labelled, DOB-verified Wikipedia `originalteam` fallback and resolves the club's
 documented base or venue. Population layers remain verified-birthplace-only.
 See `docs/afl/DATA_SOURCES.md` for scope, coverage, and attribution.
+
+To refresh the completed 2025 NRL regular-season snapshot:
+
+```bash
+python -m src.ftg.build_nrl_site \
+  --competition-id 12755 \
+  --output docs/nrl/data/dashboard.json \
+  --workers 8
+python -m src.ftg.build_population_hexes \
+  --input docs/nrl/data/dashboard.json \
+  --output docs/nrl/data/population_hexes_r3.geojson \
+  --cache data/cache/nrl_worldpop_population_2025.json \
+  --h3-resolution 3 --use-rasters
+```
+
+The NRL builder reads all 204 Champion Data match files, excludes period rows
+and unused zero-stat reserves, preserves club splits, and resolves exact-name
+Wikidata identities explicitly classified as rugby league players. See
+`docs/nrl/DATA_SOURCES.md` for scope and attribution.
 
 To refresh the NBA snapshot:
 
