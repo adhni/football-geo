@@ -230,8 +230,10 @@ function aggregatePopulationCells(records) {
     const places = new Map();
     const countries = new Map();
     playerRows.forEach((row) => {
-      places.set(row.place, (places.get(row.place) || 0) + 1);
-      countries.set(row.country, (countries.get(row.country) || 0) + 1);
+      const placeName = row.place || feature.properties.label || "Mapped area";
+      const countryName = row.country || feature.properties.country || "Country unavailable";
+      places.set(placeName, (places.get(placeName) || 0) + 1);
+      countries.set(countryName, (countries.get(countryName) || 0) + 1);
     });
     const population = feature.properties.population;
     return {
