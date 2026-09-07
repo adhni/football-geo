@@ -213,6 +213,34 @@ def test_golf_explorer_uses_two_rankings_points_and_population_modes():
     assert (ROOT / "docs" / "golf" / "data" / "dashboard.json").exists()
 
 
+def test_every_sport_has_a_primary_workload_population_mode():
+    expected = {
+        "index.html": "Starts per 1M",
+        "afl/index.html": "Games per 1M",
+        "nrl/index.html": "Games per 1M",
+        "nba/index.html": "Minutes per 1M",
+        "nfl/index.html": "Snaps per 1M",
+        "nhl/index.html": "Minutes per 1M",
+        "mlb/index.html": "Workload per 1M",
+        "tennis/index.html": "Points per 1M",
+        "padel/index.html": "Points per 1M",
+        "badminton/index.html": "Points per 1M",
+        "golf/index.html": "Points per 1M",
+    }
+
+    for relative_path, label in expected.items():
+        html = (ROOT / "docs" / relative_path).read_text(encoding="utf-8")
+        assert 'data-map-mode="population-workload"' in html
+        assert f">{label}</button>" in html
+
+    football_javascript = (ROOT / "docs" / "assets" / "app.js").read_text(encoding="utf-8")
+    nfl_javascript = (ROOT / "docs" / "nfl" / "app.js").read_text(encoding="utf-8")
+    for javascript, workload in ((football_javascript, "starts"), (nfl_javascript, "snaps")):
+        assert "function isPopulationMode()" in javascript
+        assert "function populationMeasure()" in javascript
+        assert f'row.{workload}' in javascript
+
+
 def test_cached_population_mode_restores_area_size_controls():
     shared_javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")
 
