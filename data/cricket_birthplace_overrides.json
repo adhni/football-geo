@@ -1,0 +1,31 @@
+{
+  "26a8b2fe": {
+    "birth_place_qid": "Q631087",
+    "country": "Pakistan",
+    "dob": "2002-08-21",
+    "lat": 30.96527778,
+    "lon": 70.94388889,
+    "place": "Layyah",
+    "resolution_source": "English Wikipedia explicit infobox birthplace; coordinates from Wikidata (https://en.wikipedia.org/wiki/Hassan_Nawaz_(cricketer))"
+  },
+  "489aaf0a": {
+    "birth_place_qid": "Q376749",
+    "country": "Bangladesh",
+    "dob": "2002-06-12",
+    "lat": 22.335,
+    "lon": 91.8325,
+    "place": "Chattogram",
+    "resolution_source": "English Wikipedia explicit infobox birthplace; coordinates from Wikidata (https://en.wikipedia.org/wiki/Parvez_Hossain_Emon)",
+    "wikidata_qid": "Q61874641"
+  },
+  "e8fa03ed": {
+    "birth_place_qid": "Q10686",
+    "country": "United Kingdom",
+    "dob": "2005-10-11",
+    "lat": 54.5967,
+    "lon": -5.93,
+    "place": "Belfast",
+    "resolution_source": "English Wikipedia explicit infobox birthplace; coordinates from Wikidata (https://en.wikipedia.org/wiki/Amy_Hunter_(Irish_cricketer))",
+    "wikidata_qid": "Q106959811"
+  }
+}

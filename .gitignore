@@ -23,6 +23,7 @@ data/cache/*
 !docs/padel/index.html
 !docs/badminton/index.html
 !docs/golf/index.html
+!docs/cricket/index.html
 !docs/nhl/index.html
 !docs/mlb/index.html
 *.zip

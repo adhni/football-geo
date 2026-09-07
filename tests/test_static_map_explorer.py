@@ -213,6 +213,21 @@ def test_golf_explorer_uses_two_rankings_points_and_population_modes():
     assert (ROOT / "docs" / "golf" / "data" / "dashboard.json").exists()
 
 
+def test_cricket_explorer_uses_appearances_and_two_competitions():
+    html = (ROOT / "docs" / "cricket" / "index.html").read_text(encoding="utf-8")
+
+    assert 'class="padel-site cricket-site"' in html
+    assert 'window.TALENT_GEO_EDITION={name:"Cricket"' in html
+    assert 'workloadField:"appearances"' in html
+    assert 'teamSplitStats:["appearances","runs","wickets","catches","playerOfMatch"]' in html
+    assert 'profileStats:["appearances","runs","wickets","catches","playerOfMatch"]' in html
+    assert 'data-map-mode="population-workload"' in html
+    assert '>Appearances per 1M</button>' in html
+    assert 'src="../assets/league-app.js"' in html
+    assert html.count('role="tab"') == 4
+    assert (ROOT / "docs" / "cricket" / "data" / "dashboard.json").exists()
+
+
 def test_every_sport_has_a_primary_workload_population_mode():
     expected = {
         "index.html": "Starts per 1M",
@@ -226,6 +241,7 @@ def test_every_sport_has_a_primary_workload_population_mode():
         "padel/index.html": "Points per 1M",
         "badminton/index.html": "Points per 1M",
         "golf/index.html": "Points per 1M",
+        "cricket/index.html": "Appearances per 1M",
     }
 
     for relative_path, label in expected.items():
@@ -253,7 +269,7 @@ def test_cached_population_mode_restores_area_size_controls():
 def test_every_sport_switcher_links_to_racket_sports_in_order():
     pages = [ROOT / "docs" / "index.html"] + [
         ROOT / "docs" / sport / "index.html"
-        for sport in ("tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+        for sport in ("cricket", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
     ]
 
     for page in pages:
@@ -261,6 +277,8 @@ def test_every_sport_switcher_links_to_racket_sports_in_order():
         assert html.count(">Padel</a>") == 1
         assert html.count(">Badminton</a>") == 1
         assert html.count(">Golf</a>") == 1
+        assert html.count(">Cricket</a>") == 1
+        assert html.index(">Football</a>") < html.index(">Cricket</a>") < html.index(">Tennis</a>")
         assert html.index(">Tennis</a>") < html.index(">Padel</a>") < html.index(">Badminton</a>") < html.index(">Golf</a>")
 
 
