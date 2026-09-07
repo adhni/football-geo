@@ -184,6 +184,23 @@ def test_padel_explorer_uses_points_and_population_modes():
     assert (ROOT / "docs" / "padel" / "data" / "dashboard.json").exists()
 
 
+def test_badminton_explorer_keeps_doubles_pairs_and_uses_allocated_points():
+    html = (ROOT / "docs" / "badminton" / "index.html").read_text(encoding="utf-8")
+    shared_javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")
+
+    assert 'class="padel-site badminton-site"' in html
+    assert 'window.TALENT_GEO_EDITION={name:"Badminton"' in html
+    assert 'workloadField:"points"' in html
+    assert 'teamSplitStats:["points"]' in html
+    assert 'teamSplitMinStats:["rank"]' in html
+    assert 'data-map-mode="population-workload"' in html
+    assert 'src="../assets/league-app.js"' in html
+    assert html.count('role="tab"') == 4
+    assert "projectedMinimums" in shared_javascript
+    assert "qualityTotalWorkloadField" in shared_javascript
+    assert (ROOT / "docs" / "badminton" / "data" / "dashboard.json").exists()
+
+
 def test_cached_population_mode_restores_area_size_controls():
     shared_javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")
 
@@ -193,16 +210,17 @@ def test_cached_population_mode_restores_area_size_controls():
     assert '$(".resolution-control").hidden = false;' in population_branch
 
 
-def test_every_sport_switcher_links_to_padel_after_tennis():
+def test_every_sport_switcher_links_to_racket_sports_in_order():
     pages = [ROOT / "docs" / "index.html"] + [
         ROOT / "docs" / sport / "index.html"
-        for sport in ("tennis", "padel", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+        for sport in ("tennis", "padel", "badminton", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
     ]
 
     for page in pages:
         html = page.read_text(encoding="utf-8")
         assert html.count(">Padel</a>") == 1
-        assert html.index(">Tennis</a>") < html.index(">Padel</a>")
+        assert html.count(">Badminton</a>") == 1
+        assert html.index(">Tennis</a>") < html.index(">Padel</a>") < html.index(">Badminton</a>")
 
 
 def test_mlb_explorer_reuses_the_accessible_sport_shell():

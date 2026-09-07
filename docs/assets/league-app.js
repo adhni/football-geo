@@ -39,6 +39,7 @@ const EDITION = {
   qualityMappedPlayersField: "mapped_players",
   qualityWorkloadCoverageField: "minute_coverage_pct",
   qualityMappedWorkloadField: "mapped_minutes",
+  qualityTotalWorkloadField: "minutes",
   groupLabelPlural: "teams",
   tableGroupLabel: "Team",
   tableStatField: "games",
@@ -111,6 +112,10 @@ function projectTeamSplits(row, splits) {
   const primary = [...splits].sort((a, b) => b.minutes - a.minutes || a.team.localeCompare(b.team))[0];
   const total = (key) => splits.reduce((sum, split) => sum + (split[key] || 0), 0);
   const projectedStats = Object.fromEntries(EDITION.teamSplitStats.map((key) => [key, total(key)]));
+  const projectedMinimums = Object.fromEntries((EDITION.teamSplitMinStats || []).map((key) => [
+    key,
+    Math.min(...splits.map((split) => split[key]).filter(Number.isFinite)),
+  ]));
   return {
     ...row,
     team: primary.team,
@@ -122,6 +127,7 @@ function projectTeamSplits(row, splits) {
     games: total("games"),
     minutes: total("minutes"),
     ...projectedStats,
+    ...projectedMinimums,
     rebounds: splits.some((split) => Number.isFinite(split.goals)) ? total("goals") : row.rebounds,
   };
 }
@@ -620,7 +626,7 @@ function updateQuality() {
   $("#quality-mapped-players").textContent = `${number.format(summary[EDITION.qualityMappedPlayersField])} mapped`;
   $("#quality-unresolved").textContent = `${number.format(summary.unresolved_players)} unresolved`;
   $("#quality-mapped-minutes").textContent = `${number.format(summary[EDITION.qualityMappedWorkloadField])} mapped ${EDITION.workloadLabel}`;
-  $("#quality-total-minutes").textContent = `${number.format(summary.minutes)} total`;
+  $("#quality-total-minutes").textContent = `${number.format(summary[EDITION.qualityTotalWorkloadField])} total`;
   $("#unresolved-count").textContent = `${number.format(summary.unresolved_players)} players`;
   $("#unresolved-list").innerHTML = unresolved.length ? unresolved.map((row) => `<div class="unresolved-row"><span>${escapeHtml(row.name)}</span><span>${escapeHtml(row.status)}</span></div>`).join("") : `<p>No unresolved players.</p>`;
 }

@@ -20,4 +20,8 @@ data/cache/*
 !docs/afl/index.html
 !docs/nrl/index.html
 !docs/tennis/index.html
+!docs/padel/index.html
+!docs/badminton/index.html
+!docs/nhl/index.html
+!docs/mlb/index.html
 *.zip
