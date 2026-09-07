@@ -177,6 +177,16 @@ function metricLabel(metric = state.metric) {
   return { starts: "starts", starters: "players with 1+ start", players: "players" }[metric];
 }
 
+function isPopulationMode() {
+  return state.mapMode === "population" || state.mapMode === "population-workload";
+}
+
+function populationMeasure() {
+  return state.mapMode === "population-workload"
+    ? { label: "starts per 1M people", short: "starts per 1M", workload: true }
+    : { label: "players per 1M people", short: "players per 1M", workload: false };
+}
+
 function emptyState(message, action = "Clear filters") {
   return `<div class="empty-state"><p>${escapeHtml(message)}</p><button type="button" class="empty-state-action" data-clear-filters>${escapeHtml(action)}</button></div>`;
 }
@@ -256,7 +266,8 @@ function aggregateCountries(records) {
 function aggregatePopulationCells(records) {
   const players = new Map();
   records.filter((row) => row.mapped).forEach((row) => {
-    if (!players.has(row.id)) players.set(row.id, row);
+    if (!players.has(row.id)) players.set(row.id, { ...row, starts: 0 });
+    players.get(row.id).starts += row.starts || 0;
   });
   const geojson = state.populationGeojson.get(state.populationResolution);
   return (geojson?.features || []).map((feature) => {
@@ -272,12 +283,15 @@ function aggregatePopulationCells(records) {
     const leadingPlace = [...places.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || feature.properties.label;
     const leadingCountry = [...countries.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || feature.properties.country;
     const population = feature.properties.population;
+    const workload = selected.reduce((sum, playerId) => sum + players.get(playerId).starts, 0);
+    const value = populationMeasure().workload ? workload : selected.length;
     return {
       feature,
       hexId: feature.properties.hex_id,
       players: selected.length,
+      workload,
       population,
-      rate: population ? selected.length / population * 1_000_000 : null,
+      rate: population ? value / population * 1_000_000 : null,
       stable: selected.length >= 2 && population >= 100_000,
       label: leadingPlace,
       country: leadingCountry,
@@ -326,9 +340,9 @@ function populationRateColour(rate) {
 }
 
 function updatePopulationRateScale() {
-  const geojson = state.populationGeojson.get(state.populationResolution);
-  const allRates = (geojson?.features || []).map(({ properties }) => properties.population ? properties.all_players / properties.population * 1_000_000 : null).filter((rate) => rate !== null).sort((a, b) => a - b);
-  const reliableRates = (geojson?.features || []).filter(({ properties }) => properties.all_players >= 2 && properties.population >= 100_000).map(({ properties }) => properties.all_players / properties.population * 1_000_000).sort((a, b) => a - b);
+  const cells = aggregatePopulationCells(state.payload.records);
+  const allRates = cells.map((cell) => cell.rate).filter((rate) => rate !== null).sort((a, b) => a - b);
+  const reliableRates = cells.filter((cell) => cell.stable).map((cell) => cell.rate).sort((a, b) => a - b);
   const rates = reliableRates.length >= 5 ? reliableRates : allRates;
   const quantile = (fraction) => rates[Math.min(rates.length - 1, Math.round((rates.length - 1) * fraction))] || 0;
   const values = [0, quantile(.25), quantile(.5), quantile(.75), quantile(.95)];
@@ -451,12 +465,12 @@ function syncMapModeControls() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
     if (button.dataset.mapMode === "country") button.disabled = !state.countryGeojson;
-    if (button.dataset.mapMode === "population") button.disabled = state.populationUnavailable.size === Object.keys(POPULATION_GEO_URLS).length;
+    if (["population", "population-workload"].includes(button.dataset.mapMode)) button.disabled = state.populationUnavailable.size === Object.keys(POPULATION_GEO_URLS).length;
   });
   $("#map-explorer")?.classList.toggle("country-mode", state.mapMode !== "city");
   const metricControl = $("#metric-control");
   if (metricControl) {
-    const unavailable = state.mapMode === "population";
+    const unavailable = isPopulationMode();
     metricControl.classList.toggle("metric-unavailable", unavailable);
     const metricGroup = metricControl.closest(".metric-control");
     metricGroup?.classList.toggle("metric-unavailable", unavailable);
@@ -465,21 +479,22 @@ function syncMapModeControls() {
     metricControl.querySelectorAll("button").forEach((button) => { button.disabled = unavailable; });
   }
   const resolutionControl = $(".resolution-control");
-  if (resolutionControl) resolutionControl.hidden = state.mapMode !== "population";
+  if (resolutionControl) resolutionControl.hidden = !isPopulationMode();
 }
 
 function showPopulationLoading() {
+  const measure = populationMeasure();
   usePopulationBasemap(true);
   if (state.map?.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
   if (state.map && state.countryLayer) state.map.removeLayer(state.countryLayer);
   if (state.map && state.populationLayer) state.map.removeLayer(state.populationLayer);
-  if ($("#ranking-title")) $("#ranking-title").textContent = "Players per 1M people";
+  if ($("#ranking-title")) $("#ranking-title").textContent = measure.label;
   if ($("#place-count")) $("#place-count").textContent = "Loading population data…";
   if ($("#place-ranking")) $("#place-ranking").innerHTML = `<li><div class="empty-state" role="status"><p>Preparing the population view…</p></div></li>`;
   if ($("#map-legend")) $("#map-legend").classList.add("population");
   if ($("#population-scale")) $("#population-scale").hidden = false;
   if ($("#legend-prefix")) $("#legend-prefix").textContent = "Hex colour =";
-  if ($("#legend-metric")) $("#legend-metric").textContent = "players per 1M people";
+  if ($("#legend-metric")) $("#legend-metric").textContent = measure.label;
   if ($(".resolution-control")) $(".resolution-control").hidden = false;
 }
 
@@ -559,6 +574,7 @@ function updateCountryMap(records) {
 }
 
 function updatePopulationMap(records) {
+  const measure = populationMeasure();
   usePopulationBasemap(true);
   if (!state.map) initMap();
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
@@ -575,10 +591,10 @@ function updatePopulationMap(records) {
     },
     onEachFeature: (feature, layer) => {
       const cell = byId.get(feature.properties.hex_id);
-      const rateLabel = cell.rate === null ? "Population estimate unavailable" : `${cell.rate.toFixed(1)} players per 1M`;
+      const rateLabel = cell.rate === null ? "Population estimate unavailable" : `${formatCompact.format(cell.rate)} ${measure.short}`;
       const caution = cell.stable ? "" : "<br><em>Small-sample cell</em>";
-      layer.bindTooltip(`<strong>${escapeHtml(cell.label)} area</strong><br>${escapeHtml(cell.country)}<br>${rateLabel}<br>${cell.players} players · population ${cell.population ? formatCompact.format(cell.population) : "unavailable"}${caution}`, { sticky: true });
-      layer.bindPopup(`<div class="place-popup"><strong>${escapeHtml(cell.label)} area</strong><p>${rateLabel}</p><ul><li><span>${cell.players} mapped players</span><small>Current dashboard selection</small></li><li><span>${cell.population ? `${formatNumber.format(cell.population)} residents` : "Population unavailable"}</span><small>WorldPop 2025 · 1 km grid</small></li></ul>${cell.stable ? "" : '<p class="popup-overflow">Interpret carefully: fewer than two players, fewer than 100,000 residents, or no population estimate.</p>'}</div>`, { maxWidth: 320, minWidth: 250 });
+      layer.bindTooltip(`<strong>${escapeHtml(cell.label)} area</strong><br>${escapeHtml(cell.country)}<br>${rateLabel}<br>${cell.players} players${measure.workload ? ` · ${formatNumber.format(cell.workload)} starts` : ""} · population ${cell.population ? formatCompact.format(cell.population) : "unavailable"}${caution}`, { sticky: true });
+      layer.bindPopup(`<div class="place-popup"><strong>${escapeHtml(cell.label)} area</strong><p>${rateLabel}</p><ul><li><span>${cell.players} mapped players${measure.workload ? ` · ${formatNumber.format(cell.workload)} starts` : ""}</span><small>Current dashboard selection</small></li><li><span>${cell.population ? `${formatNumber.format(cell.population)} residents` : "Population unavailable"}</span><small>WorldPop 2025 · 1 km grid</small></li></ul>${cell.stable ? "" : '<p class="popup-overflow">Interpret carefully: fewer than two players, fewer than 100,000 residents, or no population estimate.</p>'}</div>`, { maxWidth: 320, minWidth: 250 });
       layer.on("click", () => state.map.fitBounds(layer.getBounds(), { padding: [30, 30], maxZoom: 7 }));
       state.populationLayers.set(cell.hexId, layer);
     },
@@ -589,7 +605,7 @@ function updatePopulationMap(records) {
   $("#map-legend").classList.add("population");
   $("#population-scale").hidden = false;
   $("#legend-prefix").textContent = "Hex colour =";
-  $("#legend-metric").textContent = "players per 1M people";
+  $("#legend-metric").textContent = measure.label;
   setTimeout(() => state.map.invalidateSize(), 80);
 }
 
@@ -634,17 +650,18 @@ function updateCountryRanking(records) {
 }
 
 function updatePopulationRanking(records) {
+  const measure = populationMeasure();
   const cells = aggregatePopulationCells(records);
   const reliable = cells.filter((cell) => cell.stable).sort((a, b) => b.rate - a.rate);
   const top = reliable.slice(0, 10);
   const max = top[0]?.rate || 1;
-  $("#ranking-title").textContent = "Players per 1M people";
+  $("#ranking-title").textContent = measure.label;
   $("#place-count").textContent = `${formatNumber.format(cells.length)} ${populationResolutionLabel().toLowerCase()} areas`;
   $("#place-ranking").innerHTML = top.map((cell, index) => `
     <li class="place-row" style="--bar:${cell.rate / max * 100}%"><button class="place-jump population-jump" data-hex-id="${escapeHtml(cell.hexId)}" aria-label="Zoom to ${escapeHtml(cell.label)} area">
       <span class="place-rank">${String(index + 1).padStart(2, "0")}</span>
-      <span class="place-name"><strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)} · ${cell.players} players / ${formatCompact.format(cell.population)} people</small></span>
-      <span class="place-value">${cell.rate.toFixed(1)}</span>
+      <span class="place-name"><strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)} · ${cell.players} players${measure.workload ? ` · ${formatNumber.format(cell.workload)} starts` : ""} / ${formatCompact.format(cell.population)} people</small></span>
+      <span class="place-value">${formatCompact.format(cell.rate)}</span>
     </button></li>`).join("") || `<li>${emptyState("No reliable local areas match this selection.")}</li>`;
   $$(".population-jump").forEach((button) => button.addEventListener("click", () => {
     const layer = state.populationLayers.get(button.dataset.hexId);
@@ -653,7 +670,7 @@ function updatePopulationRanking(records) {
 }
 
 function updateMapAndRanking(records, places) {
-  if (state.mapMode === "population") {
+  if (isPopulationMode()) {
     if (!state.populationGeojson.has(state.populationResolution)) {
       showPopulationLoading();
       return;
@@ -1099,7 +1116,7 @@ function clearFilter(key) {
 
 async function activateMapMode(mode) {
   if (mode === "country" && !state.countryGeojson) return;
-  if (mode === "population" && state.populationUnavailable.has(state.populationResolution)) {
+  if (["population", "population-workload"].includes(mode) && state.populationUnavailable.has(state.populationResolution)) {
     const fallback = [3, 2, 1].find((resolution) => !state.populationUnavailable.has(resolution));
     if (!fallback) return;
     state.populationResolution = fallback;
@@ -1112,13 +1129,13 @@ async function activateMapMode(mode) {
   state.mapMode = mode;
   syncMapModeControls();
   renderMapExplorer();
-  if (mode !== "population" || state.populationGeojson.has(state.populationResolution)) return;
+  if (!["population", "population-workload"].includes(mode) || state.populationGeojson.has(state.populationResolution)) return;
   try {
     await loadPopulationGeometry();
-    if (state.mapMode === "population") renderMapExplorer();
+    if (isPopulationMode()) renderMapExplorer();
   } catch (error) {
     console.error(error);
-    if (state.mapMode === "population") {
+    if (isPopulationMode()) {
       state.mapMode = "city";
       syncMapModeControls();
       renderMapExplorer();
@@ -1141,7 +1158,7 @@ function bindControls() {
     showPopulationLoading();
     try {
       await loadPopulationGeometry();
-      if (state.mapMode === "population") renderMapExplorer();
+      if (isPopulationMode()) renderMapExplorer();
     } catch (error) {
       console.error(error);
       showToast(`${populationResolutionLabel()} population areas are unavailable. Try another size.`);
