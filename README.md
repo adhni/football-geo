@@ -1,7 +1,7 @@
 # Talent Geography
 
 A reproducible data + visualisation project that started with football and now
-includes tennis, padel, badminton, golf, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
+includes cricket, tennis, padel, badminton, golf, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
 
 The football project asks:
 
@@ -80,7 +80,8 @@ streamlit run dashboard/app.py
 ## GitHub Pages dashboard
 
 The public, backend-free dashboard lives in `docs/` and is served directly by
-GitHub Pages. The football explorer lives at `/`, the tennis explorer at
+GitHub Pages. The football explorer lives at `/`, the cricket explorer at
+`/cricket/`, the tennis explorer at
 `/tennis/`, the padel explorer at `/padel/`, the badminton explorer at
 `/badminton/`, the golf explorer at `/golf/`, the AFL explorer at `/afl/`, the
 NRL explorer at `/nrl/`, the NBA explorer at `/nba/`, the NFL explorer at `/nfl/`, the NHL explorer at
@@ -100,6 +101,26 @@ Then open `http://localhost:8000`. The generated dashboard data is committed at
 `docs/data/dashboard.json`; raw and intermediate datasets remain local.
 The population command queries only occupied H3 cells and resumes from the
 ignored `data/cache/` checkpoint.
+
+To refresh the calendar-year 2025 men's and women's T20I snapshot:
+
+```bash
+python -m src.ftg.build_cricket_site \
+  --archive-input data/cache/cricket_2025/t20s_json.zip \
+  --register-input data/cache/cricket_2025/people.csv \
+  --output docs/cricket/data/dashboard.json --workers 12
+python -m src.ftg.build_population_hexes \
+  --input docs/cricket/data/dashboard.json \
+  --output docs/cricket/data/population_hexes_r3.geojson \
+  --cache data/cache/cricket_worldpop_population_2025.json \
+  --h3-resolution 3 --use-rasters
+```
+
+The cricket builder selects players representing ICC Full Member sides from
+Cricsheet's 2025 T20 international archive. It counts each listed player once
+per match, excludes super overs from performance totals, and links the stable
+Cricsheet UUID through ESPNcricinfo IDs to verified birthplace data. See
+`docs/cricket/DATA_SOURCES.md` for the precise scope and stat definitions.
 
 To refresh the completed 2025 AFL home-and-away snapshot:
 

@@ -1,0 +1,9 @@
+.cricket-site{--bg:#07140d;--panel:#0d2215;--panel-2:#14321f;--text:#f4f8ef;--muted:#a1b8a7;--line:#31533a;--line-soft:#1d3a27;--accent:#f4c95d;--mint:#68d391;--danger:#ff9085}
+.cricket-site .cricket-mark{position:relative;width:27px;height:27px;display:inline-block;border-radius:50%;background:#f5f2df;border:1px solid #d8d2b8;box-shadow:inset -3px -3px 0 rgba(0,0,0,.08)}
+.cricket-site .cricket-mark:before{content:"";position:absolute;left:6px;top:6px;width:3px;height:3px;border-radius:50%;background:#a9a58f;box-shadow:7px 1px #a9a58f,3px 7px #a9a58f,11px 8px #a9a58f,0 13px #a9a58f}
+.cricket-site .cricket-mark i{display:none}.cricket-site .sport-switcher{background:rgba(7,20,13,.95)}
+.cricket-site .sport-switcher a.active,.cricket-site .kpi.accent,.cricket-site .segmented button.active,.cricket-site .map-mode button.active{color:#241d08}
+.cricket-site .segmented button.active,.cricket-site .map-mode button.active{border-color:var(--accent);background:var(--accent)}.cricket-site .status-pill i{background:var(--mint);box-shadow:0 0 10px var(--mint)}
+.cricket-site .controls{background:rgba(8,25,15,.96)}.cricket-site select,.cricket-site .segmented button,.cricket-site .more-filters>summary,.cricket-site .map-explorer input,.cricket-site .map-explorer button{background:#091b11}
+.cricket-site .secondary-filters{background:#10261a}.cricket-site .filter-chip{color:#fff0bd;border-color:#715f29;background:rgba(51,43,16,.94)}
+.cricket-site .methodology-card{background:var(--accent);color:#241d08}.cricket-site .methodology-card .card-label,.cricket-site .methodology-card ol{color:#5d4b12}.cricket-site th,.cricket-site .table-footer,.cricket-site .profile-drawer{background:#091b11}

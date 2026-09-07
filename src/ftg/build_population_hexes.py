@@ -32,7 +32,10 @@ WORLDPOP_COUNTRY_ALIASES = {
 WORLDPOP_COUNTRY_NAME_ALIASES = {
     "American Samoa": "ASM",
     "Aruba": "ABW",
+    "Barbados": "BRB",
     "Curacao": "CUW",
+    "Grenada": "GRD",
+    "Saint Kitts and Nevis": "KNA",
     "Saint Lucia": "LCA",
     "Samoa": "WSM",
     "Tonga": "TON",
