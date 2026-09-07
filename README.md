@@ -1,7 +1,7 @@
 # Talent Geography
 
 A reproducible data + visualisation project that started with football and now
-includes tennis, padel, badminton, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
+includes tennis, padel, badminton, golf, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
 
 The football project asks:
 
@@ -82,8 +82,8 @@ streamlit run dashboard/app.py
 The public, backend-free dashboard lives in `docs/` and is served directly by
 GitHub Pages. The football explorer lives at `/`, the tennis explorer at
 `/tennis/`, the padel explorer at `/padel/`, the badminton explorer at
-`/badminton/`, the AFL explorer at `/afl/`, the NRL explorer at `/nrl/`, the
-NBA explorer at `/nba/`, the NFL explorer at `/nfl/`, the NHL explorer at
+`/badminton/`, the golf explorer at `/golf/`, the AFL explorer at `/afl/`, the
+NRL explorer at `/nrl/`, the NBA explorer at `/nba/`, the NFL explorer at `/nfl/`, the NHL explorer at
 `/nhl/` and the MLB explorer at `/mlb/`, with a sport switcher shared between
 them. To
 refresh the football data and preview every edition locally:
@@ -191,6 +191,22 @@ plus the top 50 men's, women's and mixed doubles pairs. Pair points are divided
 equally between partners for geography, while athletes are deduplicated by BWF
 ID across events. See `docs/badminton/DATA_SOURCES.md` for ranking-week
 semantics, birthplace resolution and attribution.
+
+To refresh the final 2025 golf world-ranking snapshot:
+
+```bash
+python -m src.ftg.build_golf_site
+python -m src.ftg.build_population_hexes \
+  --input docs/golf/data/dashboard.json \
+  --output docs/golf/data/population_hexes_r3.geojson \
+  --cache data/cache/golf_worldpop_r3.json \
+  --h3-resolution 3 --use-rasters
+```
+
+The golf builder reads the official OWGR Week 52 PDF and WWGR 29 December CSV,
+validates an exact top 100 from each ranking, and preserves total points,
+average points and events played. See `docs/golf/DATA_SOURCES.md` for the
+separate-system comparison rule and birthplace methodology.
 
 To refresh the NBA snapshot:
 

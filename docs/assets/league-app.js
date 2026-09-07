@@ -31,6 +31,7 @@ const EDITION = {
   profileOriginFallback: "Nationality unavailable",
   teamSplitStats: ["goals", "assists", "points"],
   profileStats: ["games", "minutes", "points", "rebounds", "assists"],
+  profileStatDecimals: {},
   locationLabel: "Birthplace",
   locationPlural: "birthplaces",
   countryGroupLabel: "birth countries",
@@ -704,7 +705,11 @@ function openPlayerProfile(playerId, opener = document.activeElement) {
   $("#profile-team").textContent = (player.teams || [player.team]).join(" · ");
   $("#profile-conference").textContent = (conferences.length ? conferences : [player.conference]).join(" · ");
   ["#profile-games", "#profile-minutes", "#profile-points", "#profile-rebounds", "#profile-assists"].forEach((selector, index) => {
-    $(selector).textContent = number.format(player[EDITION.profileStats[index]] || 0);
+    const key = EDITION.profileStats[index];
+    const digits = EDITION.profileStatDecimals[key];
+    $(selector).textContent = digits === undefined
+      ? number.format(player[key] || 0)
+      : Number(player[key] || 0).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
   });
   const profileLocationLabel = $("#profile-location-label");
   if (profileLocationLabel) profileLocationLabel.textContent = player.locationType === "football_origin" ? "Football origin (birthplace unavailable)" : "Place of birth";

@@ -1,0 +1,9 @@
+.golf-site{--bg:#07140d;--panel:#0d2215;--panel-2:#14321f;--text:#f4f8ef;--muted:#a1b8a7;--line:#31533a;--line-soft:#1d3a27;--accent:#f4c95d;--mint:#68d391;--danger:#ff9085}
+.golf-site .golf-mark{position:relative;width:27px;height:27px;display:inline-block;border-radius:50%;background:#f5f2df;border:1px solid #d8d2b8;box-shadow:inset -3px -3px 0 rgba(0,0,0,.08)}
+.golf-site .golf-mark:before{content:"";position:absolute;left:6px;top:6px;width:3px;height:3px;border-radius:50%;background:#a9a58f;box-shadow:7px 1px #a9a58f,3px 7px #a9a58f,11px 8px #a9a58f,0 13px #a9a58f}
+.golf-site .golf-mark i{display:none}.golf-site .sport-switcher{background:rgba(7,20,13,.95)}
+.golf-site .sport-switcher a.active,.golf-site .kpi.accent,.golf-site .segmented button.active,.golf-site .map-mode button.active{color:#241d08}
+.golf-site .segmented button.active,.golf-site .map-mode button.active{border-color:var(--accent);background:var(--accent)}.golf-site .status-pill i{background:var(--mint);box-shadow:0 0 10px var(--mint)}
+.golf-site .controls{background:rgba(8,25,15,.96)}.golf-site select,.golf-site .segmented button,.golf-site .more-filters>summary,.golf-site .map-explorer input,.golf-site .map-explorer button{background:#091b11}
+.golf-site .secondary-filters{background:#10261a}.golf-site .filter-chip{color:#fff0bd;border-color:#715f29;background:rgba(51,43,16,.94)}
+.golf-site .methodology-card{background:var(--accent);color:#241d08}.golf-site .methodology-card .card-label,.golf-site .methodology-card ol{color:#5d4b12}.golf-site th,.golf-site .table-footer,.golf-site .profile-drawer{background:#091b11}
