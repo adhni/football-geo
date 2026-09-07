@@ -5,10 +5,22 @@ from pathlib import Path
 
 import pytest
 
-from src.ftg.build_golf_site import build_payload, parse_owgr_pdf, parse_wwgr_csv, wikipedia_birthplace
+from src.ftg.build_golf_site import (
+    build_payload,
+    canonical_represented_country,
+    parse_owgr_pdf,
+    parse_wwgr_csv,
+    wikipedia_birthplace,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_canonical_represented_country_aligns_ranking_feeds():
+    assert canonical_represented_country("USA") == "United States"
+    assert canonical_represented_country("KOR") == "South Korea"
+    assert canonical_represented_country("Australia") == "Australia"
 
 
 class FakePage:
@@ -111,6 +123,11 @@ def test_published_golf_snapshot_has_two_exact_top_100_rankings():
     assert payload["meta"]["sport"] == "golf"
     assert payload["summary"]["players"] == 200
     assert len({row["id"] for row in records}) == 200
+    represented = {row["representedCountry"] for row in records}
+    assert "USA" not in represented
+    assert "KOR" not in represented
+    assert "United States" in represented
+    assert "South Korea" in represented
     for tour in ("OWGR", "WWGR"):
         rows = [row for row in records if row["tour"] == tour]
         assert [row["rank"] for row in rows] == list(range(1, 101))

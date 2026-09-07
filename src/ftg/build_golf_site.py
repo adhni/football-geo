@@ -51,11 +51,36 @@ OWGR_COUNTRIES = {
     "Colombia", "Belgium", "South Africa", "Philippines", "France", "Spain", "Venezuela", "China",
     "Germany", "Taiwan",
 }
+WWGR_COUNTRY_NAMES = {
+    "AUS": "Australia",
+    "BEL": "Belgium",
+    "CAN": "Canada",
+    "CHN": "China",
+    "DEN": "Denmark",
+    "ENG": "England",
+    "ESP": "Spain",
+    "FRA": "France",
+    "GER": "Germany",
+    "JPN": "Japan",
+    "KOR": "South Korea",
+    "MEX": "Mexico",
+    "NZL": "New Zealand",
+    "RSA": "South Africa",
+    "RUS": "Russia",
+    "SUI": "Switzerland",
+    "SWE": "Sweden",
+    "THA": "Thailand",
+    "USA": "United States",
+}
 
 
 def normalize(value: object) -> str:
     text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode().casefold()
     return re.sub(r"[^a-z0-9]", "", text)
+
+
+def canonical_represented_country(value: str) -> str:
+    return WWGR_COUNTRY_NAMES.get(value, value)
 
 
 def _write_json(path: Path, value: Any, *, pretty: bool = False) -> None:
@@ -351,6 +376,7 @@ def build_payload(
         place = places.get(source_key, {})
         mapped = place.get("lat") is not None and place.get("lon") is not None
         dob = place.get("dob")
+        represented_country = canonical_represented_country(player["country_code"])
         record = {
             "id": f"golf:{player['tour'].lower()}:{player['source_player_id']}",
             "sourcePlayerId": player["source_player_id"], "name": player["name"],
@@ -360,7 +386,7 @@ def build_payload(
             "points": player["total_points"], "averagePoints": player["average_points"],
             "eventsPlayed": player["events"], "games": 1,
             "position": f"{player['gender']}’s world ranking", "dob": dob, "age": age_on(dob),
-            "nationality": player["country_code"], "representedCountry": player["country_code"],
+            "nationality": represented_country, "representedCountry": represented_country,
             "place": place.get("place") if mapped else None, "country": place.get("country") if mapped else None,
             "lat": place.get("lat") if mapped else None, "lon": place.get("lon") if mapped else None,
             "mapped": mapped, "status": "verified birthplace" if mapped else "birthplace or coordinates unresolved",
