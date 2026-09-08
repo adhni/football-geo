@@ -242,6 +242,24 @@ def test_ufc_explorer_uses_bouts_and_labels_fighter_origins():
     assert (ROOT / "docs" / "ufc" / "data" / "dashboard.json").exists()
 
 
+def test_formula_explorer_uses_laps_and_includes_all_four_series():
+    html = (ROOT / "docs" / "formula" / "index.html").read_text(encoding="utf-8")
+    shared_javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")
+
+    assert 'class="formula-site"' in html
+    assert 'window.TALENT_GEO_EDITION={name:"Formula"' in html
+    assert 'workloadField:"laps"' in html
+    assert 'participantLabelPlural:"drivers"' in html
+    assert 'profileLogType:"race"' in html
+    assert 'data-map-mode="population-workload"' in html
+    assert '>Laps per 1M</button>' in html
+    assert 'id="profile-event-log"' in html
+    assert 'src="../assets/league-app.js"' in html
+    assert html.count('role="tab"') == 4
+    assert "player.raceLog" in shared_javascript
+    assert (ROOT / "docs" / "formula" / "data" / "dashboard.json").exists()
+
+
 def test_every_sport_has_a_primary_workload_population_mode():
     expected = {
         "index.html": "Starts per 1M",
@@ -257,6 +275,7 @@ def test_every_sport_has_a_primary_workload_population_mode():
         "golf/index.html": "Points per 1M",
         "cricket/index.html": "Appearances per 1M",
         "ufc/index.html": "Bouts per 1M",
+        "formula/index.html": "Laps per 1M",
     }
 
     for relative_path, label in expected.items():
@@ -284,7 +303,7 @@ def test_cached_population_mode_restores_area_size_controls():
 def test_every_sport_switcher_links_to_racket_sports_in_order():
     pages = [ROOT / "docs" / "index.html"] + [
         ROOT / "docs" / sport / "index.html"
-        for sport in ("cricket", "ufc", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+        for sport in ("cricket", "ufc", "formula", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
     ]
 
     for page in pages:
@@ -294,7 +313,8 @@ def test_every_sport_switcher_links_to_racket_sports_in_order():
         assert html.count(">Golf</a>") == 1
         assert html.count(">Cricket</a>") == 1
         assert html.count(">UFC</a>") == 1
-        assert html.index(">Football</a>") < html.index(">Cricket</a>") < html.index(">UFC</a>") < html.index(">Tennis</a>")
+        assert html.count(">Formula</a>") == 1
+        assert html.index(">Football</a>") < html.index(">Cricket</a>") < html.index(">UFC</a>") < html.index(">Formula</a>") < html.index(">Tennis</a>")
         assert html.index(">Tennis</a>") < html.index(">Padel</a>") < html.index(">Badminton</a>") < html.index(">Golf</a>")
 
 
