@@ -64,7 +64,7 @@ def test_cell_polygon_splits_antimeridian_cells():
     )
 
 
-@pytest.mark.parametrize("sport", ["football", "cricket", "ufc", "formula", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb"])
+@pytest.mark.parametrize("sport", ["football", "cricket", "ufc", "formula", "motogp", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb"])
 @pytest.mark.parametrize("resolution", [1, 2, 3])
 def test_published_sport_population_layers_match_mapped_player_scope(sport, resolution):
     directory = ROOT / "docs" if sport == "football" else ROOT / "docs" / sport
