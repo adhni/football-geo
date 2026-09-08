@@ -43,6 +43,7 @@ const EDITION = {
   qualityMappedWorkloadField: "mapped_minutes",
   qualityTotalWorkloadField: "minutes",
   groupLabelPlural: "teams",
+  participantLabelPlural: "players",
   tableGroupLabel: "Team",
   tableStatField: "games",
   tableStatLabel: "Games",
@@ -164,7 +165,7 @@ function filteredTeamRecords() {
 }
 
 function metricLabel(metric = state.metric) {
-  return { minutes: EDITION.workloadLabel, players: "players", games: "games" }[metric];
+  return { minutes: EDITION.workloadLabel, players: EDITION.participantLabelPlural, games: "games" }[metric];
 }
 
 function metricValue(item) {
@@ -178,7 +179,7 @@ function isPopulationMode() {
 function populationMeasure() {
   return state.mapMode === "population-workload"
     ? { label: `${EDITION.workloadLabel} per 1M people`, short: `${EDITION.workloadShort} per 1M`, workload: true }
-    : { label: "players per 1M people", short: "players per 1M", workload: false };
+    : { label: `${EDITION.participantLabelPlural} per 1M people`, short: `${EDITION.participantLabelPlural} per 1M`, workload: false };
 }
 
 function emptyState(message) {
@@ -391,7 +392,7 @@ function popupPlayers(rows, maximum = 8) {
   const visible = rows.slice(0, maximum);
   const items = visible.map((row) => `<button type="button" class="popup-player" data-player-id="${escapeHtml(row.id)}"><span>${escapeHtml(row.name)}${EDITION.mixedLocationTypes ? `<small class="location-kind ${row.locationType && row.locationType !== "birthplace" ? "origin" : "birthplace"}">${row.locationType && row.locationType !== "birthplace" ? escapeHtml(EDITION.originLabel) : "Birthplace"}</small>` : ""}</span><b>${number.format(row.minutes)} ${escapeHtml(EDITION.workloadShort)}</b></button>`).join("");
   const rest = rows.length - visible.length;
-  return `${items}${rest > 0 ? `<small class="popup-rest">+ ${rest} more player${rest === 1 ? "" : "s"}</small>` : ""}`;
+  return `${items}${rest > 0 ? `<small class="popup-rest">+ ${rest} more ${escapeHtml(EDITION.participantLabelPlural)}</small>` : ""}`;
 }
 
 function renderCityMap(places) {
@@ -413,7 +414,7 @@ function renderCityMap(places) {
       fillOpacity: .68,
     });
     marker.bindTooltip(`${escapeHtml(place.place)}, ${escapeHtml(place.country)} · ${number.format(metricValue(place))} ${metricLabel()}`);
-    marker.bindPopup(`<div class="map-popup"><strong>${escapeHtml(place.place)}</strong><small>${escapeHtml(place.country)} · ${place.players} player${place.players === 1 ? "" : "s"}</small>${popupPlayers(place.playerList)}</div>`, { maxWidth: 310 });
+    marker.bindPopup(`<div class="map-popup"><strong>${escapeHtml(place.place)}</strong><small>${escapeHtml(place.country)} · ${place.players} ${escapeHtml(EDITION.participantLabelPlural)}</small>${popupPlayers(place.playerList)}</div>`, { maxWidth: 310 });
     state.markerLayer.addLayer(marker);
     state.placeMarkers.set(place.key, marker);
   });
@@ -447,7 +448,7 @@ function renderCountryMap(countries) {
       state.countryLayers.set(code, layer);
       if (!country) return;
       layer.bindTooltip(`${escapeHtml(country.country)} · ${number.format(metricValue(country))} ${metricLabel()}`);
-      layer.bindPopup(`<div class="map-popup"><strong>${escapeHtml(country.country)}</strong><small>${country.players} player${country.players === 1 ? "" : "s"} · ${number.format(country.minutes)} ${escapeHtml(EDITION.workloadLabel)}</small>${popupPlayers([...country.playerRows.values()].sort((a, b) => b.minutes - a.minutes))}</div>`, { maxWidth: 310 });
+      layer.bindPopup(`<div class="map-popup"><strong>${escapeHtml(country.country)}</strong><small>${country.players} ${escapeHtml(EDITION.participantLabelPlural)} · ${number.format(country.minutes)} ${escapeHtml(EDITION.workloadLabel)}</small>${popupPlayers([...country.playerRows.values()].sort((a, b) => b.minutes - a.minutes))}</div>`, { maxWidth: 310 });
     },
   }).addTo(state.map);
 }
@@ -489,8 +490,8 @@ function renderPopulationMap(records) {
       const cell = byId.get(feature.properties.hex_id);
       const rateLabel = cell.rate === null ? "Population estimate unavailable" : `${compact.format(cell.rate)} ${measure.short}`;
       const caution = cell.stable ? "" : " · small sample";
-      layer.bindTooltip(`<strong>${escapeHtml(cell.label)} area</strong><br>${escapeHtml(cell.country)}<br>${rateLabel}<br>${cell.players} players${measure.workload ? ` · ${number.format(cell.workload)} ${escapeHtml(EDITION.workloadShort)}` : ""} · population ${cell.population ? compact.format(cell.population) : "unavailable"}${caution}`, { sticky: true });
-      layer.bindPopup(`<div class="map-popup"><strong>${escapeHtml(cell.label)} area</strong><small>${rateLabel}</small><p>${cell.players} mapped players${measure.workload ? ` · ${number.format(cell.workload)} ${escapeHtml(EDITION.workloadLabel)}` : ""} · ${cell.population ? `${number.format(cell.population)} residents` : "population unavailable"}</p>${cell.stable ? "" : '<small class="popup-rest">Interpret carefully: fewer than two players or fewer than 100,000 residents.</small>'}</div>`, { maxWidth: 320 });
+      layer.bindTooltip(`<strong>${escapeHtml(cell.label)} area</strong><br>${escapeHtml(cell.country)}<br>${rateLabel}<br>${cell.players} ${escapeHtml(EDITION.participantLabelPlural)}${measure.workload ? ` · ${number.format(cell.workload)} ${escapeHtml(EDITION.workloadShort)}` : ""} · population ${cell.population ? compact.format(cell.population) : "unavailable"}${caution}`, { sticky: true });
+      layer.bindPopup(`<div class="map-popup"><strong>${escapeHtml(cell.label)} area</strong><small>${rateLabel}</small><p>${cell.players} mapped ${escapeHtml(EDITION.participantLabelPlural)}${measure.workload ? ` · ${number.format(cell.workload)} ${escapeHtml(EDITION.workloadLabel)}` : ""} · ${cell.population ? `${number.format(cell.population)} residents` : "population unavailable"}</p>${cell.stable ? "" : `<small class="popup-rest">Interpret carefully: fewer than two ${escapeHtml(EDITION.participantLabelPlural)} or fewer than 100,000 residents.</small>`}</div>`, { maxWidth: 320 });
       state.populationLayers.set(cell.hexId, layer);
     },
   }).addTo(state.map);
@@ -498,7 +499,7 @@ function renderPopulationMap(records) {
   $("#place-count").textContent = `${number.format(cells.length)} ${populationResolutionLabel().toLowerCase()} areas`;
   const ranked = cells.filter((cell) => cell.rate !== null).sort((a, b) => Number(b.stable) - Number(a.stable) || b.rate - a.rate).slice(0, 12);
   const maximum = Math.max(...ranked.map((cell) => cell.rate), 1);
-  $("#place-ranking").innerHTML = ranked.length ? ranked.map((cell, index) => `<li class="place-row" style="--bar:${cell.rate / maximum * 100}%"><button class="place-jump" type="button" data-hex-id="${escapeHtml(cell.hexId)}"><span class="place-rank">${String(index + 1).padStart(2, "0")}</span><span class="place-name"><strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)} · ${cell.players} players${measure.workload ? ` · ${number.format(cell.workload)} ${escapeHtml(EDITION.workloadShort)}` : ""} / ${compact.format(cell.population)} people</small></span><span class="place-value">${compact.format(cell.rate)}</span></button></li>`).join("") : `<li>${emptyState("Try widening the current selection.")}</li>`;
+  $("#place-ranking").innerHTML = ranked.length ? ranked.map((cell, index) => `<li class="place-row" style="--bar:${cell.rate / maximum * 100}%"><button class="place-jump" type="button" data-hex-id="${escapeHtml(cell.hexId)}"><span class="place-rank">${String(index + 1).padStart(2, "0")}</span><span class="place-name"><strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)} · ${cell.players} ${escapeHtml(EDITION.participantLabelPlural)}${measure.workload ? ` · ${number.format(cell.workload)} ${escapeHtml(EDITION.workloadShort)}` : ""} / ${compact.format(cell.population)} people</small></span><span class="place-value">${compact.format(cell.rate)}</span></button></li>`).join("") : `<li>${emptyState("Try widening the current selection.")}</li>`;
   $("#map-legend").classList.add("population");
   $("#population-scale").hidden = false;
   $("#legend-prefix").textContent = "Colour =";
@@ -513,7 +514,7 @@ function renderRanking(items) {
   $("#place-count").textContent = `${number.format(items.length)} ${state.mapMode === "city" ? EDITION.locationPlural : "countries"}`;
   $("#place-ranking").innerHTML = visible.length ? visible.map((item, index) => {
     const name = item.place || item.country;
-    const detail = state.mapMode === "city" ? `${item.country} · ${item.players} player${item.players === 1 ? "" : "s"}` : `${item.players} player${item.players === 1 ? "" : "s"}`;
+    const detail = state.mapMode === "city" ? `${item.country} · ${item.players} ${EDITION.participantLabelPlural}` : `${item.players} ${EDITION.participantLabelPlural}`;
     const target = state.mapMode === "city" ? `data-place-key="${escapeHtml(item.key)}"` : `data-country-code="${escapeHtml(item.code)}"`;
     return `<li class="place-row" style="--bar:${metricValue(item) / maximum * 100}%"><button class="place-jump" type="button" ${target}><span class="place-rank">${String(index + 1).padStart(2, "0")}</span><span class="place-name"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(detail)}</small></span><span class="place-value">${compact.format(metricValue(item))}</span></button></li>`;
   }).join("") : `<li>${emptyState("Try widening the current selection.")}</li>`;
@@ -559,10 +560,10 @@ function updateConferenceComparison() {
   $("#conference-comparison").innerHTML = conferences.map((conference, index) => `
     <article class="league-card" style="--order:${index}">
       <header><div><span>0${index + 1}</span><h3>${escapeHtml(conference.conference)}</h3></div><strong>${EDITION.comparisonHighlight === "coverage" ? (conference.mapped / conference.players * 100).toFixed(0) : conference.outsideHomePct.toFixed(0)}%<small>${escapeHtml(EDITION.comparisonHighlight === "coverage" ? "birthplace mapped" : EDITION.outsideHomeLabel.toLowerCase())}</small></strong></header>
-      <div class="league-primary"><div><b>${conference.players}</b><span>players</span></div><div><b>${compact.format(conference.minutes)}</b><span>${escapeHtml(EDITION.workloadShort)}</span></div><div><b>${conference.countries}</b><span>${escapeHtml(EDITION.countryGroupLabel)}</span></div></div>
+      <div class="league-primary"><div><b>${conference.players}</b><span>${escapeHtml(EDITION.participantLabelPlural)}</span></div><div><b>${compact.format(conference.minutes)}</b><span>${escapeHtml(EDITION.workloadShort)}</span></div><div><b>${conference.countries}</b><span>${escapeHtml(EDITION.countryGroupLabel)}</span></div></div>
       <div class="domestic-track"><i style="width:${EDITION.comparisonHighlight === "coverage" ? conference.mapped / conference.players * 100 : conference.outsideHomePct}%"></i></div>
       <div class="league-detail"><div><span class="card-label">Leading ${escapeHtml(EDITION.countryGroupLabel)}</span><ol>${conference.topCountries.map(([country, count]) => `<li><span>${escapeHtml(country)}</span><b>${count}</b></li>`).join("")}</ol></div></div>
-      <div class="league-footer">Median age ${conference.medianAge?.toFixed(1) ?? "—"} · ${number.format(conference.minutes)} total ${escapeHtml(EDITION.workloadLabel)} · ${conference.mapped} of ${conference.players} players mapped</div>
+      <div class="league-footer">Median age ${conference.medianAge?.toFixed(1) ?? "—"} · ${number.format(conference.minutes)} total ${escapeHtml(EDITION.workloadLabel)} · ${conference.mapped} of ${conference.players} ${escapeHtml(EDITION.participantLabelPlural)} mapped</div>
     </article>`).join("") || emptyState("No conference matches the current selection.");
 }
 
@@ -570,7 +571,7 @@ function updateTeamChart() {
   const teams = aggregateTeams(filteredTeamRecords()).sort((a, b) => b.minutes - a.minutes || a.team.localeCompare(b.team));
   const maximum = Math.max(...teams.map((team) => team.minutes), 1);
   $("#team-chart").innerHTML = teams.length ? teams.map((team) => `
-    <div class="team-row"><div class="team-name"><strong>${escapeHtml(team.team)}</strong><small>${escapeHtml(team.conference.replace(" Conference", ""))} · ${team.players} players</small></div><div class="team-track"><i style="width:${team.minutes / maximum * 100}%"></i></div><div class="team-value">${number.format(team.minutes)}<small>${team.coverage.toFixed(1)}% mapped</small></div></div>`).join("") : emptyState("No teams match the current selection.");
+    <div class="team-row"><div class="team-name"><strong>${escapeHtml(team.team)}</strong><small>${escapeHtml(team.conference.replace(" Conference", ""))} · ${team.players} ${escapeHtml(EDITION.participantLabelPlural)}</small></div><div class="team-track"><i style="width:${team.minutes / maximum * 100}%"></i></div><div class="team-value">${number.format(team.minutes)}<small>${team.coverage.toFixed(1)}% mapped</small></div></div>`).join("") : emptyState("No teams match the current selection.");
 }
 
 function updateAgeAndCountry() {
@@ -581,10 +582,10 @@ function updateAgeAndCountry() {
   const mapped = birthplaceRecords.filter((row) => row.mapped).length;
   const representedCountries = new Set(records.map((row) => row.representedCountry).filter(Boolean)).size;
   $("#age-overview").innerHTML = `
-    <article><span>Median age</span><strong>${median(ages)?.toFixed(1) ?? "—"}</strong><small>player age in snapshot</small></article>
-    <article><span>Under 23</span><strong>${number.format(ages.filter((age) => age < 23).length)}</strong><small>${ages.length ? (ages.filter((age) => age < 23).length / ages.length * 100).toFixed(1) : 0}% of players</small></article>
-    <article><span>Age 30+</span><strong>${number.format(ages.filter((age) => age >= 30).length)}</strong><small>${ages.length ? (ages.filter((age) => age >= 30).length / ages.length * 100).toFixed(1) : 0}% of players</small></article>
-    <article><span>${escapeHtml(EDITION.comparisonHighlight === "coverage" ? "Represented countries" : EDITION.outsideHomeLabel)}</span><strong>${EDITION.comparisonHighlight === "coverage" ? number.format(representedCountries) : `${mapped ? (outsideHome / mapped * 100).toFixed(1) : 0}%`}</strong><small>${EDITION.comparisonHighlight === "coverage" ? "ranking nationalities" : "of mapped players"}</small></article>`;
+    <article><span>Median age</span><strong>${median(ages)?.toFixed(1) ?? "—"}</strong><small>${escapeHtml(EDITION.participantLabelPlural)} in snapshot</small></article>
+    <article><span>Under 23</span><strong>${number.format(ages.filter((age) => age < 23).length)}</strong><small>${ages.length ? (ages.filter((age) => age < 23).length / ages.length * 100).toFixed(1) : 0}% of ${escapeHtml(EDITION.participantLabelPlural)}</small></article>
+    <article><span>Age 30+</span><strong>${number.format(ages.filter((age) => age >= 30).length)}</strong><small>${ages.length ? (ages.filter((age) => age >= 30).length / ages.length * 100).toFixed(1) : 0}% of ${escapeHtml(EDITION.participantLabelPlural)}</small></article>
+    <article><span>${escapeHtml(EDITION.comparisonHighlight === "coverage" ? "Represented countries" : EDITION.outsideHomeLabel)}</span><strong>${EDITION.comparisonHighlight === "coverage" ? number.format(representedCountries) : `${mapped ? (outsideHome / mapped * 100).toFixed(1) : 0}%`}</strong><small>${EDITION.comparisonHighlight === "coverage" ? "ranking nationalities" : `of mapped ${escapeHtml(EDITION.participantLabelPlural)}`}</small></article>`;
   const countries = aggregateCountries(birthplaceRecords);
   const byPlayers = [...countries].sort((a, b) => b.players - a.players || a.country.localeCompare(b.country)).slice(0, 10);
   const byMinutes = [...countries].sort((a, b) => b.minutes - a.minutes || a.country.localeCompare(b.country)).slice(0, 10);
@@ -593,9 +594,9 @@ function updateAgeAndCountry() {
     return `<article class="country-panel"><span class="card-label">Birth-country comparison</span><h3>${title}</h3><ol class="country-list">${items.map((country) => `<li style="--bar:${value(country) / maximum * 100}%"><span>${escapeHtml(country.country)}</span><b>${label(country)}</b></li>`).join("")}</ol></article>`;
   };
   $("#country-comparison").innerHTML = countries.length
-    ? `${panel("By players", (country) => number.format(country.players), byPlayers, (country) => country.players)}${panel(`By ${EDITION.workloadLabel}`, (country) => compact.format(country.minutes), byMinutes, (country) => country.minutes)}`
+    ? `${panel(`By ${EDITION.participantLabelPlural}`, (country) => number.format(country.players), byPlayers, (country) => country.players)}${panel(`By ${EDITION.workloadLabel}`, (country) => compact.format(country.minutes), byMinutes, (country) => country.minutes)}`
     : emptyState("No mapped birth countries match the current selection.");
-  $("#age-scope").textContent = `${number.format(records.length)} players in the current selection`;
+  $("#age-scope").textContent = `${number.format(records.length)} ${EDITION.participantLabelPlural} in the current selection`;
 }
 
 function updatePlayerTable() {
@@ -608,9 +609,9 @@ function updatePlayerTable() {
     <tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(row.id)}" aria-label="Open profile for ${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.position || "Position unavailable")}</small></button></td><td data-label="${escapeHtml(EDITION.tableGroupLabel)}">${escapeHtml((row.teams || [row.team]).join(", "))}</td>${EDITION.showConferenceColumn ? `<td data-label="${escapeHtml(EDITION.conferenceLabel)}">${escapeHtml(row.conference.replace(" Conference", ""))}</td>` : ""}<td data-label="${escapeHtml(EDITION.locationLabel)}">${row.mapped ? `${escapeHtml(row.place)}<br><small>${escapeHtml(row.country)}</small>${EDITION.mixedLocationTypes ? `<span class="location-kind ${row.locationType && row.locationType !== "birthplace" ? "origin" : "birthplace"}">${row.locationType && row.locationType !== "birthplace" ? escapeHtml(EDITION.originLabel) : "Birthplace"}</span>` : ""}` : `<span style="color:var(--danger)">Awaiting QA</span>`}</td><td class="numeric" data-label="${escapeHtml(EDITION.tableStatLabel)}">${number.format(row[EDITION.tableStatField])}</td>${EDITION.showWorkloadColumn ? `<td class="numeric" data-label="${escapeHtml(EDITION.workloadLabel)}">${number.format(row.minutes)}</td>` : ""}</tr>`).join("");
   const empty = $("#player-empty-state");
   empty.hidden = players.length > 0;
-  empty.innerHTML = players.length ? "" : `<h3>No players found</h3><p>${escapeHtml(query ? "Try another search or clear the current filters." : "This selection has no players.")}</p><button type="button" class="empty-state-action" data-clear-filters>Clear filters</button>`;
+  empty.innerHTML = players.length ? "" : `<h3>No ${escapeHtml(EDITION.participantLabelPlural)} found</h3><p>${escapeHtml(query ? "Try another search or clear the current filters." : `This selection has no ${EDITION.participantLabelPlural}.`)}</p><button type="button" class="empty-state-action" data-clear-filters>Clear filters</button>`;
   $("#player-table").closest("table").hidden = players.length === 0;
-  $("#player-table-note").textContent = players.length ? `Showing ${number.format(visible.length)} of ${number.format(players.length)} players · sorted by ${EDITION.workloadLabel}` : "No players to show";
+  $("#player-table-note").textContent = players.length ? `Showing ${number.format(visible.length)} of ${number.format(players.length)} ${EDITION.participantLabelPlural} · sorted by ${EDITION.workloadLabel}` : `No ${EDITION.participantLabelPlural} to show`;
   const remaining = Math.max(0, players.length - visible.length);
   const loadMore = $("#load-more-players");
   loadMore.hidden = remaining === 0;
@@ -629,8 +630,8 @@ function updateQuality() {
   $("#quality-unresolved").textContent = `${number.format(summary.unresolved_players)} unresolved`;
   $("#quality-mapped-minutes").textContent = `${number.format(summary[EDITION.qualityMappedWorkloadField])} mapped ${EDITION.workloadLabel}`;
   $("#quality-total-minutes").textContent = `${number.format(summary[EDITION.qualityTotalWorkloadField])} total`;
-  $("#unresolved-count").textContent = `${number.format(summary.unresolved_players)} players`;
-  $("#unresolved-list").innerHTML = unresolved.length ? unresolved.map((row) => `<div class="unresolved-row"><span>${escapeHtml(row.name)}</span><span>${escapeHtml(row.status)}</span></div>`).join("") : `<p>No unresolved players.</p>`;
+  $("#unresolved-count").textContent = `${number.format(summary.unresolved_players)} ${EDITION.participantLabelPlural}`;
+  $("#unresolved-list").innerHTML = unresolved.length ? unresolved.map((row) => `<div class="unresolved-row"><span>${escapeHtml(row.name)}</span><span>${escapeHtml(row.status)}</span></div>`).join("") : `<p>No unresolved ${escapeHtml(EDITION.participantLabelPlural)}.</p>`;
 }
 
 function updateFilterUi() {
@@ -655,7 +656,7 @@ function updateSnapshotCopy() {
   const generated = new Date(meta.generated_at);
   const updated = Number.isNaN(generated.getTime()) ? "" : generated.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" });
   if (updated) $(".status-pill").innerHTML = `<i aria-hidden="true"></i> ${escapeHtml(meta.season)} · Updated ${escapeHtml(updated)}`;
-  $(".hero-statline").innerHTML = `<strong>${number.format(summary.players)} players</strong><span>${number.format(summary.teams)} ${escapeHtml(EDITION.groupLabelPlural)}</span><span>${number.format(summary.birth_countries)} birth countries</span>`;
+  $(".hero-statline").innerHTML = `<strong>${number.format(summary.players)} ${escapeHtml(EDITION.participantLabelPlural)}</strong><span>${number.format(summary.teams)} ${escapeHtml(EDITION.groupLabelPlural)}</span><span>${number.format(summary.birth_countries)} birth countries</span>`;
 }
 
 function populateFilters() {
@@ -713,7 +714,11 @@ function openPlayerProfile(playerId, opener = document.activeElement) {
       : Number(player[key] || 0).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
   });
   const fightLog = $("#profile-fight-log");
-  if (fightLog) {
+  const eventLog = $("#profile-event-log") || fightLog;
+  if (eventLog && EDITION.profileLogType === "race") {
+    const rows = player.raceLog || [];
+    eventLog.innerHTML = rows.length ? `<h3>${escapeHtml(EDITION.profileLogTitle || "Race log")}</h3><ol>${rows.map((race) => { const status = /^\d+$/.test(String(race.status || "")) ? "Classified" : race.status || "Classified"; return `<li><b>${race.position ? `P${number.format(race.position)}` : "—"}</b><span>${escapeHtml(race.event)}<br><small>${escapeHtml(race.series)} · ${escapeHtml(race.session)}</small></span><span>${number.format(race.laps || 0)} laps<br><small>${escapeHtml(race.team)} · ${escapeHtml(status)}</small></span></li>`; }).join("")}</ol>` : "";
+  } else if (fightLog) {
     const rows = player.fightLog || [];
     fightLog.innerHTML = rows.length ? `<h3>2025 fight log</h3><ol>${rows.map((fight) => `<li><b class="${fight.result === "W" ? "win" : fight.result === "L" ? "loss" : ""}">${escapeHtml(fight.result)}</b><span>${escapeHtml(fight.opponent)}<br><small>${escapeHtml(fight.event)} · ${escapeHtml(fight.division)}</small></span><span>${escapeHtml(fight.method)}<br><small>R${number.format(fight.round)} ${escapeHtml(fight.time)}</small></span></li>`).join("")}</ol>` : "";
   }

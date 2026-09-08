@@ -1,7 +1,7 @@
 # Talent Geography
 
 A reproducible data + visualisation project that started with football and now
-includes cricket, UFC, tennis, padel, badminton, golf, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
+includes cricket, UFC, Formula, tennis, padel, badminton, golf, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
 
 The football project asks:
 
@@ -81,7 +81,7 @@ streamlit run dashboard/app.py
 
 The public, backend-free dashboard lives in `docs/` and is served directly by
 GitHub Pages. The football explorer lives at `/`, the cricket explorer at
-`/cricket/`, the UFC explorer at `/ufc/`, the tennis explorer at
+`/cricket/`, the UFC explorer at `/ufc/`, the Formula explorer at `/formula/`, the tennis explorer at
 `/tennis/`, the padel explorer at `/padel/`, the badminton explorer at
 `/badminton/`, the golf explorer at `/golf/`, the AFL explorer at `/afl/`, the
 NRL explorer at `/nrl/`, the NBA explorer at `/nba/`, the NFL explorer at `/nfl/`, the NHL explorer at
@@ -138,6 +138,26 @@ UFCStats totals where available, and preserves exactly 1,040 fighter-bout
 appearances. Verified birthplaces are preferred; official UFC hometowns are
 published only as labelled fighter origins and never enter population layers.
 See `docs/ufc/DATA_SOURCES.md` for the full location hierarchy and attribution.
+
+To refresh the completed 2025 Formula pathway snapshot:
+
+```bash
+python -m src.ftg.build_formula_site \
+  --output docs/formula/data/dashboard.json \
+  --workers 8
+python -m src.ftg.build_population_hexes \
+  --input docs/formula/data/dashboard.json \
+  --output docs/formula/data/population_hexes_r3.geojson \
+  --cache data/cache/formula_worldpop_population_2025_r3.json \
+  --h3-resolution 3 --use-rasters
+```
+
+The Formula builder combines completed 2025 championship classifications for
+Formula 1, Formula 2, Formula 3 and F1 Academy. It preserves starts, completed
+laps, team moves and race logs across all four series. Population layers use
+verified Wikidata birthplaces only; championship points are profile context and
+are not compared across series. See `docs/formula/DATA_SOURCES.md` for scope and
+attribution.
 
 To refresh the completed 2025 AFL home-and-away snapshot:
 

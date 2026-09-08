@@ -25,6 +25,7 @@ data/cache/*
 !docs/golf/index.html
 !docs/cricket/index.html
 !docs/ufc/index.html
+!docs/formula/index.html
 !docs/nhl/index.html
 !docs/mlb/index.html
 *.zip
