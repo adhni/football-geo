@@ -62,7 +62,7 @@ def occupied_hexes(payload: dict[str, Any], resolution: int = 3) -> dict[str, di
     for row in payload["records"]:
         if (
             not row.get("mapped")
-            or row.get("locationType") == "football_origin"
+            or row.get("locationType") not in (None, "birthplace")
             or row.get("lat") is None
             or row.get("lon") is None
         ):

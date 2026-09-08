@@ -1,7 +1,7 @@
 # Talent Geography
 
 A reproducible data + visualisation project that started with football and now
-includes cricket, tennis, padel, badminton, golf, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
+includes cricket, UFC, tennis, padel, badminton, golf, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
 
 The football project asks:
 
@@ -81,7 +81,7 @@ streamlit run dashboard/app.py
 
 The public, backend-free dashboard lives in `docs/` and is served directly by
 GitHub Pages. The football explorer lives at `/`, the cricket explorer at
-`/cricket/`, the tennis explorer at
+`/cricket/`, the UFC explorer at `/ufc/`, the tennis explorer at
 `/tennis/`, the padel explorer at `/padel/`, the badminton explorer at
 `/badminton/`, the golf explorer at `/golf/`, the AFL explorer at `/afl/`, the
 NRL explorer at `/nrl/`, the NBA explorer at `/nba/`, the NFL explorer at `/nfl/`, the NHL explorer at
@@ -121,6 +121,23 @@ Cricsheet's 2025 T20 international archive. It counts each listed player once
 per match, excludes super overs from performance totals, and links the stable
 Cricsheet UUID through ESPNcricinfo IDs to verified birthplace data. See
 `docs/cricket/DATA_SOURCES.md` for the precise scope and stat definitions.
+
+To refresh the complete calendar-year 2025 UFC snapshot:
+
+```bash
+python -m src.ftg.build_ufc_site --output docs/ufc/data/dashboard.json --workers 8
+python -m src.ftg.build_population_hexes \
+  --input docs/ufc/data/dashboard.json \
+  --output docs/ufc/data/population_hexes_r3.geojson \
+  --cache data/cache/ufc_worldpop_population_2025_r3.json \
+  --h3-resolution 3
+```
+
+The UFC builder reconciles all 42 event cards and 520 bouts, joins detailed
+UFCStats totals where available, and preserves exactly 1,040 fighter-bout
+appearances. Verified birthplaces are preferred; official UFC hometowns are
+published only as labelled fighter origins and never enter population layers.
+See `docs/ufc/DATA_SOURCES.md` for the full location hierarchy and attribution.
 
 To refresh the completed 2025 AFL home-and-away snapshot:
 

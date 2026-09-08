@@ -228,6 +228,20 @@ def test_cricket_explorer_uses_appearances_and_two_competitions():
     assert (ROOT / "docs" / "cricket" / "data" / "dashboard.json").exists()
 
 
+def test_ufc_explorer_uses_bouts_and_labels_fighter_origins():
+    html = (ROOT / "docs" / "ufc" / "index.html").read_text(encoding="utf-8")
+    assert 'class="ufc-site"' in html
+    assert 'window.TALENT_GEO_EDITION={name:"UFC"' in html
+    assert 'workloadField:"bouts"' in html
+    assert 'originLabel:"Fighter origin"' in html
+    assert 'data-map-mode="population-workload"' in html
+    assert '>Bouts per 1M</button>' in html
+    assert 'id="profile-fight-log"' in html
+    assert 'src="../assets/league-app.js"' in html
+    assert html.count('role="tab"') == 4
+    assert (ROOT / "docs" / "ufc" / "data" / "dashboard.json").exists()
+
+
 def test_every_sport_has_a_primary_workload_population_mode():
     expected = {
         "index.html": "Starts per 1M",
@@ -242,6 +256,7 @@ def test_every_sport_has_a_primary_workload_population_mode():
         "badminton/index.html": "Points per 1M",
         "golf/index.html": "Points per 1M",
         "cricket/index.html": "Appearances per 1M",
+        "ufc/index.html": "Bouts per 1M",
     }
 
     for relative_path, label in expected.items():
@@ -269,7 +284,7 @@ def test_cached_population_mode_restores_area_size_controls():
 def test_every_sport_switcher_links_to_racket_sports_in_order():
     pages = [ROOT / "docs" / "index.html"] + [
         ROOT / "docs" / sport / "index.html"
-        for sport in ("cricket", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+        for sport in ("cricket", "ufc", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
     ]
 
     for page in pages:
@@ -278,7 +293,8 @@ def test_every_sport_switcher_links_to_racket_sports_in_order():
         assert html.count(">Badminton</a>") == 1
         assert html.count(">Golf</a>") == 1
         assert html.count(">Cricket</a>") == 1
-        assert html.index(">Football</a>") < html.index(">Cricket</a>") < html.index(">Tennis</a>")
+        assert html.count(">UFC</a>") == 1
+        assert html.index(">Football</a>") < html.index(">Cricket</a>") < html.index(">UFC</a>") < html.index(">Tennis</a>")
         assert html.index(">Tennis</a>") < html.index(">Padel</a>") < html.index(">Badminton</a>") < html.index(">Golf</a>")
 
 

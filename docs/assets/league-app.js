@@ -36,6 +36,7 @@ const EDITION = {
   locationPlural: "birthplaces",
   countryGroupLabel: "birth countries",
   mixedLocationTypes: false,
+  originLabel: "Football origin",
   qualityPlayerCoverageField: "player_coverage_pct",
   qualityMappedPlayersField: "mapped_players",
   qualityWorkloadCoverageField: "minute_coverage_pct",
@@ -219,8 +220,8 @@ function aggregatePlaces(records) {
     place.games += row.games || 0;
     place.teams.add(row.team);
     place.playerRows.set(row.id, row);
-    place.hasOrigin ||= row.locationType === "football_origin";
-    place.hasBirthplace ||= row.locationType !== "football_origin";
+    place.hasOrigin ||= row.locationType && row.locationType !== "birthplace";
+    place.hasBirthplace ||= !row.locationType || row.locationType === "birthplace";
   });
   return [...places.values()].map((place) => ({
     ...place,
@@ -244,7 +245,7 @@ function aggregateCountries(records) {
 }
 
 function aggregatePopulationCells(records) {
-  const players = new Map(records.filter((row) => row.mapped && row.locationType !== "football_origin").map((row) => [row.id, row]));
+  const players = new Map(records.filter((row) => row.mapped && (!row.locationType || row.locationType === "birthplace")).map((row) => [row.id, row]));
   const geojson = state.populationGeojson.get(state.populationResolution);
   return (geojson?.features || []).map((feature) => {
     const selected = (feature.properties.player_ids || []).filter((playerId) => players.has(playerId));
@@ -388,7 +389,7 @@ function usePopulationBasemap(active) {
 
 function popupPlayers(rows, maximum = 8) {
   const visible = rows.slice(0, maximum);
-  const items = visible.map((row) => `<button type="button" class="popup-player" data-player-id="${escapeHtml(row.id)}"><span>${escapeHtml(row.name)}${EDITION.mixedLocationTypes ? `<small class="location-kind ${row.locationType === "football_origin" ? "origin" : "birthplace"}">${row.locationType === "football_origin" ? "Football origin" : "Birthplace"}</small>` : ""}</span><b>${number.format(row.minutes)} ${escapeHtml(EDITION.workloadShort)}</b></button>`).join("");
+  const items = visible.map((row) => `<button type="button" class="popup-player" data-player-id="${escapeHtml(row.id)}"><span>${escapeHtml(row.name)}${EDITION.mixedLocationTypes ? `<small class="location-kind ${row.locationType && row.locationType !== "birthplace" ? "origin" : "birthplace"}">${row.locationType && row.locationType !== "birthplace" ? escapeHtml(EDITION.originLabel) : "Birthplace"}</small>` : ""}</span><b>${number.format(row.minutes)} ${escapeHtml(EDITION.workloadShort)}</b></button>`).join("");
   const rest = rows.length - visible.length;
   return `${items}${rest > 0 ? `<small class="popup-rest">+ ${rest} more player${rest === 1 ? "" : "s"}</small>` : ""}`;
 }
@@ -574,7 +575,7 @@ function updateTeamChart() {
 
 function updateAgeAndCountry() {
   const records = filteredRecords();
-  const birthplaceRecords = EDITION.mixedLocationTypes ? records.filter((row) => row.locationType !== "football_origin") : records;
+  const birthplaceRecords = EDITION.mixedLocationTypes ? records.filter((row) => !row.locationType || row.locationType === "birthplace") : records;
   const ages = records.map((row) => row.age).filter(Number.isFinite);
   const outsideHome = birthplaceRecords.filter((row) => row.mapped && row.country !== EDITION.homeCountry).length;
   const mapped = birthplaceRecords.filter((row) => row.mapped).length;
@@ -604,7 +605,7 @@ function updatePlayerTable() {
     .sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name));
   const visible = players.slice(0, state.playerLimit);
   $("#player-table").innerHTML = visible.map((row) => `
-    <tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(row.id)}" aria-label="Open profile for ${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.position || "Position unavailable")}</small></button></td><td data-label="${escapeHtml(EDITION.tableGroupLabel)}">${escapeHtml((row.teams || [row.team]).join(", "))}</td>${EDITION.showConferenceColumn ? `<td data-label="${escapeHtml(EDITION.conferenceLabel)}">${escapeHtml(row.conference.replace(" Conference", ""))}</td>` : ""}<td data-label="${escapeHtml(EDITION.locationLabel)}">${row.mapped ? `${escapeHtml(row.place)}<br><small>${escapeHtml(row.country)}</small>${EDITION.mixedLocationTypes ? `<span class="location-kind ${row.locationType === "football_origin" ? "origin" : "birthplace"}">${row.locationType === "football_origin" ? "Football origin" : "Birthplace"}</span>` : ""}` : `<span style="color:var(--danger)">Awaiting QA</span>`}</td><td class="numeric" data-label="${escapeHtml(EDITION.tableStatLabel)}">${number.format(row[EDITION.tableStatField])}</td>${EDITION.showWorkloadColumn ? `<td class="numeric" data-label="${escapeHtml(EDITION.workloadLabel)}">${number.format(row.minutes)}</td>` : ""}</tr>`).join("");
+    <tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(row.id)}" aria-label="Open profile for ${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.position || "Position unavailable")}</small></button></td><td data-label="${escapeHtml(EDITION.tableGroupLabel)}">${escapeHtml((row.teams || [row.team]).join(", "))}</td>${EDITION.showConferenceColumn ? `<td data-label="${escapeHtml(EDITION.conferenceLabel)}">${escapeHtml(row.conference.replace(" Conference", ""))}</td>` : ""}<td data-label="${escapeHtml(EDITION.locationLabel)}">${row.mapped ? `${escapeHtml(row.place)}<br><small>${escapeHtml(row.country)}</small>${EDITION.mixedLocationTypes ? `<span class="location-kind ${row.locationType && row.locationType !== "birthplace" ? "origin" : "birthplace"}">${row.locationType && row.locationType !== "birthplace" ? escapeHtml(EDITION.originLabel) : "Birthplace"}</span>` : ""}` : `<span style="color:var(--danger)">Awaiting QA</span>`}</td><td class="numeric" data-label="${escapeHtml(EDITION.tableStatLabel)}">${number.format(row[EDITION.tableStatField])}</td>${EDITION.showWorkloadColumn ? `<td class="numeric" data-label="${escapeHtml(EDITION.workloadLabel)}">${number.format(row.minutes)}</td>` : ""}</tr>`).join("");
   const empty = $("#player-empty-state");
   empty.hidden = players.length > 0;
   empty.innerHTML = players.length ? "" : `<h3>No players found</h3><p>${escapeHtml(query ? "Try another search or clear the current filters." : "This selection has no players.")}</p><button type="button" class="empty-state-action" data-clear-filters>Clear filters</button>`;
@@ -711,8 +712,13 @@ function openPlayerProfile(playerId, opener = document.activeElement) {
       ? number.format(player[key] || 0)
       : Number(player[key] || 0).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
   });
+  const fightLog = $("#profile-fight-log");
+  if (fightLog) {
+    const rows = player.fightLog || [];
+    fightLog.innerHTML = rows.length ? `<h3>2025 fight log</h3><ol>${rows.map((fight) => `<li><b class="${fight.result === "W" ? "win" : fight.result === "L" ? "loss" : ""}">${escapeHtml(fight.result)}</b><span>${escapeHtml(fight.opponent)}<br><small>${escapeHtml(fight.event)} · ${escapeHtml(fight.division)}</small></span><span>${escapeHtml(fight.method)}<br><small>R${number.format(fight.round)} ${escapeHtml(fight.time)}</small></span></li>`).join("")}</ol>` : "";
+  }
   const profileLocationLabel = $("#profile-location-label");
-  if (profileLocationLabel) profileLocationLabel.textContent = player.locationType === "football_origin" ? "Football origin (birthplace unavailable)" : "Place of birth";
+  if (profileLocationLabel) profileLocationLabel.textContent = player.locationType && player.locationType !== "birthplace" ? `${EDITION.originLabel} (birthplace unavailable)` : "Place of birth";
   $("#profile-birthplace").textContent = player.mapped ? `${player.place}, ${player.country}` : `${EDITION.locationLabel} awaiting QA`;
   $("#profile-dob").textContent = player.dob || "Unavailable";
   $("#profile-age").textContent = Number.isFinite(player.age) ? `${player.age} years old` : "Age unavailable";
@@ -732,7 +738,7 @@ function openPlayerProfile(playerId, opener = document.activeElement) {
       if (!modal.classList.contains("open")) return;
       state.profileMap = L.map("player-mini-map", { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false }).setView([player.lat, player.lon], 6);
       L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd" }).addTo(state.profileMap);
-      L.circleMarker([player.lat, player.lon], { radius: 8, color: EDITION.markerStroke, fillColor: player.locationType === "football_origin" ? EDITION.originMarkerFill : EDITION.markerFill, fillOpacity: .8 }).addTo(state.profileMap);
+      L.circleMarker([player.lat, player.lon], { radius: 8, color: EDITION.markerStroke, fillColor: player.locationType && player.locationType !== "birthplace" ? EDITION.originMarkerFill : EDITION.markerFill, fillOpacity: .8 }).addTo(state.profileMap);
     }, 80);
   }
   $("#close-player-modal").focus();
