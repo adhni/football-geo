@@ -57,6 +57,7 @@ const state = {
   conference: "all",
   team: "all",
   country: "all",
+  position: "all",
   metric: EDITION.defaultMetric,
   mapMode: "city",
   populationResolution: 3,
@@ -138,6 +139,7 @@ function projectTeamSplits(row, splits) {
 function filteredRecords(conference = state.conference) {
   return state.payload.records.flatMap((row) => {
     if (state.country !== "all" && row.country !== state.country) return [];
+    if (state.position !== "all" && row.position !== state.position) return [];
     if (!row.teamSplits?.length) {
       return (conference === "all" || row.conference === conference)
         && (state.team === "all" || row.team === state.team) ? [row] : [];
@@ -639,11 +641,13 @@ function updateFilterUi() {
     state.conference !== "all" && { key: "conference", label: state.conference.replace(" Conference", "") },
     state.team !== "all" && { key: "team", label: state.team },
     state.country !== "all" && { key: "country", label: `${EDITION.mixedLocationTypes ? "Located" : "Born"} in ${state.country}` },
+    state.position !== "all" && { key: "position", label: state.position },
   ].filter(Boolean);
   const container = $("#active-filters");
   container.innerHTML = filters.map((filter) => `<button type="button" class="filter-chip" data-clear-filter="${filter.key}" aria-label="Remove ${escapeHtml(filter.label)} filter"><span>${escapeHtml(filter.label)}</span><span aria-hidden="true">×</span></button>`).join("");
   container.hidden = filters.length === 0;
-  $("#more-filter-count").textContent = state.country === "all" ? "" : "1";
+  const moreFilterCount = Number(state.country !== "all") + Number(state.position !== "all");
+  $("#more-filter-count").textContent = moreFilterCount ? String(moreFilterCount) : "";
   $("#reset-filters").disabled = filters.length === 0 && !state.search && !state.placeQuery && state.metric === EDITION.defaultMetric && state.mapMode === "city";
   const conference = state.conference === "all" ? EDITION.allConferenceLabel : state.conference.replace(" Conference", "");
   const team = state.team === "all" ? `All ${EDITION.groupLabelPlural}` : state.team;
@@ -667,6 +671,7 @@ function populateFilters() {
   addOptions("#conference-filter", state.payload.meta.conferences);
   addOptions("#team-filter", state.payload.meta.teams);
   addOptions("#country-filter", [...new Set(state.payload.records.filter((row) => row.mapped).map((row) => row.country))].sort());
+  if ($("#position-filter")) addOptions("#position-filter", [...new Set(state.payload.records.map((row) => row.position).filter(Boolean))].sort());
   const places = aggregatePlaces(state.payload.records).sort((a, b) => a.place.localeCompare(b.place));
   $("#place-options").innerHTML = places.map((place) => `<option value="${escapeHtml(place.place)}, ${escapeHtml(place.country)}"></option>`).join("");
 }
@@ -715,7 +720,10 @@ function openPlayerProfile(playerId, opener = document.activeElement) {
   });
   const fightLog = $("#profile-fight-log");
   const eventLog = $("#profile-event-log") || fightLog;
-  if (eventLog && EDITION.profileLogType === "race") {
+  if (eventLog && EDITION.profileLogType === "volleyball") {
+    const rows = player.matchLog || [];
+    eventLog.innerHTML = rows.length ? `<h3>${escapeHtml(EDITION.profileLogTitle || "Match log")}</h3><ol>${rows.map((match) => `<li><b>${number.format(match.sets || 0)}</b><span>vs ${escapeHtml(match.opponent)}<br><small>${escapeHtml(match.round || "VNL")} · ${escapeHtml(match.date)}</small></span><span>${number.format(match.points || 0)} points<br><small>${escapeHtml(match.team)}</small></span></li>`).join("")}</ol>` : "";
+  } else if (eventLog && EDITION.profileLogType === "race") {
     const rows = player.raceLog || [];
     const statusLabels = { INSTND: "Classified", OUTSTND: "Not classified", RET: "Retired", DSQ: "Disqualified" };
     eventLog.innerHTML = rows.length ? `<h3>${escapeHtml(EDITION.profileLogTitle || "Race log")}</h3><ol>${rows.map((race) => { const rawStatus = String(race.status || ""); const status = statusLabels[rawStatus] || (/^\d+$/.test(rawStatus) ? "Classified" : rawStatus || "Classified"); return `<li><b>${race.position ? `P${number.format(race.position)}` : "—"}</b><span>${escapeHtml(race.event)}<br><small>${escapeHtml(race.series)} · ${escapeHtml(race.session)}</small></span><span>${number.format(race.laps || 0)} laps<br><small>${escapeHtml(race.team)} · ${escapeHtml(status)}</small></span></li>`; }).join("")}</ol>` : "";
@@ -803,6 +811,7 @@ function resetAll() {
   state.conference = "all";
   state.team = "all";
   state.country = "all";
+  state.position = "all";
   state.metric = EDITION.defaultMetric;
   state.mapMode = "city";
   state.populationResolution = 3;
@@ -812,6 +821,7 @@ function resetAll() {
   $("#conference-filter").value = "all";
   $("#team-filter").value = "all";
   $("#country-filter").value = "all";
+  if ($("#position-filter")) $("#position-filter").value = "all";
   $("#player-search").value = "";
   $("#place-search").value = "";
   $("#clear-place-search").hidden = true;
@@ -837,6 +847,7 @@ function bindEvents() {
   $("#conference-filter").addEventListener("change", (event) => { state.conference = event.target.value; state.playerLimit = PLAYER_BATCH; render(); });
   $("#team-filter").addEventListener("change", (event) => { state.team = event.target.value; state.playerLimit = PLAYER_BATCH; render(); });
   $("#country-filter").addEventListener("change", (event) => { state.country = event.target.value; state.playerLimit = PLAYER_BATCH; render(); });
+  $("#position-filter")?.addEventListener("change", (event) => { state.position = event.target.value; state.playerLimit = PLAYER_BATCH; render(); });
   $("#reset-filters").addEventListener("click", resetAll);
   $("#metric-control").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-metric]");
