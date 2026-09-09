@@ -596,6 +596,26 @@ function setView(view, { focus = false, updateHash = true } = {}) {
   if (target === "map") setTimeout(() => state.map?.invalidateSize(), 50);
 }
 
+function applyMapHandoff() {
+  const handoff = window.TalentGeoNavigation?.readMapState();
+  if (!handoff) return null;
+  state.mapMode = handoff.mode;
+  state.populationResolution = handoff.resolution;
+  state.metric = handoff.measure === "people" ? "players" : "snaps";
+  const countryExists = [...$("#country-filter").options].some((option) => option.value === handoff.country);
+  state.country = countryExists ? handoff.country : "all";
+  $("#country-filter").value = state.country;
+  $$("#metric-control button").forEach((button) => { const active = button.dataset.metric === state.metric; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
+  $$("#map-mode button").forEach((button) => { const active = button.dataset.mapMode === state.mapMode; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
+  $$("#resolution-control button").forEach((button) => { const active = Number(button.dataset.resolution) === state.populationResolution; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
+  return handoff;
+}
+
+function currentMapHandoff() {
+  const center = state.map?.getCenter().wrap();
+  return { mode: state.mapMode, measure: state.metric === "players" ? "people" : "workload", resolution: state.populationResolution, country: state.country, viewport: center ? { lat: center.lat, lon: center.lng, zoom: state.map.getZoom() } : null };
+}
+
 function resetAll() {
   Object.assign(state, { conference: "all", division: "all", team: "all", country: "all", metric: "snaps", mapMode: "city", populationResolution: 3, search: "", placeQuery: "", playerLimit: PLAYER_BATCH });
   ["conference", "division", "team", "country"].forEach((key) => { $(`#${key}-filter`).value = "all"; });
@@ -653,7 +673,7 @@ async function boot() {
   try {
     const response = await fetch(DATA_URL); if (!response.ok) throw new Error(`NFL data request failed (${response.status})`); state.payload = await response.json();
     try { const countries = await fetch(COUNTRY_GEO_URL); if (!countries.ok) throw new Error(`Country geometry request failed (${countries.status})`); state.countryGeojson = await countries.json(); } catch (error) { console.warn(error); const button = $("#map-mode button[data-map-mode='country']"); button.disabled = true; button.title = "Country boundaries are unavailable"; $("#error-toast").textContent = "The birthplace map is ready; country boundaries could not load."; $("#error-toast").classList.add("show"); }
-    prepareCountryMetadata(); populateFilters(); initMap(); bindEvents(); updateSnapshotCopy(); updateQuality(); setView(location.hash.slice(1) || "map", { updateHash: false }); render(); $("#loading-screen").classList.add("hidden");
+    prepareCountryMetadata(); populateFilters(); const mapHandoff = applyMapHandoff(); if (state.mapMode === "country" && !state.countryGeojson) state.mapMode = "city"; initMap(); bindEvents(); updateSnapshotCopy(); updateQuality(); setView(location.hash.slice(1) || "map", { updateHash: false }); if (isPopulationMode()) { try { await loadPopulationGeometry(); } catch (error) { console.warn(error); state.mapMode = "city"; } } render(); if (mapHandoff?.viewport) state.map.setView([mapHandoff.viewport.lat, mapHandoff.viewport.lon], mapHandoff.viewport.zoom); window.TalentGeoNavigation?.mountMapSwitcher(currentMapHandoff); $("#loading-screen").classList.add("hidden");
   } catch (error) { console.error(error); $("#loading-screen").classList.add("hidden"); $("#error-toast").innerHTML = `NFL data could not load. <button type="button" onclick="location.reload()">Retry</button>`; $("#error-toast").classList.add("show"); }
 }
 

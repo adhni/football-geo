@@ -1053,6 +1053,31 @@ function setView(view, { scroll = true, updateHash = true, focusTab = false } = 
   if (scroll) $(".view-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function applyMapHandoff() {
+  const handoff = window.TalentGeoNavigation?.readMapState();
+  if (!handoff) return null;
+  state.mapMode = handoff.mode;
+  state.populationResolution = handoff.resolution;
+  state.metric = handoff.measure === "people" ? "players" : "starts";
+  const countryExists = [...$("#country-filter").options].some((option) => option.value === handoff.country);
+  state.country = countryExists ? handoff.country : "all";
+  $("#country-filter").value = state.country;
+  syncPressedButtons("#metric-control button", "metric", state.metric);
+  syncPressedButtons("#resolution-control button", "resolution", String(state.populationResolution));
+  return handoff;
+}
+
+function currentMapHandoff() {
+  const center = state.map?.getCenter().wrap();
+  return {
+    mode: state.mapMode,
+    measure: state.metric === "players" ? "people" : "workload",
+    resolution: state.populationResolution,
+    country: state.country,
+    viewport: center ? { lat: center.lat, lon: center.lng, zoom: state.map.getZoom() } : null,
+  };
+}
+
 function syncPressedButtons(selector, dataKey, value) {
   $$(selector).forEach((button) => {
     const active = button.dataset[dataKey] === value;
@@ -1294,10 +1319,22 @@ async function boot() {
     if (countryResult.error) console.error(countryResult.error);
     prepareCountryMetadata();
     populateControls();
+    const mapHandoff = applyMapHandoff();
+    if (state.mapMode === "country" && !state.countryGeojson) state.mapMode = "city";
+    if (isPopulationMode()) {
+      try {
+        await loadPopulationGeometry();
+      } catch (error) {
+        console.error(error);
+        state.mapMode = "city";
+      }
+    }
     updateSnapshotCopy();
     bindControls();
     syncMapModeControls();
     render();
+    if (mapHandoff?.viewport) state.map.setView([mapHandoff.viewport.lat, mapHandoff.viewport.lon], mapHandoff.viewport.zoom);
+    window.TalentGeoNavigation?.mountMapSwitcher(currentMapHandoff);
     const initialView = window.location.hash.slice(1) || "map";
     setView(initialView, { scroll: false, updateHash: false });
     $("#loading-screen")?.classList.add("hidden");
