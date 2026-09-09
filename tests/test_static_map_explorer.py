@@ -329,7 +329,7 @@ def test_cached_population_mode_restores_area_size_controls():
     assert '$(".resolution-control").hidden = false;' in population_branch
 
 
-def test_every_sport_switcher_links_to_racket_sports_in_order():
+def test_every_sport_uses_the_central_navigation_registry():
     pages = [ROOT / "docs" / "index.html"] + [
         ROOT / "docs" / sport / "index.html"
         for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
@@ -337,16 +337,28 @@ def test_every_sport_switcher_links_to_racket_sports_in_order():
 
     for page in pages:
         html = page.read_text(encoding="utf-8")
-        assert html.count(">Padel</a>") == 1
-        assert html.count(">Badminton</a>") == 1
-        assert html.count(">Golf</a>") == 1
-        assert html.count(">Cricket</a>") == 1
-        assert html.count(">UFC</a>") == 1
-        assert html.count(">Formula</a>") == 1
-        assert html.count(">MotoGP</a>") == 1
-        assert html.count(">Volleyball</a>") == 1
-        assert html.index(">Football</a>") < html.index(">Cricket</a>") < html.index(">UFC</a>") < html.index(">Formula</a>") < html.index(">MotoGP</a>") < html.index(">Volleyball</a>") < html.index(">Tennis</a>")
-        assert html.index(">Tennis</a>") < html.index(">Padel</a>") < html.index(">Badminton</a>") < html.index(">Golf</a>")
+        assert '<nav class="sport-switcher" aria-label="Choose a sport"></nav>' in html
+        assert "assets/sport-navigation.js" in html
+
+    navigation = (ROOT / "docs" / "assets" / "sport-navigation.js").read_text(encoding="utf-8")
+    expected_order = ("football", "cricket", "ufc", "formula", "motogp", "volleyball", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+    offsets = [navigation.index(f'id: "{sport}"') for sport in expected_order]
+    assert offsets == sorted(offsets)
+    assert "readMapState" in navigation
+    assert "comparisonUrl" in navigation
+    assert "mountMapSwitcher" in navigation
+    assert 'url.hash = "map"' in navigation
+
+
+def test_all_sports_directory_explains_comparison_scope():
+    html = (ROOT / "docs" / "sports" / "index.html").read_text(encoding="utf-8")
+    stylesheet = (ROOT / "docs" / "sports" / "sports.css").read_text(encoding="utf-8")
+
+    assert 'id="sport-directory"' in html
+    assert "Sixteen sporting lenses" in html
+    assert "workload measures retain their sport-specific meanings" in html
+    assert "TalentGeoNavigation.renderDirectory" in html
+    assert ".sport-directory" in stylesheet
 
 
 def test_mlb_explorer_reuses_the_accessible_sport_shell():

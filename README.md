@@ -14,7 +14,8 @@ visible for QA.
 
 The interface includes clustered birthplace points, a country choropleth, a
 WorldPop-normalised local hotspot layer, five-league geographic comparisons,
-age distributions and clickable player profiles.
+age distributions and clickable player profiles. Every edition also has a
+map-level sport selector that carries the geographic view into another sport.
 
 ## Frozen cohort
 
@@ -85,8 +86,9 @@ GitHub Pages. The football explorer lives at `/`, the cricket explorer at
 `/tennis/`, the padel explorer at `/padel/`, the badminton explorer at
 `/badminton/`, the golf explorer at `/golf/`, the AFL explorer at `/afl/`, the
 NRL explorer at `/nrl/`, the NBA explorer at `/nba/`, the NFL explorer at `/nfl/`, the NHL explorer at
-`/nhl/` and the MLB explorer at `/mlb/`, with a sport switcher shared between
-them. To
+`/nhl/` and the MLB explorer at `/mlb/`. The `/sports/` directory summarises
+all editions, while the shared map selector preserves map mode, population
+resolution, viewpoint and compatible country filters when changing sport. To
 refresh the football data and preview every edition locally:
 
 ```bash

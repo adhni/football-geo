@@ -171,6 +171,12 @@ select:focus-visible, input:focus-visible { border-color: var(--mint); box-shado
 .compare-section { margin-top: 70px; padding-top: 52px; border-top: 1px solid var(--line); }
 
 .map-explorer { margin-bottom: 14px; padding: 12px; display: grid; grid-template-columns: minmax(250px, 290px) minmax(310px, 350px) minmax(220px, 1fr) auto; align-items: end; gap: 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; }
+.map-sport-handoff { grid-column: 1 / -1; min-width: 0; padding: 9px 10px; display: grid; grid-template-columns: minmax(190px, 260px) minmax(260px, 1fr) auto; align-items: end; gap: 16px; border: 1px solid var(--line-soft); background: rgba(255,255,255,.018); border-radius: 9px; }
+.map-sport-handoff p { margin: 0 0 7px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.map-sport-handoff p b { color: var(--text); }
+.map-sport-handoff > a { min-height: var(--control-height); padding: 0 4px; display: inline-flex; align-items: center; color: var(--accent); text-decoration: none; white-space: nowrap; font-size: 10px; font-weight: 700; }
+.map-sport-control .select-wrap { display: block; }
+.map-sport-control select { height: var(--control-height); }
 .map-explorer label > span { display: block; margin: 0 0 7px 2px; color: var(--muted); font: 500 11px/1.2 "DM Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
 .map-explorer input { width: 100%; height: var(--control-height); padding: 0 13px; color: var(--text); border: 1px solid var(--line); background: #0a1612; border-radius: 9px; outline: none; font-size: 12px; }
 .map-explorer input::placeholder { color: var(--muted); }
@@ -236,6 +242,8 @@ footer { min-height: 150px; padding: 36px 0; display: grid; grid-template-column
   .map-explorer:not(.has-place-query) .place-search-control { grid-column: 1 / -1; }
   .map-explorer #clear-place-search { grid-column: 2; justify-self: end; }
   .map-explorer.country-mode { grid-template-columns: minmax(260px, 1fr) minmax(300px, 1fr); }
+  .map-sport-handoff { grid-template-columns: minmax(190px, 260px) 1fr; }
+  .map-sport-handoff > a { grid-column: 2; }
   .map-layout { grid-template-columns: 1fr; }
   .ranking-card { padding-bottom: 10px; }
   .place-ranking { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; }
@@ -282,6 +290,8 @@ footer { min-height: 150px; padding: 36px 0; display: grid; grid-template-column
   .map-explorer .place-search-control { grid-column: 1; }
   .map-explorer #clear-place-search { grid-column: 1; justify-self: stretch; }
   .map-explorer .metric-control { grid-column: 1; }
+  .map-sport-handoff { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+  .map-sport-handoff > a { grid-column: 1; min-height: 32px; }
   .metric-control .segmented button { min-width: 0; min-height: 48px; height: auto; padding: 7px 6px; white-space: normal; line-height: 1.25; }
   .map-mode button { padding-inline: 5px; font-size: 10px; }
   .map-card, #talent-map { min-height: 480px; height: 480px; }
