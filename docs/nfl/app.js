@@ -7,12 +7,19 @@ const POPULATION_GEO_URLS = {
 };
 const PLAYER_BATCH = 100;
 const POPULATION_RATE_COLOURS = [[222, 241, 235], [166, 218, 204], [91, 178, 161], [27, 126, 122], [7, 66, 80]];
+const TEAM_COLOURS = {
+  ARI: "#97233f", ATL: "#a71930", BAL: "#6a4c93", BUF: "#3b82c4", CAR: "#0085ca", CHI: "#c83803", CIN: "#fb4f14", CLE: "#ff3c00",
+  DAL: "#041e42", DEN: "#fb4f14", DET: "#0076b6", GB: "#ffb612", HOU: "#d50a0a", IND: "#4f8fc0", JAX: "#00a5b5", KC: "#e31837",
+  LA: "#003594", LAC: "#0080c6", LV: "#a5acaf", MIA: "#008e97", MIN: "#7b5aa6", NE: "#002244", NO: "#d3bc8d", NYG: "#4169a1",
+  NYJ: "#3f7d68", PHI: "#2b7a78", PIT: "#ffb612", SEA: "#69be28", SF: "#e63946", TB: "#d50a0a", TEN: "#4b92db", WAS: "#ffb612",
+};
 
 const state = {
   payload: null,
+  teamMeta: [],
   conference: "all",
   division: "all",
-  team: "all",
+  teams: [],
   country: "all",
   locationLens: "birthplace",
   metric: "snaps",
@@ -26,6 +33,7 @@ const state = {
   baseLayer: null,
   populationBaseLayer: null,
   markerLayer: null,
+  teamMarkerLayer: null,
   countryGeojson: null,
   countryLayer: null,
   populationGeojson: new Map(),
@@ -82,7 +90,7 @@ function matchingTeamSplits(row) {
   return rowTeamSplits(row).filter((split) =>
     (state.conference === "all" || split.conference === state.conference)
     && (state.division === "all" || split.division === state.division)
-    && (state.team === "all" || split.team === state.team)
+    && (!state.teams.length || state.teams.includes(split.team))
   );
 }
 
@@ -100,7 +108,7 @@ function locationFields(row, lens = state.locationLens) {
 }
 
 function filteredRecords() {
-  const teamFilterActive = state.conference !== "all" || state.division !== "all" || state.team !== "all";
+  const teamFilterActive = state.conference !== "all" || state.division !== "all" || state.teams.length > 0;
   return state.payload.records.flatMap((row) => {
     if (state.country !== "all" && locationFields(row).country !== state.country) return [];
     const splits = matchingTeamSplits(row);
@@ -135,6 +143,14 @@ function metricLabel(metric = state.metric) {
 }
 
 function metricValue(item) { return item[state.metric] || 0; }
+function teamColour(code) { return TEAM_COLOURS[code] || "#8ea5ba"; }
+function teamTextColour(code) { return ["GB", "LV", "NO", "PIT", "WAS"].includes(code) ? "#07111c" : "#ffffff"; }
+function colourTeamMeta(records = filteredTeamRecords()) {
+  if (!state.teams.length && state.division === "all") return [];
+  const visibleCodes = new Set(records.map((row) => row.teamCode));
+  const teams = state.teamMeta.filter((team) => visibleCodes.has(team.code));
+  return teams.length <= 6 ? teams : [];
+}
 function isPopulationMode() { return state.mapMode === "population" || state.mapMode === "population-workload"; }
 function populationMeasure() {
   return state.mapMode === "population-workload"
@@ -174,6 +190,26 @@ function aggregatePlaces(records) {
     place.teams.add(row.team);
   });
   return [...places.values()].map((place) => ({ ...place, players: place.playerRows.size, playerList: [...place.playerRows.values()].sort((a, b) => b.snaps - a.snaps || a.name.localeCompare(b.name)), teams: [...place.teams].sort() }));
+}
+
+function aggregateTeamPlaces(records) {
+  const places = new Map();
+  records.forEach((row) => {
+    const location = locationFields(row);
+    if (!location.mapped) return;
+    const key = `${location.lat}|${location.lon}|${location.place}`;
+    if (!places.has(key)) places.set(key, { key, place: location.place, detail: location.detail, country: location.country, lat: location.lat, lon: location.lon, teams: new Map() });
+    const place = places.get(key);
+    if (!place.teams.has(row.teamCode)) place.teams.set(row.teamCode, { team: row.team, teamCode: row.teamCode, snaps: 0, games: 0, playerRows: new Map() });
+    const team = place.teams.get(row.teamCode);
+    team.snaps += row.snaps;
+    team.games += row.games;
+    team.playerRows.set(row.id, row);
+  });
+  return [...places.values()].map((place) => ({
+    ...place,
+    teamBubbles: [...place.teams.values()].map((team) => ({ ...team, players: team.playerRows.size, playerList: [...team.playerRows.values()].sort((a, b) => b.snaps - a.snaps || a.name.localeCompare(b.name)) })).sort((a, b) => a.teamCode.localeCompare(b.teamCode)),
+  }));
 }
 
 function aggregateCountries(records, lens = state.locationLens) {
@@ -310,6 +346,10 @@ function initMap() {
   state.populationBaseLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd", attribution: "&copy; OpenStreetMap contributors &copy; CARTO" });
   state.markerLayer = L.markerClusterGroup ? L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 42, showCoverageOnHover: false }) : L.layerGroup();
   state.markerLayer.addTo(state.map);
+  state.teamMarkerLayer = L.layerGroup();
+  state.map.on("zoomend", () => {
+    if (state.mapMode === "city" && colourTeamMeta().length) renderTeamCityMap(filteredTeamRecords());
+  });
 }
 
 function usePopulationBasemap(active) {
@@ -325,10 +365,22 @@ function popupPlayers(rows, maximum = 8) {
   return `${visible}${rest > 0 ? `<small class="popup-rest">+ ${rest} more player${rest === 1 ? "" : "s"}</small>` : ""}`;
 }
 
+function revealPlaceMarker(marker) {
+  if (!marker) return;
+  const reveal = () => {
+    const placeKey = marker.talentPlaceKey;
+    state.map.setView(marker.getLatLng(), 6, { animate: false });
+    (placeKey ? state.placeMarkers.get(placeKey) : marker)?.openPopup();
+  };
+  if (state.map.hasLayer(state.markerLayer) && state.markerLayer.zoomToShowLayer) state.markerLayer.zoomToShowLayer(marker, reveal);
+  else reveal();
+}
+
 function renderCityMap(places) {
   usePopulationBasemap(false);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
+  if (state.teamMarkerLayer && state.map.hasLayer(state.teamMarkerLayer)) state.map.removeLayer(state.teamMarkerLayer);
   if (!state.map.hasLayer(state.markerLayer)) state.markerLayer.addTo(state.map);
   state.markerLayer.clearLayers();
   state.placeMarkers.clear();
@@ -339,9 +391,66 @@ function renderCityMap(places) {
     const location = state.locationLens === "college" && place.detail ? `${place.detail}, ${place.country}` : place.country;
     marker.bindTooltip(`${escapeHtml(place.place)} · ${escapeHtml(location)} · ${number.format(metricValue(place))} ${metricLabel()}`);
     marker.bindPopup(`<div class="map-popup"><strong>${escapeHtml(place.place)}</strong><small>${escapeHtml(location)} · ${place.players} player${place.players === 1 ? "" : "s"}</small>${popupPlayers(place.playerList)}</div>`, { maxWidth: 310 });
+    marker.talentPlaceKey = place.key;
     state.markerLayer.addLayer(marker);
     state.placeMarkers.set(place.key, marker);
   });
+  updateTeamColourLegend([]);
+}
+
+function updateTeamColourLegend(teams) {
+  const legend = $("#team-colour-legend");
+  legend.hidden = teams.length === 0;
+  legend.innerHTML = teams.map((team) => `<span><i style="--team-colour:${teamColour(team.code)}"></i><b>${escapeHtml(team.code)}</b>${escapeHtml(team.name)}</span>`).join("");
+  $(".legend-size").hidden = teams.length > 0;
+  $(".legend-copy").hidden = false;
+  if (teams.length) {
+    $("#legend-prefix").textContent = "Team colour · bubble size =";
+    $("#legend-metric").textContent = metricLabel();
+  }
+}
+
+function renderTeamCityMap(records) {
+  usePopulationBasemap(false);
+  if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
+  if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
+  if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (!state.map.hasLayer(state.teamMarkerLayer)) state.teamMarkerLayer.addTo(state.map);
+  state.teamMarkerLayer.clearLayers();
+  state.placeMarkers.clear();
+  const places = aggregateTeamPlaces(records);
+  const bubbles = places.flatMap((place) => place.teamBubbles);
+  const maximum = Math.max(...bubbles.map(metricValue), 1);
+  places.forEach((place) => {
+    const centre = state.map.latLngToLayerPoint([place.lat, place.lon]);
+    const bubbleSizes = place.teamBubbles.map((team) => Math.max(18, Math.round(9 + Math.sqrt(metricValue(team) / maximum) * 23)));
+    const offsetRadius = place.teamBubbles.length > 1 ? Math.max(...bubbleSizes) / 2 + 5 : 0;
+    place.teamBubbles.forEach((team, index) => {
+      const angle = -Math.PI / 2 + index * Math.PI * 2 / place.teamBubbles.length;
+      const point = L.point(centre.x + Math.cos(angle) * offsetRadius, centre.y + Math.sin(angle) * offsetRadius);
+      const destination = state.map.layerPointToLatLng(point);
+      const size = bubbleSizes[index];
+      const colour = teamColour(team.teamCode);
+      if (offsetRadius) L.polyline([[place.lat, place.lon], destination], { color: colour, weight: 1, opacity: .42, interactive: false }).addTo(state.teamMarkerLayer);
+      const marker = L.marker(destination, {
+        bubblingMouseEvents: false,
+        keyboard: true,
+        icon: L.divIcon({
+          className: "nfl-team-rosette-icon",
+          html: `<span style="--team-colour:${colour};--team-text:${teamTextColour(team.teamCode)};--marker-size:${size}px">${escapeHtml(team.teamCode)}</span>`,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+        }),
+      });
+      const location = state.locationLens === "college" && place.detail ? `${place.detail}, ${place.country}` : place.country;
+      marker.bindTooltip(`<strong>${escapeHtml(team.team)}</strong><br>${escapeHtml(place.place)} · ${escapeHtml(location)}<br>${number.format(metricValue(team))} ${metricLabel()} · ${team.players} player${team.players === 1 ? "" : "s"}`, { direction: "top" });
+      marker.bindPopup(`<div class="map-popup"><strong>${escapeHtml(team.team)}</strong><small>${escapeHtml(place.place)} · ${escapeHtml(location)}</small><p>${number.format(metricValue(team))} ${metricLabel()} · ${team.players} player${team.players === 1 ? "" : "s"}</p>${popupPlayers(team.playerList)}</div>`, { maxWidth: 320 });
+      marker.talentPlaceKey = place.key;
+      marker.addTo(state.teamMarkerLayer);
+      if (!state.placeMarkers.has(place.key)) state.placeMarkers.set(place.key, marker);
+    });
+  });
+  updateTeamColourLegend(colourTeamMeta(records));
 }
 
 function countryColour(value, maximum) {
@@ -352,9 +461,11 @@ function countryColour(value, maximum) {
 function renderCountryMap(countries) {
   usePopulationBasemap(false);
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (state.teamMarkerLayer && state.map.hasLayer(state.teamMarkerLayer)) state.map.removeLayer(state.teamMarkerLayer);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
   state.countryLayers.clear();
+  updateTeamColourLegend([]);
   if (!state.countryGeojson) return;
   const byCode = new Map(countries.map((country) => [country.code, country]));
   const maximum = Math.max(...countries.map(metricValue), 1);
@@ -378,10 +489,10 @@ function showPopulationLoading() {
   const measure = populationMeasure();
   usePopulationBasemap(true);
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (state.teamMarkerLayer && state.map.hasLayer(state.teamMarkerLayer)) state.map.removeLayer(state.teamMarkerLayer);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
-  $("#ranking-title").textContent = measure.label;
-  $("#place-count").textContent = "Loading population data…";
+  updateRankingHeader(measure.label, "Loading…");
   $("#place-ranking").innerHTML = `<li><div class="empty-state" role="status"><p>Preparing the population view…</p></div></li>`;
   $("#map-legend").classList.add("population");
   $("#map-explorer").classList.add("country-mode");
@@ -390,12 +501,14 @@ function showPopulationLoading() {
   $("#population-scale").hidden = false;
   $("#legend-prefix").textContent = "Colour =";
   $("#legend-metric").textContent = measure.label;
+  updateTeamColourLegend([]);
 }
 
 function renderPopulationMap(records) {
   const measure = populationMeasure();
   usePopulationBasemap(true);
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (state.teamMarkerLayer && state.map.hasLayer(state.teamMarkerLayer)) state.map.removeLayer(state.teamMarkerLayer);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
   const cells = aggregatePopulationCells(records);
@@ -416,8 +529,7 @@ function renderPopulationMap(records) {
       state.populationLayers.set(cell.hexId, layer);
     },
   }).addTo(state.map);
-  $("#ranking-title").textContent = measure.label;
-  $("#place-count").textContent = `${number.format(cells.length)} ${populationResolutionLabel().toLowerCase()} areas`;
+  updateRankingHeader(measure.label, `${number.format(cells.length)} ${populationResolutionLabel().toLowerCase()} areas`);
   const ranked = cells.filter((cell) => cell.rate !== null).sort((a, b) => Number(b.stable) - Number(a.stable) || b.rate - a.rate).slice(0, 12);
   const maximum = Math.max(...ranked.map((cell) => cell.rate), 1);
   $("#place-ranking").innerHTML = ranked.length ? ranked.map((cell, index) => `<li class="place-row" style="--bar:${cell.rate / maximum * 100}%"><button class="place-jump" type="button" data-hex-id="${escapeHtml(cell.hexId)}"><span class="place-rank">${String(index + 1).padStart(2, "0")}</span><span class="place-name"><strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)} · ${cell.players} players${measure.workload ? ` · ${number.format(cell.workload)} snaps` : ""} / ${compact.format(cell.population)} people</small></span><span class="place-value">${compact.format(cell.rate)}</span></button></li>`).join("") : `<li>${emptyState("Try widening the current selection.")}</li>`;
@@ -425,15 +537,15 @@ function renderPopulationMap(records) {
   $("#population-scale").hidden = false;
   $("#legend-prefix").textContent = "Colour =";
   $("#legend-metric").textContent = measure.label;
+  updateTeamColourLegend([]);
 }
 
 function renderRanking(items) {
   const sorted = [...items].sort((a, b) => metricValue(b) - metricValue(a) || (a.place || a.country).localeCompare(b.place || b.country));
   const visible = sorted.slice(0, 12);
   const maximum = Math.max(...visible.map(metricValue), 1);
-  $("#ranking-title").textContent = `By ${metricLabel()}`;
   const unit = state.mapMode === "city" ? (state.locationLens === "college" ? "colleges" : "places") : "countries";
-  $("#place-count").textContent = `${number.format(items.length)} ${unit}`;
+  updateRankingHeader(`By ${metricLabel()}`, `${number.format(items.length)} ${unit}`);
   $("#place-ranking").innerHTML = visible.length ? visible.map((item, index) => {
     const name = item.place || item.country;
     const locationDetail = state.locationLens === "college" && item.detail ? `${item.detail}, ${item.country}` : item.country;
@@ -443,11 +555,35 @@ function renderRanking(items) {
   }).join("") : `<li>${emptyState("Try widening the current selection.")}</li>`;
 }
 
+function updateRankingHeader(title, count) {
+  $("#ranking-title").textContent = title;
+  $("#place-count").textContent = count;
+  $("#ranking-toggle-count").textContent = count;
+}
+
+function setRankingOpen(open, { restoreFocus = true } = {}) {
+  const layout = $(".nfl-map-layout");
+  const panel = $("#ranking-panel");
+  const toggle = $("#ranking-toggle");
+  layout.classList.toggle("ranking-open", open);
+  panel.setAttribute("aria-hidden", String(!open));
+  toggle.setAttribute("aria-expanded", String(open));
+  if (open) {
+    $("#ranking-close").focus({ preventScroll: true });
+  } else if (restoreFocus) {
+    toggle.focus({ preventScroll: true });
+  }
+}
+
 function updateMap() {
   const records = filteredRecords();
+  const teamRecords = filteredTeamRecords();
+  const colourTeams = colourTeamMeta(teamRecords);
   const places = aggregatePlaces(records);
   const countries = aggregateCountries(records);
   if (isPopulationMode()) {
+    $(".legend-size").hidden = false;
+    $(".legend-copy").hidden = false;
     if (!state.populationGeojson.has(state.populationResolution)) { showPopulationLoading(); return; }
     renderPopulationMap(records);
     $("#map-explorer").classList.add("country-mode");
@@ -455,15 +591,19 @@ function updateMap() {
     $(".resolution-control").hidden = false;
     return;
   }
-  if (state.mapMode === "country" && state.countryGeojson) renderCountryMap(countries); else renderCityMap(places);
+  if (state.mapMode === "country" && state.countryGeojson) renderCountryMap(countries);
+  else if (colourTeams.length) renderTeamCityMap(teamRecords);
+  else renderCityMap(places);
   renderRanking(state.mapMode === "city" ? places : countries);
   $("#map-legend").classList.remove("population");
   $("#population-scale").hidden = true;
-  $("#legend-prefix").textContent = state.mapMode === "city" ? "Circle size =" : "Colour intensity =";
+  $("#legend-prefix").textContent = colourTeams.length && state.mapMode === "city" ? "Team colour · bubble size =" : state.mapMode === "city" ? "Circle size =" : "Colour intensity =";
   $("#legend-metric").textContent = metricLabel();
   $("#map-explorer").classList.toggle("country-mode", state.mapMode === "country");
   $(".metric-control").hidden = false;
   $(".resolution-control").hidden = true;
+  $(".legend-size").hidden = colourTeams.length > 0 && state.mapMode === "city";
+  $(".legend-copy").hidden = false;
 }
 
 function updateKpis() {
@@ -532,27 +672,59 @@ function updateQuality() {
   $("#college-unresolved-list").innerHTML = collegeUnresolved.map((row) => `<div class="unresolved-row"><span>${escapeHtml(row.college)} <small>(${number.format(row.players)} players)</small></span><span>${escapeHtml(row.status)}</span></div>`).join("");
 }
 
+function updateTeamPicker(allowedTeams = null) {
+  const allowed = allowedTeams || new Set(state.teamMeta.map((team) => team.name));
+  const query = normalSearch($("#team-search")?.value || "");
+  $$("#team-options .team-option").forEach((option) => {
+    const checkbox = option.querySelector("input");
+    const selected = state.teams.includes(checkbox.value);
+    const available = allowed.has(checkbox.value);
+    option.hidden = !available || (query && !normalSearch(option.dataset.search).includes(query));
+    checkbox.checked = selected;
+    checkbox.disabled = !selected && state.teams.length >= 6;
+  });
+  $$("#team-options .team-option-group").forEach((group) => { group.hidden = !group.querySelector(".team-option:not([hidden])"); });
+  const selected = state.teamMeta.filter((team) => state.teams.includes(team.name));
+  const allLabel = state.division !== "all" ? `All ${state.division} teams` : state.conference !== "all" ? `All ${state.conference} teams` : "All 32 teams";
+  $("#team-picker-summary").textContent = selected.length === 0 ? allLabel : selected.length === 1 ? selected[0].name : `${selected.length} teams selected`;
+  const chips = $("#selected-team-chips");
+  chips.hidden = selected.length === 0;
+  chips.innerHTML = selected.map((team) => `<button type="button" data-remove-team="${escapeHtml(team.name)}" title="Remove ${escapeHtml(team.name)}"><i style="--team-colour:${teamColour(team.code)}"></i><span>${escapeHtml(team.code)}</span><b aria-hidden="true">×</b></button>`).join("");
+}
+
+function buildTeamPicker() {
+  const groups = new Map();
+  state.teamMeta.forEach((team) => {
+    if (!groups.has(team.division)) groups.set(team.division, []);
+    groups.get(team.division).push(team);
+  });
+  $("#team-options").innerHTML = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([division, teams]) => `<section class="team-option-group"><strong>${escapeHtml(division)}</strong>${teams.sort((a, b) => a.name.localeCompare(b.name)).map((team) => `<label class="team-option" data-search="${escapeHtml(`${team.name} ${team.code} ${team.division}`)}"><input type="checkbox" value="${escapeHtml(team.name)}" /><i style="--team-colour:${teamColour(team.code)}"></i><span>${escapeHtml(team.name)}</span><b>${escapeHtml(team.code)}</b></label>`).join("")}</section>`).join("");
+  updateTeamPicker();
+}
+
 function syncOptions() {
   const splits = state.payload.records.flatMap(rowTeamSplits);
   const allowedDivisions = new Set(splits.filter((split) => state.conference === "all" || split.conference === state.conference).map((split) => split.division));
   [...$("#division-filter").options].forEach((option) => { if (option.value !== "all") option.hidden = !allowedDivisions.has(option.value); });
   if (state.division !== "all" && !allowedDivisions.has(state.division)) { state.division = "all"; $("#division-filter").value = "all"; }
   const allowedTeams = new Set(splits.filter((split) => (state.conference === "all" || split.conference === state.conference) && (state.division === "all" || split.division === state.division)).map((split) => split.team));
-  [...$("#team-filter").options].forEach((option) => { if (option.value !== "all") option.hidden = !allowedTeams.has(option.value); });
-  if (state.team !== "all" && !allowedTeams.has(state.team)) { state.team = "all"; $("#team-filter").value = "all"; }
+  state.teams = state.teams.filter((team) => allowedTeams.has(team));
+  updateTeamPicker(allowedTeams);
 }
 
 function updateFilterUi() {
   const countryLabel = state.locationLens === "college" ? `College in ${state.country}` : `Born in ${state.country}`;
-  const filters = [state.conference !== "all" && { key: "conference", label: state.conference }, state.division !== "all" && { key: "division", label: state.division }, state.team !== "all" && { key: "team", label: state.team }, state.country !== "all" && { key: "country", label: countryLabel }].filter(Boolean);
+  const teamLabel = state.teams.length === 1 ? state.teams[0] : `${state.teams.length} teams`;
+  const filters = [state.conference !== "all" && { key: "conference", label: state.conference }, state.division !== "all" && { key: "division", label: state.division }, state.country !== "all" && { key: "country", label: countryLabel }].filter(Boolean);
   const container = $("#active-filters");
   container.innerHTML = filters.map((filter) => `<button type="button" class="filter-chip" data-clear-filter="${filter.key}" aria-label="Remove ${escapeHtml(filter.label)} filter"><span>${escapeHtml(filter.label)}</span><span aria-hidden="true">×</span></button>`).join("");
   container.hidden = filters.length === 0;
-  const more = Number(state.division !== "all") + Number(state.country !== "all");
+  const more = Number(state.conference !== "all") + Number(state.division !== "all") + Number(state.country !== "all");
   $("#more-filter-count").textContent = more ? String(more) : "";
-  $("#reset-filters").disabled = filters.length === 0 && !state.search && !state.placeQuery && state.metric === "snaps" && state.mapMode === "city" && state.locationLens === "birthplace";
+  $("#reset-filters").disabled = filters.length === 0 && state.teams.length === 0 && !state.search && !state.placeQuery && state.metric === "snaps" && state.mapMode === "city" && state.locationLens === "birthplace";
   const allCountries = state.locationLens === "college" ? "All college countries" : "All birth countries";
-  $("#filter-summary").textContent = `${state.conference === "all" ? "Both conferences" : state.conference} · ${state.team === "all" ? "All teams" : state.team} · ${state.country === "all" ? allCountries : countryLabel}`;
+  const teams = state.teams.length ? teamLabel : state.division !== "all" ? `All ${state.division} teams` : "All teams";
+  $("#filter-summary").textContent = `${state.conference === "all" ? "Both conferences" : state.conference} · ${teams} · ${state.country === "all" ? allCountries : countryLabel}`;
 }
 
 function updateSnapshotCopy() {
@@ -567,7 +739,10 @@ function populateFilters() {
   const add = (selector, values) => values.forEach((value) => $(selector).insertAdjacentHTML("beforeend", `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`));
   add("#conference-filter", state.payload.meta.conferences);
   add("#division-filter", state.payload.meta.divisions);
-  add("#team-filter", state.payload.meta.teams);
+  const teams = new Map();
+  state.payload.records.flatMap(rowTeamSplits).forEach((split) => teams.set(split.teamCode, { code: split.teamCode, name: split.team, conference: split.conference, division: split.division }));
+  state.teamMeta = [...teams.values()].sort((a, b) => a.name.localeCompare(b.name));
+  buildTeamPicker();
   refreshLocationControls();
 }
 
@@ -642,6 +817,7 @@ function setView(view, { focus = false, updateHash = true } = {}) {
   $$(".view-panel").forEach((panel) => { const active = panel.id === `view-${target}`; panel.classList.toggle("active", active); panel.hidden = !active; });
   if (updateHash) history.replaceState(null, "", `#${target}`);
   if (target === "map") setTimeout(() => state.map?.invalidateSize(), 50);
+  else setRankingOpen(false, { restoreFocus: false });
 }
 
 function applyMapHandoff() {
@@ -665,20 +841,34 @@ function currentMapHandoff() {
 }
 
 function resetAll() {
-  Object.assign(state, { conference: "all", division: "all", team: "all", country: "all", locationLens: "birthplace", metric: "snaps", mapMode: "city", populationResolution: 3, search: "", placeQuery: "", playerLimit: PLAYER_BATCH });
-  ["conference", "division", "team", "country"].forEach((key) => { $(`#${key}-filter`).value = "all"; });
-  $("#player-search").value = ""; $("#place-search").value = ""; $("#clear-place-search").hidden = true;
+  Object.assign(state, { conference: "all", division: "all", teams: [], country: "all", locationLens: "birthplace", metric: "snaps", mapMode: "city", populationResolution: 3, search: "", placeQuery: "", playerLimit: PLAYER_BATCH });
+  ["conference", "division", "country"].forEach((key) => { $(`#${key}-filter`).value = "all"; });
+  $("#player-search").value = ""; $("#place-search").value = ""; $("#team-search").value = ""; $("#clear-place-search").hidden = true;
+  $("#team-picker").open = false;
   $$("#metric-control button").forEach((button) => { const active = button.dataset.metric === state.metric; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
   $$("#location-lens button").forEach((button) => { const active = button.dataset.locationLens === state.locationLens; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
   $$("#map-mode button").forEach((button) => { const active = button.dataset.mapMode === state.mapMode; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
   $$("#resolution-control button").forEach((button) => { const active = Number(button.dataset.resolution) === state.populationResolution; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
+  updateTeamPicker();
   refreshLocationControls();
   render();
 }
 
 function bindEvents() {
-  ["conference", "division", "team", "country"].forEach((key) => $(`#${key}-filter`).addEventListener("change", (event) => { state[key] = event.target.value; state.playerLimit = PLAYER_BATCH; render(); }));
+  ["conference", "division", "country"].forEach((key) => $(`#${key}-filter`).addEventListener("change", (event) => { state[key] = event.target.value; state.playerLimit = PLAYER_BATCH; render(); }));
   $("#reset-filters").addEventListener("click", resetAll);
+  $("#ranking-toggle").addEventListener("click", () => setRankingOpen(!$(".nfl-map-layout").classList.contains("ranking-open")));
+  $("#ranking-close").addEventListener("click", () => setRankingOpen(false));
+  $("#ranking-scrim").addEventListener("click", () => setRankingOpen(false));
+  $("#team-options").addEventListener("change", (event) => {
+    const checkbox = event.target.closest('input[type="checkbox"]'); if (!checkbox) return;
+    if (checkbox.checked && !state.teams.includes(checkbox.value) && state.teams.length < 6) state.teams.push(checkbox.value);
+    if (!checkbox.checked) state.teams = state.teams.filter((team) => team !== checkbox.value);
+    state.playerLimit = PLAYER_BATCH; updateTeamPicker(); render();
+  });
+  $("#team-search").addEventListener("input", () => updateTeamPicker());
+  $("#clear-teams").addEventListener("click", () => { state.teams = []; $("#team-search").value = ""; updateTeamPicker(); render(); });
+  $("#team-picker").addEventListener("keydown", (event) => { if (event.key === "Escape") { event.preventDefault(); $("#team-picker").open = false; $("#team-picker-summary").focus(); } });
   $("#location-lens").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-location-lens]"); if (!button || button.dataset.locationLens === state.locationLens) return;
     state.locationLens = button.dataset.locationLens; state.country = "all"; state.placeQuery = "";
@@ -710,22 +900,24 @@ function bindEvents() {
       console.warn(error); $("#error-toast").textContent = `${populationResolutionLabel()} population areas are unavailable. Try another size.`; $("#error-toast").classList.add("show");
     });
   });
-  $("#place-search").addEventListener("change", (event) => { state.placeQuery = event.target.value.trim(); $("#clear-place-search").hidden = !state.placeQuery; const query = normalSearch(state.placeQuery); const place = aggregatePlaces(filteredRecords()).find((item) => normalSearch(`${item.place}, ${item.country}`) === query || normalSearch(item.place) === query); if (!place) return; if (state.mapMode !== "city") $("#map-mode button[data-map-mode='city']").click(); setTimeout(() => { state.map.setView([place.lat, place.lon], 6); const marker = state.placeMarkers.get(place.key); if (marker) state.markerLayer.zoomToShowLayer ? state.markerLayer.zoomToShowLayer(marker, () => marker.openPopup()) : marker.openPopup(); }, 40); updateFilterUi(); });
+  $("#place-search").addEventListener("change", (event) => { state.placeQuery = event.target.value.trim(); $("#clear-place-search").hidden = !state.placeQuery; const query = normalSearch(state.placeQuery); const place = aggregatePlaces(filteredRecords()).find((item) => normalSearch(`${item.place}, ${item.country}`) === query || normalSearch(item.place) === query); if (!place) return; if (state.mapMode !== "city") $("#map-mode button[data-map-mode='city']").click(); setTimeout(() => revealPlaceMarker(state.placeMarkers.get(place.key)), 40); updateFilterUi(); });
   $("#clear-place-search").addEventListener("click", () => { state.placeQuery = ""; $("#place-search").value = ""; $("#clear-place-search").hidden = true; updateFilterUi(); });
   $("#player-search").addEventListener("input", (event) => { state.search = event.target.value; state.playerLimit = PLAYER_BATCH; updatePlayerTable(); updateFilterUi(); });
   $("#load-more-players").addEventListener("click", () => { state.playerLimit += PLAYER_BATCH; updatePlayerTable(); });
   $(".view-tabs").addEventListener("click", (event) => { const button = event.target.closest("button[data-view]"); if (button) setView(button.dataset.view); });
   $(".view-tabs").addEventListener("keydown", (event) => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; const tabs = $$(".view-tabs button[data-view]"); const current = tabs.indexOf(document.activeElement); if (current < 0) return; event.preventDefault(); const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length; setView(tabs[next].dataset.view, { focus: true }); });
   document.addEventListener("click", (event) => {
+    if (!event.target.closest("#team-picker")) $("#team-picker").open = false;
     const player = event.target.closest("[data-player-id]"); if (player) { openPlayerProfile(player.dataset.playerId, player); return; }
+    const removeTeam = event.target.closest("[data-remove-team]"); if (removeTeam) { state.teams = state.teams.filter((team) => team !== removeTeam.dataset.removeTeam); updateTeamPicker(); render(); return; }
     if (event.target.closest("[data-clear-filters]")) { resetAll(); return; }
-    const chip = event.target.closest("[data-clear-filter]"); if (chip) { const key = chip.dataset.clearFilter; state[key] = "all"; $(`#${key}-filter`).value = "all"; render(); return; }
-    const placeButton = event.target.closest("[data-place-key]"); if (placeButton) { const marker = state.placeMarkers.get(placeButton.dataset.placeKey); if (marker) state.markerLayer.zoomToShowLayer ? state.markerLayer.zoomToShowLayer(marker, () => { state.map.setView(marker.getLatLng(), 6); marker.openPopup(); }) : marker.openPopup(); return; }
-    const countryButton = event.target.closest("[data-country-code]"); if (countryButton) { const layer = state.countryLayers.get(countryButton.dataset.countryCode); if (layer) { state.map.fitBounds(layer.getBounds(), { padding: [30, 30], maxZoom: 5 }); layer.openPopup(); } return; }
-    const populationButton = event.target.closest("[data-hex-id]"); if (populationButton) { const layer = state.populationLayers.get(populationButton.dataset.hexId); if (layer) { state.map.fitBounds(layer.getBounds(), { padding: [30, 30], maxZoom: 7 }); layer.openPopup(); } }
+    const chip = event.target.closest("[data-clear-filter]"); if (chip) { const key = chip.dataset.clearFilter; if (key === "teams") { state.teams = []; updateTeamPicker(); } else { state[key] = "all"; $(`#${key}-filter`).value = "all"; } render(); return; }
+    const placeButton = event.target.closest("[data-place-key]"); if (placeButton) { setRankingOpen(false, { restoreFocus: false }); revealPlaceMarker(state.placeMarkers.get(placeButton.dataset.placeKey)); return; }
+    const countryButton = event.target.closest("[data-country-code]"); if (countryButton) { setRankingOpen(false, { restoreFocus: false }); const layer = state.countryLayers.get(countryButton.dataset.countryCode); if (layer) { state.map.fitBounds(layer.getBounds(), { padding: [30, 30], maxZoom: 5 }); layer.openPopup(); } return; }
+    const populationButton = event.target.closest("[data-hex-id]"); if (populationButton) { setRankingOpen(false, { restoreFocus: false }); const layer = state.populationLayers.get(populationButton.dataset.hexId); if (layer) { state.map.fitBounds(layer.getBounds(), { padding: [30, 30], maxZoom: 7 }); layer.openPopup(); } }
   });
   $$('[data-view-link]').forEach((link) => link.addEventListener("click", (event) => { event.preventDefault(); setView(link.dataset.viewLink); $("#methodology").scrollIntoView({ behavior: "smooth" }); }));
-  $("#close-player-modal").addEventListener("click", closePlayerProfile); $("#player-modal").addEventListener("click", (event) => { if (event.target === $("#player-modal")) closePlayerProfile(); }); document.addEventListener("keydown", handleModalKeydown); window.addEventListener("hashchange", () => setView(location.hash.slice(1), { updateHash: false }));
+  $("#close-player-modal").addEventListener("click", closePlayerProfile); $("#player-modal").addEventListener("click", (event) => { if (event.target === $("#player-modal")) closePlayerProfile(); }); document.addEventListener("keydown", (event) => { if (event.key === "Escape" && $(".nfl-map-layout").classList.contains("ranking-open")) { event.preventDefault(); setRankingOpen(false); return; } handleModalKeydown(event); }); window.addEventListener("hashchange", () => setView(location.hash.slice(1), { updateHash: false }));
 }
 
 async function boot() {

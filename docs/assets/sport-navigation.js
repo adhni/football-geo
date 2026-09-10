@@ -75,9 +75,12 @@
 
   function mountMapSwitcher(getMapState) {
     const explorer = document.querySelector("#map-explorer");
-    if (!explorer || !currentSport || explorer.querySelector(".map-sport-handoff")) return;
-    explorer.insertAdjacentHTML("afterbegin", `<div class="map-sport-handoff"><label class="map-sport-control" for="map-sport-select"><span>Compare sport</span><span class="select-wrap"><select id="map-sport-select" aria-describedby="map-sport-note">${sports.map((sport) => `<option value="${escapeHtml(sport.id)}"${sport.id === currentSport.id ? " selected" : ""}>${escapeHtml(sport.name)}</option>`).join("")}</select></span></label><p id="map-sport-note"><b>Same place, another sport.</b> Viewpoint and map mode carry over; each sport keeps its own workload unit.</p><a href="${escapeHtml(new URL("sports/", rootUrl).href)}">Compare all editions →</a></div>`);
-    explorer.querySelector("#map-sport-select").addEventListener("change", (event) => {
+    if (!explorer || !currentSport) return;
+    const mount = explorer.closest(".view-panel")?.querySelector("[data-map-sport-switcher]") || explorer;
+    if (mount.querySelector(".map-sport-handoff")) return;
+    const compact = mount !== explorer;
+    mount.insertAdjacentHTML("afterbegin", `<div class="map-sport-handoff"><label class="map-sport-control" for="map-sport-select"><span>${compact ? "Sport" : "Compare sport"}</span><span class="select-wrap"><select id="map-sport-select" aria-describedby="map-sport-note">${sports.map((sport) => `<option value="${escapeHtml(sport.id)}"${sport.id === currentSport.id ? " selected" : ""}>${escapeHtml(sport.name)}</option>`).join("")}</select></span></label><p id="map-sport-note"><b>Same place, another sport.</b> Viewpoint and map mode carry over; each sport keeps its own workload unit.</p><a href="${escapeHtml(new URL("sports/", rootUrl).href)}">Compare all editions →</a></div>`);
+    mount.querySelector("#map-sport-select").addEventListener("change", (event) => {
       const target = sports.find((sport) => sport.id === event.target.value);
       if (!target || target.id === currentSport.id) return;
       window.location.assign(comparisonUrl(target, getMapState()).href);

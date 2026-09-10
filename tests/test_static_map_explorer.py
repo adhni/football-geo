@@ -392,3 +392,28 @@ def test_nfl_college_lens_is_separate_and_disables_population_rates():
     assert payload["summary"]["college_player_coverage_pct"] >= 95
     assert sum(row["snaps"] for row in payload["records"] if row["collegeMapped"]) == payload["summary"]["college_mapped_snaps"]
     assert len({row["id"] for row in payload["records"]}) == payload["summary"]["players"]
+
+
+def test_nfl_multi_team_picker_renders_team_rosettes():
+    html = (ROOT / "docs" / "nfl" / "index.html").read_text(encoding="utf-8")
+    javascript = (ROOT / "docs" / "nfl" / "app.js").read_text(encoding="utf-8")
+    stylesheet = (ROOT / "docs" / "nfl" / "nfl.css").read_text(encoding="utf-8")
+
+    assert 'id="team-picker"' in html
+    assert 'aria-label="Choose up to six teams"' in html
+    assert 'id="team-colour-legend"' in html
+    assert "const TEAM_COLOURS" in javascript
+    assert "function aggregateTeamPlaces(records)" in javascript
+    assert "function renderTeamCityMap(records)" in javascript
+    assert "state.map.latLngToLayerPoint" in javascript
+    assert "state.teams.length < 6" in javascript
+    assert "popupPlayers(team.playerList)" in javascript
+    assert ".nfl-team-rosette-icon" in stylesheet
+    assert ".selected-team-chips" in stylesheet
+    assert 'data-map-sport-switcher' in html
+    assert 'id="ranking-toggle"' in html
+    assert 'id="ranking-panel"' in html
+    assert 'id="ranking-scrim"' in html
+    assert "function setRankingOpen(open" in javascript
+    assert ".nfl-map-layout.ranking-open .ranking-card" in stylesheet
+    assert "grid-template-columns: minmax(0, 1fr) 340px" not in stylesheet
