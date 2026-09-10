@@ -7,8 +7,12 @@ from src.ftg.build_nfl_site import (
     aggregate_snap_cohort,
     build_payload,
     fetch_espn_athletes,
+    match_college_team,
     normalize,
+    parse_college_teams,
+    parse_home_venue,
     resolve_birthplace,
+    split_college_history,
 )
 
 
@@ -71,6 +75,21 @@ def test_resolve_birthplace_rejects_missing_or_unknown_country():
 
     assert resolve_birthplace({"birth_city": "London"}, city_index, {"canada": "CA"}, {"CA": "Canada"}) is None
     assert resolve_birthplace({"birth_city": "London", "birth_country": "Unknown"}, city_index, {"canada": "CA"}, {"CA": "Canada"}) is None
+
+
+def test_college_history_uses_one_primary_program_and_preserves_transfers():
+    assert split_college_history("Washington; Indiana") == ["Washington", "Indiana"]
+    assert split_college_history(None) == []
+
+
+def test_college_team_matching_and_home_venue_parsing():
+    directory = {"sports": [{"leagues": [{"teams": [{"team": {"id": "145", "location": "Ole Miss", "displayName": "Ole Miss Rebels", "abbreviation": "MISS"}}]}]}]}
+    aliases = parse_college_teams(directory)
+    team, status = match_college_team("Mississippi", aliases)
+    assert status == "matched"
+    assert team["id"] == "145"
+    schedule = {"events": [{"competitions": [{"competitors": [{"team": {"id": "145"}, "homeAway": "home"}], "venue": {"fullName": "Vaught-Hemingway Stadium", "address": {"city": "Oxford", "state": "MS", "country": "USA"}}}]}]}
+    assert parse_home_venue(schedule, "145") == {"city": "Oxford", "state": "MS", "country": "USA", "venue": "Vaught-Hemingway Stadium"}
 
 
 def test_fetch_espn_athletes_retries_cached_failures(tmp_path, monkeypatch):
@@ -171,3 +190,25 @@ def test_build_nfl_payload_keeps_season_totals_and_team_contributions():
     assert payload["summary"]["players"] == 1
     assert payload["summary"]["snaps"] == 53
     assert [(split["teamCode"], split["snaps"]) for split in record["teamSplits"]] == [("ATL", 32), ("BUF", 21)]
+
+
+def test_build_nfl_payload_assigns_transfer_player_to_primary_college_once():
+    snaps = pd.DataFrame([
+        {"game_id": "g1", "game_type": "REG", "pfr_player_id": "Transfer00", "player": "Transfer Player", "position": "QB", "team": "BUF", "offense_snaps": 42, "defense_snaps": 0, "st_snaps": 0},
+    ])
+    players = pd.DataFrame([{
+        "pfr_id": "Transfer00", "espn_id": 123, "display_name": "Transfer Player", "position": "QB",
+        "college_name": "Washington; Indiana", "college_conference": "Big Ten", "birth_date": "2000-01-01",
+        "draft_year": 2024, "draft_round": 1, "draft_pick": 8, "draft_team": "ATL",
+    }])
+    payload = build_payload(
+        snaps, players, {}, {}, {}, {},
+        college_locations={"Washington": {"place": "Seattle", "country": "United States", "lat": 47.65, "lon": -122.3, "espn_id": "264", "venue": "Husky Stadium"}},
+        generated_at="2026-08-22T00:00:00+00:00",
+    )
+    record = payload["records"][0]
+    assert record["college"] == "Washington"
+    assert record["collegeHistory"] == ["Washington", "Indiana"]
+    assert record["draftPick"] == 8
+    assert payload["summary"]["college_mapped_players"] == 1
+    assert payload["summary"]["college_mapped_snaps"] == payload["summary"]["snaps"] == 42
