@@ -14,6 +14,7 @@ const state = {
   division: "all",
   team: "all",
   country: "all",
+  locationLens: "birthplace",
   metric: "snaps",
   mapMode: "city",
   populationResolution: 3,
@@ -85,10 +86,23 @@ function matchingTeamSplits(row) {
   );
 }
 
+function locationFields(row, lens = state.locationLens) {
+  if (lens === "college") return {
+    mapped: row.collegeMapped,
+    place: row.college,
+    detail: row.collegePlace,
+    country: row.collegeCountry,
+    lat: row.collegeLat,
+    lon: row.collegeLon,
+    countryCode: row.collegeCountryCode,
+  };
+  return { mapped: row.mapped, place: row.place, detail: row.place, country: row.country, lat: row.lat, lon: row.lon, countryCode: row.countryCode };
+}
+
 function filteredRecords() {
   const teamFilterActive = state.conference !== "all" || state.division !== "all" || state.team !== "all";
   return state.payload.records.flatMap((row) => {
-    if (state.country !== "all" && row.country !== state.country) return [];
+    if (state.country !== "all" && locationFields(row).country !== state.country) return [];
     const splits = matchingTeamSplits(row);
     if (!splits.length) return [];
     if (!teamFilterActive) return [row];
@@ -111,7 +125,7 @@ function filteredRecords() {
 
 function filteredTeamRecords() {
   return state.payload.records.flatMap((row) => {
-    if (state.country !== "all" && row.country !== state.country) return [];
+    if (state.country !== "all" && locationFields(row).country !== state.country) return [];
     return matchingTeamSplits(row).map((split) => ({ ...row, ...split, teams: [split.team] }));
   });
 }
@@ -141,14 +155,18 @@ function prepareCountryMetadata() {
   state.payload.records.forEach((row) => {
     const key = normalCountry(row.country);
     row.countryCode = (lookup.get(key) || lookup.get(aliases[key]))?.code || key;
+    const collegeKey = normalCountry(row.collegeCountry);
+    row.collegeCountryCode = (lookup.get(collegeKey) || lookup.get(aliases[collegeKey]))?.code || collegeKey;
   });
 }
 
 function aggregatePlaces(records) {
   const places = new Map();
-  records.filter((row) => row.mapped).forEach((row) => {
-    const key = `${row.lat}|${row.lon}|${row.place}`;
-    if (!places.has(key)) places.set(key, { key, place: row.place, country: row.country, lat: row.lat, lon: row.lon, snaps: 0, games: 0, playerRows: new Map(), teams: new Set() });
+  records.forEach((row) => {
+    const location = locationFields(row);
+    if (!location.mapped) return;
+    const key = `${location.lat}|${location.lon}|${location.place}`;
+    if (!places.has(key)) places.set(key, { key, place: location.place, detail: location.detail, country: location.country, lat: location.lat, lon: location.lon, snaps: 0, games: 0, playerRows: new Map(), teams: new Set() });
     const place = places.get(key);
     place.snaps += row.snaps;
     place.games += row.games;
@@ -158,11 +176,13 @@ function aggregatePlaces(records) {
   return [...places.values()].map((place) => ({ ...place, players: place.playerRows.size, playerList: [...place.playerRows.values()].sort((a, b) => b.snaps - a.snaps || a.name.localeCompare(b.name)), teams: [...place.teams].sort() }));
 }
 
-function aggregateCountries(records) {
+function aggregateCountries(records, lens = state.locationLens) {
   const countries = new Map();
-  records.filter((row) => row.mapped).forEach((row) => {
-    const key = row.countryCode || normalCountry(row.country);
-    if (!countries.has(key)) countries.set(key, { code: key, country: row.country, snaps: 0, games: 0, playerRows: new Map() });
+  records.forEach((row) => {
+    const location = locationFields(row, lens);
+    if (!location.mapped) return;
+    const key = location.countryCode || normalCountry(location.country);
+    if (!countries.has(key)) countries.set(key, { code: key, country: location.country, snaps: 0, games: 0, playerRows: new Map() });
     const country = countries.get(key);
     country.snaps += row.snaps;
     country.games += row.games;
@@ -316,8 +336,9 @@ function renderCityMap(places) {
   places.forEach((place) => {
     const radius = 5 + Math.sqrt(metricValue(place) / maximum) * 18;
     const marker = L.circleMarker([place.lat, place.lon], { radius, weight: 1, color: "#a6ddff", fillColor: "#55baff", fillOpacity: .68 });
-    marker.bindTooltip(`${escapeHtml(place.place)}, ${escapeHtml(place.country)} · ${number.format(metricValue(place))} ${metricLabel()}`);
-    marker.bindPopup(`<div class="map-popup"><strong>${escapeHtml(place.place)}</strong><small>${escapeHtml(place.country)} · ${place.players} player${place.players === 1 ? "" : "s"}</small>${popupPlayers(place.playerList)}</div>`, { maxWidth: 310 });
+    const location = state.locationLens === "college" && place.detail ? `${place.detail}, ${place.country}` : place.country;
+    marker.bindTooltip(`${escapeHtml(place.place)} · ${escapeHtml(location)} · ${number.format(metricValue(place))} ${metricLabel()}`);
+    marker.bindPopup(`<div class="map-popup"><strong>${escapeHtml(place.place)}</strong><small>${escapeHtml(location)} · ${place.players} player${place.players === 1 ? "" : "s"}</small>${popupPlayers(place.playerList)}</div>`, { maxWidth: 310 });
     state.markerLayer.addLayer(marker);
     state.placeMarkers.set(place.key, marker);
   });
@@ -411,10 +432,12 @@ function renderRanking(items) {
   const visible = sorted.slice(0, 12);
   const maximum = Math.max(...visible.map(metricValue), 1);
   $("#ranking-title").textContent = `By ${metricLabel()}`;
-  $("#place-count").textContent = `${number.format(items.length)} ${state.mapMode === "city" ? "places" : "countries"}`;
+  const unit = state.mapMode === "city" ? (state.locationLens === "college" ? "colleges" : "places") : "countries";
+  $("#place-count").textContent = `${number.format(items.length)} ${unit}`;
   $("#place-ranking").innerHTML = visible.length ? visible.map((item, index) => {
     const name = item.place || item.country;
-    const detail = state.mapMode === "city" ? `${item.country} · ${item.players} players` : `${item.players} players`;
+    const locationDetail = state.locationLens === "college" && item.detail ? `${item.detail}, ${item.country}` : item.country;
+    const detail = state.mapMode === "city" ? `${locationDetail} · ${item.players} players` : `${item.players} players`;
     const target = state.mapMode === "city" ? `data-place-key="${escapeHtml(item.key)}"` : `data-country-code="${escapeHtml(item.code)}"`;
     return `<li class="place-row" style="--bar:${metricValue(item) / maximum * 100}%"><button class="place-jump" type="button" ${target}><span class="place-rank">${String(index + 1).padStart(2, "0")}</span><span class="place-name"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(detail)}</small></span><span class="place-value">${compact.format(metricValue(item))}</span></button></li>`;
   }).join("") : `<li>${emptyState("Try widening the current selection.")}</li>`;
@@ -445,10 +468,12 @@ function updateMap() {
 
 function updateKpis() {
   const records = filteredRecords();
-  const mapped = records.filter((row) => row.mapped).length;
+  const eligible = state.locationLens === "college" ? records.filter((row) => row.college) : records;
+  const mapped = eligible.filter((row) => locationFields(row).mapped).length;
   $("#kpi-players").textContent = number.format(records.length);
   $("#kpi-snaps").textContent = compact.format(records.reduce((sum, row) => sum + row.snaps, 0));
-  $("#kpi-coverage").textContent = records.length ? `${(mapped / records.length * 100).toFixed(1)}%` : "—";
+  $("#kpi-coverage").textContent = eligible.length ? `${(mapped / eligible.length * 100).toFixed(1)}%` : "—";
+  $("#kpi-coverage-label").textContent = state.locationLens === "college" ? "College coverage" : "Birthplace coverage";
 }
 
 function updateConferenceComparison() {
@@ -468,7 +493,7 @@ function updateAgeAndCountry() {
   const mapped = records.filter((row) => row.mapped);
   const outsideUs = mapped.filter((row) => row.country !== "United States").length;
   $("#age-overview").innerHTML = `<article><span>Median age</span><strong>${median(ages)?.toFixed(1) ?? "—"}</strong><small>at the end of the season</small></article><article><span>Under 25</span><strong>${number.format(ages.filter((age) => age < 25).length)}</strong><small>${ages.length ? (ages.filter((age) => age < 25).length / ages.length * 100).toFixed(1) : 0}% of players</small></article><article><span>Age 30+</span><strong>${number.format(ages.filter((age) => age >= 30).length)}</strong><small>${ages.length ? (ages.filter((age) => age >= 30).length / ages.length * 100).toFixed(1) : 0}% of players</small></article><article><span>Born outside US</span><strong>${mapped.length ? (outsideUs / mapped.length * 100).toFixed(1) : 0}%</strong><small>of mapped players</small></article>`;
-  const countries = aggregateCountries(records);
+  const countries = aggregateCountries(records, "birthplace");
   const byPlayers = [...countries].sort((a, b) => b.players - a.players || a.country.localeCompare(b.country)).slice(0, 10);
   const bySnaps = [...countries].sort((a, b) => b.snaps - a.snaps || a.country.localeCompare(b.country)).slice(0, 10);
   const panel = (title, items, value, label) => { const maximum = Math.max(...items.map(value), 1); return `<article class="country-panel"><span class="card-label">Birth-country comparison</span><h3>${title}</h3><ol class="country-list">${items.map((country) => `<li style="--bar:${value(country) / maximum * 100}%"><span>${escapeHtml(country.country)}</span><b>${label(country)}</b></li>`).join("")}</ol></article>`; };
@@ -478,7 +503,7 @@ function updateAgeAndCountry() {
 
 function updatePlayerTable() {
   const query = normalSearch(state.search.trim());
-  const players = filteredRecords().filter((row) => !query || [row.name, row.team, row.division, row.place, row.country, row.college].some((value) => normalSearch(value).includes(query))).sort((a, b) => b.snaps - a.snaps || a.name.localeCompare(b.name));
+  const players = filteredRecords().filter((row) => !query || [row.name, row.team, row.division, row.place, row.country, row.college, ...(row.collegeHistory || [])].some((value) => normalSearch(value).includes(query))).sort((a, b) => b.snaps - a.snaps || a.name.localeCompare(b.name));
   const visible = players.slice(0, state.playerLimit);
   $("#player-table").innerHTML = visible.map((row) => `<tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(row.id)}" aria-label="Open profile for ${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.position || "Position unavailable")}</small></button></td><td data-label="Team">${escapeHtml(row.team)}</td><td data-label="Division">${escapeHtml(row.division)}</td><td data-label="Birthplace">${row.mapped ? `${escapeHtml(row.place)}<br><small>${escapeHtml(row.country)}</small>` : `<span style="color:var(--danger)">Awaiting QA</span>`}</td><td class="numeric" data-label="Games">${number.format(row.games)}</td><td class="numeric" data-label="Snaps">${number.format(row.snaps)}</td></tr>`).join("");
   const empty = $("#player-empty-state");
@@ -492,7 +517,7 @@ function updatePlayerTable() {
 }
 
 function updateQuality() {
-  const { summary, unresolved } = state.payload;
+  const { summary, unresolved, college_unresolved: collegeUnresolved = [] } = state.payload;
   $("#quality-player-coverage").textContent = `${summary.player_coverage_pct}%`;
   $("#quality-snap-coverage").textContent = `${summary.snap_coverage_pct}%`;
   $("#quality-player-bar").style.width = `${summary.player_coverage_pct}%`;
@@ -503,6 +528,8 @@ function updateQuality() {
   $("#quality-total-snaps").textContent = `${number.format(summary.snaps)} total`;
   $("#unresolved-count").textContent = `${number.format(summary.unresolved_players)} players`;
   $("#unresolved-list").innerHTML = unresolved.map((row) => `<div class="unresolved-row"><span>${escapeHtml(row.name)}</span><span>${escapeHtml(row.status)}</span></div>`).join("");
+  $("#college-unresolved-count").textContent = `${number.format(summary.unresolved_colleges)} colleges`;
+  $("#college-unresolved-list").innerHTML = collegeUnresolved.map((row) => `<div class="unresolved-row"><span>${escapeHtml(row.college)} <small>(${number.format(row.players)} players)</small></span><span>${escapeHtml(row.status)}</span></div>`).join("");
 }
 
 function syncOptions() {
@@ -516,14 +543,16 @@ function syncOptions() {
 }
 
 function updateFilterUi() {
-  const filters = [state.conference !== "all" && { key: "conference", label: state.conference }, state.division !== "all" && { key: "division", label: state.division }, state.team !== "all" && { key: "team", label: state.team }, state.country !== "all" && { key: "country", label: `Born in ${state.country}` }].filter(Boolean);
+  const countryLabel = state.locationLens === "college" ? `College in ${state.country}` : `Born in ${state.country}`;
+  const filters = [state.conference !== "all" && { key: "conference", label: state.conference }, state.division !== "all" && { key: "division", label: state.division }, state.team !== "all" && { key: "team", label: state.team }, state.country !== "all" && { key: "country", label: countryLabel }].filter(Boolean);
   const container = $("#active-filters");
   container.innerHTML = filters.map((filter) => `<button type="button" class="filter-chip" data-clear-filter="${filter.key}" aria-label="Remove ${escapeHtml(filter.label)} filter"><span>${escapeHtml(filter.label)}</span><span aria-hidden="true">×</span></button>`).join("");
   container.hidden = filters.length === 0;
   const more = Number(state.division !== "all") + Number(state.country !== "all");
   $("#more-filter-count").textContent = more ? String(more) : "";
-  $("#reset-filters").disabled = filters.length === 0 && !state.search && !state.placeQuery && state.metric === "snaps" && state.mapMode === "city";
-  $("#filter-summary").textContent = `${state.conference === "all" ? "Both conferences" : state.conference} · ${state.team === "all" ? "All teams" : state.team} · ${state.country === "all" ? "All birth countries" : `Born in ${state.country}`}`;
+  $("#reset-filters").disabled = filters.length === 0 && !state.search && !state.placeQuery && state.metric === "snaps" && state.mapMode === "city" && state.locationLens === "birthplace";
+  const allCountries = state.locationLens === "college" ? "All college countries" : "All birth countries";
+  $("#filter-summary").textContent = `${state.conference === "all" ? "Both conferences" : state.conference} · ${state.team === "all" ? "All teams" : state.team} · ${state.country === "all" ? allCountries : countryLabel}`;
 }
 
 function updateSnapshotCopy() {
@@ -539,8 +568,22 @@ function populateFilters() {
   add("#conference-filter", state.payload.meta.conferences);
   add("#division-filter", state.payload.meta.divisions);
   add("#team-filter", state.payload.meta.teams);
-  add("#country-filter", [...new Set(state.payload.records.filter((row) => row.mapped).map((row) => row.country))].sort());
-  $("#place-options").innerHTML = aggregatePlaces(state.payload.records).sort((a, b) => a.place.localeCompare(b.place)).map((place) => `<option value="${escapeHtml(place.place)}, ${escapeHtml(place.country)}"></option>`).join("");
+  refreshLocationControls();
+}
+
+function refreshLocationControls() {
+  const college = state.locationLens === "college";
+  const countrySelect = $("#country-filter");
+  const countries = [...new Set(state.payload.records.map((row) => locationFields(row).country).filter(Boolean))].sort();
+  countrySelect.innerHTML = `<option value="all">All ${college ? "college" : "birth"} countries</option>${countries.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}`;
+  countrySelect.value = state.country;
+  $("#country-filter-label").textContent = college ? "College country" : "Birth country";
+  $("#map-heading").textContent = college ? "NFL college map" : "NFL birthplace map";
+  $("#place-search-label").textContent = college ? "Find a college" : "Find a birthplace";
+  $("#place-search").placeholder = college ? "Try Ohio State, Alabama, Georgia…" : "Try Houston, Miami, Atlanta…";
+  $("#map-mode button[data-map-mode='city']").textContent = college ? "Colleges" : "Birthplaces";
+  $("#place-options").innerHTML = aggregatePlaces(state.payload.records).sort((a, b) => a.place.localeCompare(b.place)).map((place) => `<option value="${escapeHtml(place.place)}"></option>`).join("");
+  $$("#map-mode button[data-map-mode^='population']").forEach((button) => { button.disabled = college; button.title = college ? "Population rates apply to player birthplaces, not colleges" : ""; });
 }
 
 function render() {
@@ -562,12 +605,17 @@ function openPlayerProfile(playerId, opener = document.activeElement) {
   $("#profile-birthplace").textContent = player.mapped ? `${player.place}, ${player.country}` : "Birthplace awaiting QA";
   $("#profile-dob").textContent = player.dob || "Unavailable";
   $("#profile-age").textContent = Number.isFinite(player.age) ? `${player.age} years at season end` : "Age unavailable";
+  $("#profile-college").textContent = player.college || "College unavailable";
+  const pathway = (player.collegeHistory || []).length > 1 ? ` · Pathway: ${[...player.collegeHistory].reverse().join(" → ")}` : "";
+  $("#profile-college-detail").textContent = `${player.collegeMapped ? `${player.collegePlace}, ${player.collegeCountry}${player.collegeVenue ? ` · ${player.collegeVenue}` : ""}` : player.collegeStatus}${pathway}`;
+  $("#profile-draft").textContent = player.draftYear ? `Drafted ${player.draftYear}${player.draftRound ? ` · round ${player.draftRound}` : ""}${player.draftPick ? ` · pick ${player.draftPick}` : ""}${player.draftTeam ? ` · ${player.draftTeam}` : ""}` : "Draft details unavailable";
   state.profileOpener = opener instanceof HTMLElement ? opener : null;
   [$(".site-header"), $("main"), $("footer")].forEach((element) => { if (element) element.inert = true; });
   const modal = $("#player-modal"); modal.classList.add("open"); modal.setAttribute("aria-hidden", "false"); document.body.classList.add("modal-open");
   if (state.profileMap) state.profileMap.remove(); state.profileMap = null;
-  $("#profile-map-empty").hidden = player.mapped; $("#player-mini-map").hidden = !player.mapped;
-  if (player.mapped) setTimeout(() => { if (!modal.classList.contains("open")) return; state.profileMap = L.map("player-mini-map", { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false }).setView([player.lat, player.lon], 6); L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd" }).addTo(state.profileMap); L.circleMarker([player.lat, player.lon], { radius: 8, color: "#a6ddff", fillColor: "#55baff", fillOpacity: .8 }).addTo(state.profileMap); }, 80);
+  const profileLocation = locationFields(player);
+  $("#profile-map-empty").hidden = profileLocation.mapped; $("#player-mini-map").hidden = !profileLocation.mapped;
+  if (profileLocation.mapped) setTimeout(() => { if (!modal.classList.contains("open")) return; state.profileMap = L.map("player-mini-map", { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false }).setView([profileLocation.lat, profileLocation.lon], 6); L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd" }).addTo(state.profileMap); L.circleMarker([profileLocation.lat, profileLocation.lon], { radius: 8, color: "#a6ddff", fillColor: "#55baff", fillOpacity: .8 }).addTo(state.profileMap); }, 80);
   $("#close-player-modal").focus();
 }
 
@@ -617,18 +665,29 @@ function currentMapHandoff() {
 }
 
 function resetAll() {
-  Object.assign(state, { conference: "all", division: "all", team: "all", country: "all", metric: "snaps", mapMode: "city", populationResolution: 3, search: "", placeQuery: "", playerLimit: PLAYER_BATCH });
+  Object.assign(state, { conference: "all", division: "all", team: "all", country: "all", locationLens: "birthplace", metric: "snaps", mapMode: "city", populationResolution: 3, search: "", placeQuery: "", playerLimit: PLAYER_BATCH });
   ["conference", "division", "team", "country"].forEach((key) => { $(`#${key}-filter`).value = "all"; });
   $("#player-search").value = ""; $("#place-search").value = ""; $("#clear-place-search").hidden = true;
   $$("#metric-control button").forEach((button) => { const active = button.dataset.metric === state.metric; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
+  $$("#location-lens button").forEach((button) => { const active = button.dataset.locationLens === state.locationLens; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
   $$("#map-mode button").forEach((button) => { const active = button.dataset.mapMode === state.mapMode; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
   $$("#resolution-control button").forEach((button) => { const active = Number(button.dataset.resolution) === state.populationResolution; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
+  refreshLocationControls();
   render();
 }
 
 function bindEvents() {
   ["conference", "division", "team", "country"].forEach((key) => $(`#${key}-filter`).addEventListener("change", (event) => { state[key] = event.target.value; state.playerLimit = PLAYER_BATCH; render(); }));
   $("#reset-filters").addEventListener("click", resetAll);
+  $("#location-lens").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-location-lens]"); if (!button || button.dataset.locationLens === state.locationLens) return;
+    state.locationLens = button.dataset.locationLens; state.country = "all"; state.placeQuery = "";
+    if (state.locationLens === "college" && isPopulationMode()) state.mapMode = "city";
+    $("#country-filter").value = "all"; $("#place-search").value = ""; $("#clear-place-search").hidden = true;
+    $$("#location-lens button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active)); });
+    $$("#map-mode button").forEach((item) => { const active = item.dataset.mapMode === state.mapMode; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active)); });
+    refreshLocationControls(); render();
+  });
   $("#metric-control").addEventListener("click", (event) => { const button = event.target.closest("button[data-metric]"); if (!button) return; state.metric = button.dataset.metric; $$("#metric-control button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active)); }); updateFilterUi(); updateMap(); });
   $("#map-mode").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-map-mode]"); if (!button || button.disabled) return;

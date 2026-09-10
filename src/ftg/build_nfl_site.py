@@ -23,6 +23,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SNAPS_URL = "https://github.com/nflverse/nflverse-data/releases/download/snap_counts/snap_counts_2025.csv"
 PLAYERS_URL = "https://github.com/nflverse/nflverse-data/releases/download/players/players.csv"
 ESPN_ATHLETE_URL = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2025/athletes/{athlete_id}?lang=en&region=us"
+ESPN_COLLEGE_TEAMS_URL = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams?limit=1000"
+ESPN_COLLEGE_SCHEDULE_URL = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/{team_id}/schedule?season=2025"
 GEONAMES_CITIES_URL = "https://download.geonames.org/export/dump/cities500.zip"
 GEONAMES_COUNTRIES_URL = "https://download.geonames.org/export/dump/countryInfo.txt"
 
@@ -30,6 +32,8 @@ DEFAULT_OUTPUT = ROOT / "docs" / "nfl" / "data" / "dashboard.json"
 DEFAULT_SNAPS_CACHE = ROOT / "data" / "cache" / "nfl_snap_counts_2025.csv"
 DEFAULT_PLAYERS_CACHE = ROOT / "data" / "cache" / "nfl_players.csv"
 DEFAULT_ESPN_CACHE = ROOT / "data" / "cache" / "nfl_espn_athletes_2025.json"
+DEFAULT_COLLEGE_TEAMS_CACHE = ROOT / "data" / "cache" / "nfl_espn_college_teams.json"
+DEFAULT_COLLEGE_VENUES_CACHE = ROOT / "data" / "cache" / "nfl_espn_college_venues_2025.json"
 DEFAULT_GEONAMES_CACHE = ROOT / "data" / "cache" / "cities500.zip"
 DEFAULT_COUNTRIES_CACHE = ROOT / "data" / "cache" / "geonames_country_info.txt"
 
@@ -68,10 +72,161 @@ TEAM_META = {
     "WAS": ("Washington Commanders", "NFC", "NFC East"),
 }
 
+# nflverse uses several historical or long-form school labels. Values here are
+# ESPN's current athletic-program labels; no player is assigned to a different
+# school, and unresolved names remain in the QA output.
+COLLEGE_ALIASES = {
+    "Mississippi": "Ole Miss",
+    "Louisiana-Lafayette": "Louisiana",
+    "Texas-El Paso": "UTEP",
+    "Southern Mississippi": "Southern Miss",
+    "Connecticut": "UConn",
+    "Appalachian State": "App State",
+    "Middle Tennessee State": "Middle Tennessee",
+    "Texas-San Antonio": "UTSA",
+    "University of South Florida": "South Florida",
+    "UMass Amherst": "UMass",
+    "Tennessee-Chattanooga": "Chattanooga",
+    "Southern Utah State": "Southern Utah",
+    "Miami (Ohio)": "Miami (OH)",
+    "Stephen F. Austin State": "Stephen F. Austin",
+    "Sam Houston State": "Sam Houston",
+    "Houston Christian University": "Houston Christian",
+    "Jackson State University": "Jackson State",
+    "Fort Valley State College": "Fort Valley State",
+    "Albany State (GA)": "Albany State",
+    "Texas State-San Marcos": "Texas State",
+    "Campbell University": "Campbell",
+    "Grand Valley": "Grand Valley State",
+    "Cal Poly (San Luis Obispo)": "Cal Poly",
+    "Bemidji State University": "Bemidji State",
+    "University of Arkansas at Pine Bluff": "Arkansas-Pine Bluff",
+    "University of West Florida": "West Florida",
+    "Sacred Heart University": "Sacred Heart",
+    "Grambling State": "Grambling",
+}
+
+# College Scorecard campus coordinates for program locations whose official
+# municipality labels are absent from the GeoNames cities500 extract.
+COLLEGE_COORDINATE_OVERRIDES = {
+    "Penn State": {"place": "University Park", "country": "United States", "lat": 40.7965, "lon": -77.862848},
+    "Air Force": {"place": "USAF Academy", "country": "United States", "lat": 39.010957, "lon": -104.891358},
+    "Alcorn State": {"place": "Alcorn State", "country": "United States", "lat": 31.877216, "lon": -91.142854},
+    "Saginaw Valley State": {"place": "University Center", "country": "United States", "lat": 43.51176, "lon": -83.964273},
+}
+
 
 def normalize(value: object) -> str:
     text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode().casefold()
     return re.sub(r"[^a-z0-9]", "", text)
+
+
+def split_college_history(value: object) -> list[str]:
+    if value is None or pd.isna(value):
+        return []
+    return [part.strip() for part in str(value).split(";") if part.strip()]
+
+
+def parse_college_teams(payload: dict[str, Any]) -> dict[str, list[dict[str, str]]]:
+    aliases: dict[str, dict[str, dict[str, str]]] = defaultdict(dict)
+    for sport in payload.get("sports", []):
+        for league in sport.get("leagues", []):
+            for wrapper in league.get("teams", []):
+                team = wrapper.get("team") or {}
+                team_id = str(team.get("id") or "")
+                if not team_id:
+                    continue
+                parsed = {
+                    "id": team_id,
+                    "name": str(team.get("location") or team.get("displayName") or ""),
+                    "display_name": str(team.get("displayName") or team.get("location") or ""),
+                }
+                for label in (team.get("location"), team.get("abbreviation"), team.get("shortDisplayName"), team.get("displayName")):
+                    if label:
+                        aliases[normalize(label)][team_id] = parsed
+    return {key: list(values.values()) for key, values in aliases.items()}
+
+
+def match_college_team(college: str, aliases: dict[str, list[dict[str, str]]]) -> tuple[dict[str, str] | None, str]:
+    lookup = COLLEGE_ALIASES.get(college, college)
+    candidates = aliases.get(normalize(lookup), [])
+    if college == "Troy":
+        candidates = [team for team in candidates if team["display_name"] == "Troy Trojans"]
+    elif college == "Charlotte":
+        candidates = [team for team in candidates if team["display_name"] == "Charlotte 49ers"]
+    if len(candidates) == 1:
+        return candidates[0], "matched"
+    return None, "ambiguous college program" if candidates else "college program unavailable"
+
+
+def parse_home_venue(payload: dict[str, Any], team_id: str) -> dict[str, str] | None:
+    venues: Counter[tuple[str, str, str, str]] = Counter()
+    for event in payload.get("events", []):
+        for competition in event.get("competitions", []):
+            competitors = competition.get("competitors", [])
+            is_home = any(str(item.get("team", {}).get("id")) == str(team_id) and item.get("homeAway") == "home" for item in competitors)
+            venue = competition.get("venue") or {}
+            address = venue.get("address") or {}
+            if is_home and address.get("city") and address.get("country"):
+                venues[(str(address["city"]), str(address.get("state") or ""), str(address["country"]), str(venue.get("fullName") or ""))] += 1
+    if not venues:
+        return None
+    city, state, country, venue = venues.most_common(1)[0][0]
+    return {"city": city, "state": state, "country": country, "venue": venue}
+
+
+def fetch_college_venues(
+    colleges: Iterable[str],
+    *,
+    workers: int = 10,
+    force: bool = False,
+    teams_cache: Path = DEFAULT_COLLEGE_TEAMS_CACHE,
+    venues_cache: Path = DEFAULT_COLLEGE_VENUES_CACHE,
+) -> dict[str, dict[str, Any]]:
+    client = CachedHttpClient(delay=0.0, timeout=90)
+    teams_payload = json.loads(client.fetch_text(ESPN_COLLEGE_TEAMS_URL, teams_cache, force=force).text)
+    aliases = parse_college_teams(teams_payload)
+    cached: dict[str, dict[str, Any]] = {}
+    if venues_cache.exists() and not force:
+        try:
+            cached = json.loads(venues_cache.read_text(encoding="utf-8")).get("colleges", {})
+        except (json.JSONDecodeError, OSError):
+            cached = {}
+    colleges = sorted({college for college in colleges if college})
+    results = {} if force else {
+        college: cached[college]
+        for college in colleges
+        if college in cached and cached[college].get("status") != "venue request failed"
+    }
+    requests_to_make = []
+    for college in colleges:
+        if college in results:
+            continue
+        team, status = match_college_team(college, aliases)
+        if not team:
+            results[college] = {"status": status}
+        else:
+            requests_to_make.append((college, team))
+
+    def fetch_one(item: tuple[str, dict[str, str]]) -> tuple[str, dict[str, Any]]:
+        college, team = item
+        try:
+            response = requests.get(ESPN_COLLEGE_SCHEDULE_URL.format(team_id=team["id"]), timeout=30)
+            response.raise_for_status()
+            venue = parse_home_venue(response.json(), team["id"])
+            if not venue:
+                return college, {"status": "home venue unavailable", "espn_id": team["id"], "program": team["name"]}
+            return college, {"status": "venue found", "espn_id": team["id"], "program": team["name"], **venue}
+        except (requests.RequestException, ValueError) as error:
+            return college, {"status": "venue request failed", "espn_id": team["id"], "program": team["name"], "error": str(error)}
+
+    if requests_to_make:
+        print(f"Fetching {len(requests_to_make):,} college home venues...", flush=True)
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            for college, result in executor.map(fetch_one, requests_to_make):
+                results[college] = result
+    _write_json(venues_cache, {"retrieved_at": datetime.now(timezone.utc).isoformat(), "season": 2025, "colleges": results})
+    return results
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -286,6 +441,23 @@ def resolve_birthplace(
     }
 
 
+def resolve_college_location(
+    venue: dict[str, Any],
+    city_index: dict[str, list[dict[str, Any]]],
+    country_aliases: dict[str, str],
+    country_names: dict[str, str],
+) -> dict[str, Any] | None:
+    location = resolve_birthplace(
+        {"birth_city": venue.get("city"), "birth_state": venue.get("state"), "birth_country": venue.get("country")},
+        city_index,
+        country_aliases,
+        country_names,
+    )
+    if location:
+        location.update({"venue": venue.get("venue"), "espn_id": venue.get("espn_id"), "program": venue.get("program")})
+    return location
+
+
 def age_on(dob: str | None, on_date: date = date(2026, 2, 8)) -> int | None:
     if not dob:
         return None
@@ -304,8 +476,12 @@ def build_payload(
     country_aliases: dict[str, str],
     country_names: dict[str, str],
     *,
+    college_locations: dict[str, dict[str, Any]] | None = None,
+    college_statuses: dict[str, str] | None = None,
     generated_at: str | None = None,
 ) -> dict[str, Any]:
+    college_locations = college_locations or {}
+    college_statuses = college_statuses or {}
     cohort = aggregate_snap_cohort(snaps)
     player_lookup = {
         str(row.pfr_id): row
@@ -333,7 +509,19 @@ def build_payload(
         dob = athlete.get("dob") or (str(player.birth_date)[:10] if player is not None and pd.notna(player.birth_date) else None)
         name = str(player.display_name) if player is not None and pd.notna(player.display_name) else snap["snap_name"]
         position = str(player.position) if player is not None and pd.notna(player.position) else snap["snap_position"]
-        college = str(player.college_name) if player is not None and pd.notna(player.college_name) else None
+        college_history = split_college_history(player.college_name) if player is not None else []
+        college = college_history[0] if college_history else None
+        college_location = college_locations.get(college, {}) if college else {}
+        college_mapped = bool(college_location)
+        college_status = "resolved" if college_mapped else (college_statuses.get(college, "college unavailable") if college else "college unavailable")
+
+        def player_value(field: str) -> Any:
+            value = getattr(player, field, None) if player is not None else None
+            return None if value is None or pd.isna(value) else value
+
+        def player_int(field: str) -> int | None:
+            value = player_value(field)
+            return int(float(value)) if value is not None else None
         record = {
             "id": f"nfl:{snap['pfr_id']}",
             "pfrId": snap["pfr_id"],
@@ -367,6 +555,20 @@ def build_payload(
             "specialTeamsSnaps": snap["special_teams_snaps"],
             "position": position,
             "college": college,
+            "collegeHistory": college_history,
+            "collegeConference": player_value("college_conference"),
+            "collegePlace": college_location.get("place"),
+            "collegeCountry": college_location.get("country"),
+            "collegeLat": college_location.get("lat"),
+            "collegeLon": college_location.get("lon"),
+            "collegeMapped": college_mapped,
+            "collegeStatus": college_status,
+            "collegeEspnId": college_location.get("espn_id"),
+            "collegeVenue": college_location.get("venue"),
+            "draftYear": player_int("draft_year"),
+            "draftRound": player_int("draft_round"),
+            "draftPick": player_int("draft_pick"),
+            "draftTeam": player_value("draft_team"),
             "age": age_on(dob),
             "dob": dob,
             "place": birthplace["place"] if mapped else None,
@@ -383,8 +585,16 @@ def build_payload(
 
     records.sort(key=lambda record: (record["team"], record["name"]))
     mapped_records = [record for record in records if record["mapped"]]
+    college_records = [record for record in records if record["college"]]
+    college_mapped_records = [record for record in college_records if record["collegeMapped"]]
     total_snaps = sum(record["snaps"] for record in records)
     mapped_snaps = sum(record["snaps"] for record in mapped_records)
+    college_snaps = sum(record["snaps"] for record in college_records)
+    college_mapped_snaps = sum(record["snaps"] for record in college_mapped_records)
+    unresolved_colleges = []
+    for college in sorted({record["college"] for record in college_records if not record["collegeMapped"]}):
+        rows = [record for record in college_records if record["college"] == college]
+        unresolved_colleges.append({"college": college, "players": len(rows), "snaps": sum(row["snaps"] for row in rows), "status": rows[0]["collegeStatus"]})
     generated_at = generated_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     return {
         "meta": {
@@ -401,6 +611,9 @@ def build_payload(
             "snaps_source_url": SNAPS_URL,
             "birthplace_source_name": "ESPN athlete profiles",
             "coordinate_source_name": "GeoNames",
+            "college_source_name": "nflverse player records",
+            "college_location_source_name": "ESPN college football home venues + GeoNames",
+            "college_coordinate_override_source_name": "U.S. Department of Education College Scorecard",
         },
         "summary": {
             "teams": len({record["team"] for record in records}),
@@ -413,9 +626,20 @@ def build_payload(
             "birthplaces": len({(record["lat"], record["lon"], record["place"]) for record in mapped_records}),
             "birth_countries": len({record["country"] for record in mapped_records}),
             "unresolved_players": len(unresolved),
+            "college_players": len(college_records),
+            "college_mapped_players": len(college_mapped_records),
+            "college_player_coverage_pct": round(len(college_mapped_records) / len(college_records) * 100, 1) if college_records else 0,
+            "college_snaps": college_snaps,
+            "college_mapped_snaps": college_mapped_snaps,
+            "college_snap_coverage_pct": round(college_mapped_snaps / college_snaps * 100, 1) if college_snaps else 0,
+            "colleges": len({record["college"] for record in college_records}),
+            "mapped_colleges": len({record["college"] for record in college_mapped_records}),
+            "college_countries": len({record["collegeCountry"] for record in college_mapped_records}),
+            "unresolved_colleges": len(unresolved_colleges),
         },
         "records": records,
         "unresolved": unresolved,
+        "college_unresolved": unresolved_colleges,
     }
 
 
@@ -436,7 +660,15 @@ def run(
     master = players[players["pfr_id"].astype(str).isin(player_ids) & players["espn_id"].notna()]
     athlete_ids = [str(int(float(value))) for value in master["espn_id"]]
     athletes = fetch_espn_athletes(athlete_ids, workers=workers, force=force)
+    college_rows = players[players["pfr_id"].astype(str).isin(player_ids)]
+    primary_colleges = {
+        history[0]
+        for value in college_rows["college_name"].tolist()
+        if (history := split_college_history(value))
+    }
+    college_venues = fetch_college_venues(primary_colleges, workers=workers, force=force)
     needed_names = {normalize(row.get("birth_city")) for row in athletes.values() if row.get("birth_city")}
+    needed_names.update(normalize(row.get("city")) for row in college_venues.values() if row.get("city"))
     cities_path = geonames_input or _download_binary(GEONAMES_CITIES_URL, DEFAULT_GEONAMES_CACHE, force=force)
     countries_path = countries_input
     if countries_path is None:
@@ -446,12 +678,32 @@ def run(
         countries_path = DEFAULT_COUNTRIES_CACHE
     country_aliases, country_names = load_country_codes(countries_path)
     city_index = build_city_index(cities_path, needed_names)
-    payload = build_payload(snaps, players, athletes, city_index, country_aliases, country_names)
+    college_locations = {}
+    college_statuses = {}
+    for college, venue in college_venues.items():
+        resolved = resolve_college_location(venue, city_index, country_aliases, country_names)
+        if not resolved and college in COLLEGE_COORDINATE_OVERRIDES:
+            resolved = {**COLLEGE_COORDINATE_OVERRIDES[college], "geonames_id": None, "venue": venue.get("venue"), "espn_id": venue.get("espn_id"), "program": venue.get("program")}
+        if resolved:
+            college_locations[college] = resolved
+        else:
+            college_statuses[college] = venue.get("status", "college coordinates unavailable") if not venue.get("city") else "college coordinates unavailable"
+    payload = build_payload(
+        snaps,
+        players,
+        athletes,
+        city_index,
+        country_aliases,
+        country_names,
+        college_locations=college_locations,
+        college_statuses=college_statuses,
+    )
     _write_json(output_path, payload)
     print(
         f"Wrote {payload['summary']['players']:,} NFL players with "
         f"{payload['summary']['player_coverage_pct']:.1f}% birthplace coverage to {output_path}"
     )
+    print(f"College coverage: {payload['summary']['college_player_coverage_pct']:.1f}% of players with a listed college")
     return payload
 
 

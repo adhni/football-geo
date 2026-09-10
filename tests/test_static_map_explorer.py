@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 
@@ -377,3 +378,17 @@ def test_mlb_explorer_reuses_the_accessible_sport_shell():
     assert html.count('role="tab"') == 4
     assert "EDITION.workloadLabel" in shared_javascript
     assert (ROOT / "docs" / "mlb" / "data" / "dashboard.json").exists()
+
+
+def test_nfl_college_lens_is_separate_and_disables_population_rates():
+    html = (ROOT / "docs" / "nfl" / "index.html").read_text(encoding="utf-8")
+    javascript = (ROOT / "docs" / "nfl" / "app.js").read_text(encoding="utf-8")
+    payload = json.loads((ROOT / "docs" / "nfl" / "data" / "dashboard.json").read_text(encoding="utf-8"))
+
+    assert 'data-location-lens="college"' in html
+    assert 'id="profile-college"' in html
+    assert 'button.disabled = college' in javascript
+    assert 'state.locationLens === "college" && isPopulationMode()' in javascript
+    assert payload["summary"]["college_player_coverage_pct"] >= 95
+    assert sum(row["snaps"] for row in payload["records"] if row["collegeMapped"]) == payload["summary"]["college_mapped_snaps"]
+    assert len({row["id"] for row in payload["records"]}) == payload["summary"]["players"]

@@ -26,7 +26,13 @@
 .nfl-site .filter-chip { color: #d9e8f6; border-color: #385778; background: rgba(23, 38, 59, .88); }
 .nfl-site .view-tabs { background: rgba(12, 22, 36, .72); }.nfl-site .view-tabs button { color: #8ea5ba; }.nfl-site .view-tabs button span { color: #637e97; }
 .nfl-site .nfl-secondary-filters { width: min(520px, calc(100vw - 48px)); }
-.nfl-site .nfl-map-explorer { grid-template-columns: minmax(250px, 290px) minmax(300px, 350px) minmax(220px, 1fr) auto; }
+.nfl-site .nfl-map-explorer { grid-template-columns: minmax(215px, 240px) minmax(250px, 290px) minmax(300px, 350px) minmax(220px, 1fr) auto; }
+.nfl-site .location-lens-control .segmented { width: 100%; }
+.nfl-site .location-lens-control button { flex: 1; }
+.nfl-site .map-mode button:disabled { cursor: not-allowed; opacity: .38; }
+.nfl-site .profile-college { border-top: 1px solid var(--line-soft); }
+.nfl-site .profile-college p + p { margin-top: 5px; }
+.nfl-site .college-qa-heading { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--line-soft); }
 .nfl-site .legend-dot { background: var(--accent); box-shadow: 0 0 10px rgba(85,186,255,.55); }
 .nfl-site .map-legend { color: #c3d4e4; background: rgba(8,15,26,.93); }
 .nfl-site .leaflet-tooltip, .nfl-site .leaflet-popup-content-wrapper, .nfl-site .leaflet-popup-tip { background: #0d1726; border-color: #385778; }.nfl-site .leaflet-control-zoom a { background: #101c2d !important; }
