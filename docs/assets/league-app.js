@@ -51,11 +51,14 @@ const EDITION = {
   comparisonHighlight: "outsideHome",
   ...window.TALENT_GEO_EDITION,
 };
+const TEAM_STYLES = window.TALENT_TEAM_COLOURS?.[EDITION.name] || null;
 
 const state = {
   payload: null,
   conference: "all",
   team: "all",
+  teams: [],
+  teamMeta: [],
   country: "all",
   position: "all",
   metric: EDITION.defaultMetric,
@@ -69,6 +72,7 @@ const state = {
   baseLayer: null,
   populationBaseLayer: null,
   markerLayer: null,
+  teamMarkerLayer: null,
   countryGeojson: null,
   countryLayer: null,
   populationGeojson: new Map(),
@@ -103,6 +107,19 @@ function normalCountry(value) {
 
 function normalSearch(value) {
   return String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function matchesTeam(team) {
+  return TEAM_STYLES ? state.teams.length === 0 || state.teams.includes(team) : state.team === "all" || state.team === team;
+}
+
+function hasTeamSelection() {
+  return TEAM_STYLES ? state.teams.length > 0 : state.team !== "all";
+}
+
+function teamStyle(team) {
+  const [colour = EDITION.markerFill, text = "#ffffff", code = team.slice(0, 3).toUpperCase()] = TEAM_STYLES?.[team] || [];
+  return { colour, text, code };
 }
 
 function median(values) {
@@ -142,14 +159,14 @@ function filteredRecords(conference = state.conference) {
     if (state.position !== "all" && row.position !== state.position) return [];
     if (!row.teamSplits?.length) {
       return (conference === "all" || row.conference === conference)
-        && (state.team === "all" || row.team === state.team) ? [row] : [];
+        && matchesTeam(row.team) ? [row] : [];
     }
     const splits = row.teamSplits.filter((split) =>
       (conference === "all" || split.conference === conference)
-      && (state.team === "all" || split.team === state.team)
+      && matchesTeam(split.team)
     );
     if (!splits.length) return [];
-    return conference === "all" && state.team === "all" ? [row] : [projectTeamSplits(row, splits)];
+    return conference === "all" && !hasTeamSelection() ? [row] : [projectTeamSplits(row, splits)];
   });
 }
 
@@ -158,10 +175,10 @@ function filteredTeamRecords() {
     if (state.country !== "all" && row.country !== state.country) return [];
     if (!row.teamSplits?.length) {
       return (state.conference === "all" || row.conference === state.conference)
-        && (state.team === "all" || row.team === state.team) ? [row] : [];
+        && matchesTeam(row.team) ? [row] : [];
     }
     return row.teamSplits
-      .filter((split) => (state.conference === "all" || split.conference === state.conference) && (state.team === "all" || split.team === state.team))
+      .filter((split) => (state.conference === "all" || split.conference === state.conference) && matchesTeam(split.team))
       .map((split) => projectTeamSplits(row, [split]));
   });
 }
@@ -381,6 +398,10 @@ function initMap() {
     ? L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 42, showCoverageOnHover: false })
     : L.layerGroup();
   state.markerLayer.addTo(state.map);
+  state.teamMarkerLayer = L.layerGroup();
+  state.map.on("zoomend", () => {
+    if (TEAM_STYLES && state.mapMode === "city" && state.teams.length) renderTeamCityMap(filteredTeamRecords());
+  });
 }
 
 function usePopulationBasemap(active) {
@@ -397,10 +418,90 @@ function popupPlayers(rows, maximum = 8) {
   return `${items}${rest > 0 ? `<small class="popup-rest">+ ${rest} more ${escapeHtml(EDITION.participantLabelPlural)}</small>` : ""}`;
 }
 
+function revealPlaceMarker(marker) {
+  if (!marker) return;
+  const placeKey = marker.talentPlaceKey;
+  const reveal = () => {
+    state.map.setView(marker.getLatLng(), 6, { animate: false });
+    (placeKey ? state.placeMarkers.get(placeKey) : marker)?.openPopup();
+  };
+  if (state.map.hasLayer(state.markerLayer) && state.markerLayer.zoomToShowLayer) state.markerLayer.zoomToShowLayer(marker, reveal);
+  else reveal();
+}
+
+function aggregateTeamPlaces(records) {
+  const places = new Map();
+  records.filter((row) => row.mapped).forEach((row) => {
+    const key = `${row.lat}|${row.lon}|${row.place}`;
+    if (!places.has(key)) places.set(key, { key, place: row.place || `Unnamed ${EDITION.locationLabel.toLowerCase()}`, country: row.country || "Country unavailable", lat: row.lat, lon: row.lon, teams: new Map() });
+    const place = places.get(key);
+    if (!place.teams.has(row.team)) place.teams.set(row.team, { team: row.team, minutes: 0, games: 0, playerRows: new Map() });
+    const team = place.teams.get(row.team);
+    team.minutes += row.minutes || 0;
+    team.games += row.games || 0;
+    team.playerRows.set(row.id, row);
+  });
+  return [...places.values()].map((place) => ({
+    ...place,
+    teamBubbles: [...place.teams.values()].map((team) => ({ ...team, players: team.playerRows.size, playerList: [...team.playerRows.values()].sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name)) })).sort((a, b) => a.team.localeCompare(b.team)),
+  }));
+}
+
+function updateTeamColourLegend(teams) {
+  let legend = $("#team-colour-legend");
+  if (!legend) {
+    legend = document.createElement("div");
+    legend.id = "team-colour-legend";
+    legend.className = "team-colour-legend";
+    $("#population-scale").before(legend);
+  }
+  legend.hidden = teams.length === 0;
+  legend.innerHTML = teams.map((team) => { const style = teamStyle(team); return `<span><i style="--team-colour:${style.colour}"></i><b>${escapeHtml(style.code)}</b>${escapeHtml(team)}</span>`; }).join("");
+  $(".legend-size").hidden = teams.length > 0;
+}
+
+function renderTeamCityMap(records) {
+  usePopulationBasemap(false);
+  if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
+  if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
+  if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (!state.map.hasLayer(state.teamMarkerLayer)) state.teamMarkerLayer.addTo(state.map);
+  state.teamMarkerLayer.clearLayers();
+  state.placeMarkers.clear();
+  const places = aggregateTeamPlaces(records);
+  const bubbles = places.flatMap((place) => place.teamBubbles);
+  const maximum = Math.max(...bubbles.map(metricValue), 1);
+  places.forEach((place) => {
+    const centre = state.map.latLngToLayerPoint([place.lat, place.lon]);
+    const sizes = place.teamBubbles.map((team) => Math.max(18, Math.round(9 + Math.sqrt(metricValue(team) / maximum) * 23)));
+    const offsetRadius = place.teamBubbles.length > 1 ? Math.max(...sizes) / 2 + 5 : 0;
+    place.teamBubbles.forEach((team, index) => {
+      const angle = -Math.PI / 2 + index * Math.PI * 2 / place.teamBubbles.length;
+      const point = L.point(centre.x + Math.cos(angle) * offsetRadius, centre.y + Math.sin(angle) * offsetRadius);
+      const destination = state.map.layerPointToLatLng(point);
+      const style = teamStyle(team.team);
+      if (offsetRadius) L.polyline([[place.lat, place.lon], destination], { color: style.colour, weight: 1, opacity: .42, interactive: false }).addTo(state.teamMarkerLayer);
+      const size = sizes[index];
+      const marker = L.marker(destination, {
+        bubblingMouseEvents: false,
+        keyboard: true,
+        icon: L.divIcon({ className: "team-rosette-icon", html: `<span style="--team-colour:${style.colour};--team-text:${style.text};--marker-size:${size}px">${escapeHtml(style.code)}</span>`, iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
+      });
+      marker.bindTooltip(`<strong>${escapeHtml(team.team)}</strong><br>${escapeHtml(place.place)}, ${escapeHtml(place.country)}<br>${number.format(metricValue(team))} ${metricLabel()} · ${team.players} ${escapeHtml(EDITION.participantLabelPlural)}`, { direction: "top" });
+      marker.bindPopup(`<div class="map-popup"><strong>${escapeHtml(team.team)}</strong><small>${escapeHtml(place.place)}, ${escapeHtml(place.country)}</small><p>${number.format(metricValue(team))} ${metricLabel()} · ${team.players} ${escapeHtml(EDITION.participantLabelPlural)}</p>${popupPlayers(team.playerList)}</div>`, { maxWidth: 320 });
+      marker.talentPlaceKey = place.key;
+      marker.addTo(state.teamMarkerLayer);
+      if (!state.placeMarkers.has(place.key)) state.placeMarkers.set(place.key, marker);
+    });
+  });
+  updateTeamColourLegend(state.teams);
+}
+
 function renderCityMap(places) {
   usePopulationBasemap(false);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
+  if (state.teamMarkerLayer && state.map.hasLayer(state.teamMarkerLayer)) state.map.removeLayer(state.teamMarkerLayer);
   if (!state.map.hasLayer(state.markerLayer)) state.markerLayer.addTo(state.map);
   state.markerLayer.clearLayers();
   state.placeMarkers.clear();
@@ -417,9 +518,11 @@ function renderCityMap(places) {
     });
     marker.bindTooltip(`${escapeHtml(place.place)}, ${escapeHtml(place.country)} · ${number.format(metricValue(place))} ${metricLabel()}`);
     marker.bindPopup(`<div class="map-popup"><strong>${escapeHtml(place.place)}</strong><small>${escapeHtml(place.country)} · ${place.players} ${escapeHtml(EDITION.participantLabelPlural)}</small>${popupPlayers(place.playerList)}</div>`, { maxWidth: 310 });
+    marker.talentPlaceKey = place.key;
     state.markerLayer.addLayer(marker);
     state.placeMarkers.set(place.key, marker);
   });
+  updateTeamColourLegend([]);
 }
 
 function countryColour(value, maximum) {
@@ -432,9 +535,11 @@ function countryColour(value, maximum) {
 function renderCountryMap(countries) {
   usePopulationBasemap(false);
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (state.teamMarkerLayer && state.map.hasLayer(state.teamMarkerLayer)) state.map.removeLayer(state.teamMarkerLayer);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
   state.countryLayers.clear();
+  updateTeamColourLegend([]);
   if (!state.countryGeojson) return;
   const byCode = new Map(countries.map((country) => [country.code, country]));
   const maximum = Math.max(...countries.map(metricValue), 1);
@@ -459,6 +564,7 @@ function showPopulationLoading() {
   const measure = populationMeasure();
   usePopulationBasemap(true);
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (state.teamMarkerLayer && state.map.hasLayer(state.teamMarkerLayer)) state.map.removeLayer(state.teamMarkerLayer);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
   $("#ranking-title").textContent = measure.label;
@@ -471,12 +577,14 @@ function showPopulationLoading() {
   $("#population-scale").hidden = false;
   $("#legend-prefix").textContent = "Colour =";
   $("#legend-metric").textContent = measure.label;
+  updateTeamColourLegend([]);
 }
 
 function renderPopulationMap(records) {
   const measure = populationMeasure();
   usePopulationBasemap(true);
   if (state.map.hasLayer(state.markerLayer)) state.map.removeLayer(state.markerLayer);
+  if (state.teamMarkerLayer && state.map.hasLayer(state.teamMarkerLayer)) state.map.removeLayer(state.teamMarkerLayer);
   if (state.countryLayer && state.map.hasLayer(state.countryLayer)) state.map.removeLayer(state.countryLayer);
   if (state.populationLayer && state.map.hasLayer(state.populationLayer)) state.map.removeLayer(state.populationLayer);
   const cells = aggregatePopulationCells(records);
@@ -506,6 +614,7 @@ function renderPopulationMap(records) {
   $("#population-scale").hidden = false;
   $("#legend-prefix").textContent = "Colour =";
   $("#legend-metric").textContent = measure.label;
+  updateTeamColourLegend([]);
 }
 
 function renderRanking(items) {
@@ -524,6 +633,7 @@ function renderRanking(items) {
 
 function updateMap() {
   const records = filteredRecords();
+  const teamRecords = filteredTeamRecords();
   const places = aggregatePlaces(records);
   const countries = aggregateCountries(records);
   if (isPopulationMode()) {
@@ -537,11 +647,12 @@ function updateMap() {
     return;
   }
   if (state.mapMode === "country" && state.countryGeojson) renderCountryMap(countries);
+  else if (TEAM_STYLES && state.teams.length) renderTeamCityMap(teamRecords);
   else renderCityMap(places);
   renderRanking(state.mapMode === "city" ? places : countries);
   $("#map-legend").classList.remove("population");
   $("#population-scale").hidden = true;
-  $("#legend-prefix").textContent = state.mapMode === "city" ? "Circle size =" : "Colour intensity =";
+  $("#legend-prefix").textContent = TEAM_STYLES && state.teams.length && state.mapMode === "city" ? "Team colour · bubble size =" : state.mapMode === "city" ? "Circle size =" : "Colour intensity =";
   $("#legend-metric").textContent = metricLabel();
   $("#map-legend").classList.toggle("country", state.mapMode === "country");
   $("#map-explorer").classList.toggle("country-mode", state.mapMode !== "city");
@@ -639,7 +750,7 @@ function updateQuality() {
 function updateFilterUi() {
   const filters = [
     state.conference !== "all" && { key: "conference", label: state.conference.replace(" Conference", "") },
-    state.team !== "all" && { key: "team", label: state.team },
+    TEAM_STYLES ? state.teams.length > 0 && { key: "teams", label: state.teams.length === 1 ? state.teams[0] : `${state.teams.length} ${EDITION.groupLabelPlural}` } : state.team !== "all" && { key: "team", label: state.team },
     state.country !== "all" && { key: "country", label: `${EDITION.mixedLocationTypes ? "Located" : "Born"} in ${state.country}` },
     state.position !== "all" && { key: "position", label: state.position },
   ].filter(Boolean);
@@ -650,9 +761,47 @@ function updateFilterUi() {
   $("#more-filter-count").textContent = moreFilterCount ? String(moreFilterCount) : "";
   $("#reset-filters").disabled = filters.length === 0 && !state.search && !state.placeQuery && state.metric === EDITION.defaultMetric && state.mapMode === "city";
   const conference = state.conference === "all" ? EDITION.allConferenceLabel : state.conference.replace(" Conference", "");
-  const team = state.team === "all" ? `All ${EDITION.groupLabelPlural}` : state.team;
+  const team = TEAM_STYLES ? state.teams.length ? (state.teams.length === 1 ? state.teams[0] : `${state.teams.length} ${EDITION.groupLabelPlural}`) : `All ${EDITION.groupLabelPlural}` : state.team === "all" ? `All ${EDITION.groupLabelPlural}` : state.team;
   const country = state.country === "all" ? `All ${EDITION.countryGroupLabel}` : `${EDITION.mixedLocationTypes ? "Located" : "Born"} in ${state.country}`;
   $("#filter-summary").textContent = [conference, EDITION.showTeamFilter && team, country].filter(Boolean).join(" · ");
+}
+
+function updateTeamPicker(allowedTeams = null) {
+  if (!TEAM_STYLES) return;
+  const allowed = allowedTeams || new Set(state.teamMeta.map((team) => team.name));
+  const query = normalSearch($("#team-search")?.value || "");
+  $$("#team-options .team-option").forEach((option) => {
+    const checkbox = option.querySelector("input");
+    const selected = state.teams.includes(checkbox.value);
+    const available = allowed.has(checkbox.value);
+    option.hidden = !available || Boolean(query && !normalSearch(option.dataset.search).includes(query));
+    checkbox.checked = selected;
+    checkbox.disabled = !selected && state.teams.length >= 6;
+  });
+  $$("#team-options .team-option-group").forEach((group) => { group.hidden = !group.querySelector(".team-option:not([hidden])"); });
+  const selected = state.teamMeta.filter((team) => state.teams.includes(team.name));
+  $("#team-picker-summary").textContent = selected.length === 0 ? `All ${EDITION.groupLabelPlural}` : selected.length === 1 ? selected[0].name : `${selected.length} ${EDITION.groupLabelPlural} selected`;
+  const chips = $("#selected-team-chips");
+  chips.hidden = selected.length === 0;
+  chips.innerHTML = selected.map((team) => { const style = teamStyle(team.name); return `<button type="button" data-remove-team="${escapeHtml(team.name)}" title="Remove ${escapeHtml(team.name)}"><i style="--team-colour:${style.colour}"></i><span>${escapeHtml(style.code)}</span><b aria-hidden="true">×</b></button>`; }).join("");
+}
+
+function buildTeamPicker() {
+  if (!TEAM_STYLES) return;
+  state.teamMeta = state.payload.meta.teams.map((name) => {
+    const record = state.payload.records.find((row) => row.team === name || row.teamSplits?.some((split) => split.team === name));
+    const split = record?.teamSplits?.find((item) => item.team === name);
+    return { name, conference: split?.conference || record?.conference || EDITION.singleGroupLabel };
+  });
+  const control = $(".team-control");
+  control.querySelector(".select-wrap").hidden = true;
+  const label = control.querySelector("label")?.textContent || "Teams";
+  control.querySelector("label")?.remove();
+  control.insertAdjacentHTML("afterbegin", `<span class="control-label">${escapeHtml(label)}</span><details class="team-picker" id="team-picker"><summary id="team-picker-summary">All ${escapeHtml(EDITION.groupLabelPlural)}</summary><div class="team-picker-panel"><label class="team-search"><span class="sr-only">Search ${escapeHtml(EDITION.groupLabelPlural)}</span><input id="team-search" type="search" placeholder="Find a ${escapeHtml(EDITION.groupLabelPlural.slice(0, -1))}…" autocomplete="off" /></label><div class="team-options" id="team-options" role="group" aria-label="Choose up to six ${escapeHtml(EDITION.groupLabelPlural)}"></div><div class="team-picker-footer"><span>Choose up to 6</span><button id="clear-teams" type="button">All ${escapeHtml(EDITION.groupLabelPlural)}</button></div></div></details><div class="selected-team-chips" id="selected-team-chips" hidden></div>`);
+  const groups = new Map();
+  state.teamMeta.forEach((team) => { if (!groups.has(team.conference)) groups.set(team.conference, []); groups.get(team.conference).push(team); });
+  $("#team-options").innerHTML = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([conference, teams]) => `<section class="team-option-group"><strong>${escapeHtml(conference.replace(" Conference", ""))}</strong>${teams.sort((a, b) => a.name.localeCompare(b.name)).map((team) => { const style = teamStyle(team.name); return `<label class="team-option" data-search="${escapeHtml(`${team.name} ${style.code} ${team.conference}`)}"><input type="checkbox" value="${escapeHtml(team.name)}" /><i style="--team-colour:${style.colour}"></i><span>${escapeHtml(team.name)}</span><b>${escapeHtml(style.code)}</b></label>`; }).join("")}</section>`).join("");
+  updateTeamPicker();
 }
 
 function updateSnapshotCopy() {
@@ -674,9 +823,16 @@ function populateFilters() {
   if ($("#position-filter")) addOptions("#position-filter", [...new Set(state.payload.records.map((row) => row.position).filter(Boolean))].sort());
   const places = aggregatePlaces(state.payload.records).sort((a, b) => a.place.localeCompare(b.place));
   $("#place-options").innerHTML = places.map((place) => `<option value="${escapeHtml(place.place)}, ${escapeHtml(place.country)}"></option>`).join("");
+  buildTeamPicker();
 }
 
 function syncTeamOptions() {
+  if (TEAM_STYLES) {
+    const allowed = new Set(state.teamMeta.filter((team) => state.conference === "all" || team.conference === state.conference).map((team) => team.name));
+    state.teams = state.teams.filter((team) => allowed.has(team));
+    updateTeamPicker(allowed);
+    return;
+  }
   const options = [...$("#team-filter").options];
   options.forEach((option) => {
     if (option.value === "all") return;
@@ -848,6 +1004,7 @@ function currentMapHandoff() {
 function resetAll() {
   state.conference = "all";
   state.team = "all";
+  state.teams = [];
   state.country = "all";
   state.position = "all";
   state.metric = EDITION.defaultMetric;
@@ -862,6 +1019,8 @@ function resetAll() {
   if ($("#position-filter")) $("#position-filter").value = "all";
   $("#player-search").value = "";
   $("#place-search").value = "";
+  if ($("#team-search")) $("#team-search").value = "";
+  if ($("#team-picker")) $("#team-picker").open = false;
   $("#clear-place-search").hidden = true;
   $$("#metric-control button").forEach((button) => {
     const active = button.dataset.metric === state.metric;
@@ -884,6 +1043,20 @@ function resetAll() {
 function bindEvents() {
   $("#conference-filter").addEventListener("change", (event) => { state.conference = event.target.value; state.playerLimit = PLAYER_BATCH; render(); });
   $("#team-filter").addEventListener("change", (event) => { state.team = event.target.value; state.playerLimit = PLAYER_BATCH; render(); });
+  if (TEAM_STYLES) {
+    $("#team-options").addEventListener("change", (event) => {
+      const checkbox = event.target.closest('input[type="checkbox"]');
+      if (!checkbox) return;
+      if (checkbox.checked && !state.teams.includes(checkbox.value) && state.teams.length < 6) state.teams.push(checkbox.value);
+      if (!checkbox.checked) state.teams = state.teams.filter((team) => team !== checkbox.value);
+      state.playerLimit = PLAYER_BATCH;
+      updateTeamPicker();
+      render();
+    });
+    $("#team-search").addEventListener("input", () => updateTeamPicker());
+    $("#clear-teams").addEventListener("click", () => { state.teams = []; $("#team-search").value = ""; updateTeamPicker(); render(); });
+    $("#team-picker").addEventListener("keydown", (event) => { if (event.key === "Escape") { event.preventDefault(); $("#team-picker").open = false; $("#team-picker-summary").focus(); } });
+  }
   $("#country-filter").addEventListener("change", (event) => { state.country = event.target.value; state.playerLimit = PLAYER_BATCH; render(); });
   $("#position-filter")?.addEventListener("change", (event) => { state.position = event.target.value; state.playerLimit = PLAYER_BATCH; render(); });
   $("#reset-filters").addEventListener("click", resetAll);
@@ -932,9 +1105,7 @@ function bindEvents() {
     if (!place) return;
     if (state.mapMode !== "city") $("#map-mode button[data-map-mode='city']").click();
     setTimeout(() => {
-      state.map.setView([place.lat, place.lon], 6);
-      const marker = state.placeMarkers.get(place.key);
-      if (marker) state.markerLayer.zoomToShowLayer ? state.markerLayer.zoomToShowLayer(marker, () => marker.openPopup()) : marker.openPopup();
+      revealPlaceMarker(state.placeMarkers.get(place.key));
     }, 40);
     updateFilterUi();
   });
@@ -952,6 +1123,7 @@ function bindEvents() {
     setView(tabs[next].dataset.view, { focus: true });
   });
   document.addEventListener("click", (event) => {
+    if (TEAM_STYLES && !event.target.closest("#team-picker")) $("#team-picker").open = false;
     const playerButton = event.target.closest("[data-player-id]");
     if (playerButton) { openPlayerProfile(playerButton.dataset.playerId, playerButton); return; }
     const clear = event.target.closest("[data-clear-filters]");
@@ -959,15 +1131,16 @@ function bindEvents() {
     const chip = event.target.closest("[data-clear-filter]");
     if (chip) {
       const key = chip.dataset.clearFilter;
-      state[key] = "all";
-      $(`#${key}-filter`).value = "all";
+      if (key === "teams") { state.teams = []; updateTeamPicker(); }
+      else { state[key] = "all"; $(`#${key}-filter`).value = "all"; }
       render();
       return;
     }
+    const removeTeam = event.target.closest("[data-remove-team]");
+    if (removeTeam) { state.teams = state.teams.filter((team) => team !== removeTeam.dataset.removeTeam); updateTeamPicker(); render(); return; }
     const placeButton = event.target.closest("[data-place-key]");
     if (placeButton) {
-      const marker = state.placeMarkers.get(placeButton.dataset.placeKey);
-      if (marker) state.markerLayer.zoomToShowLayer ? state.markerLayer.zoomToShowLayer(marker, () => { state.map.setView(marker.getLatLng(), 6); marker.openPopup(); }) : marker.openPopup();
+      revealPlaceMarker(state.placeMarkers.get(placeButton.dataset.placeKey));
       return;
     }
     const countryButton = event.target.closest("[data-country-code]");

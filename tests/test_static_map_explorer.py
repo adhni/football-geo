@@ -417,3 +417,47 @@ def test_nfl_multi_team_picker_renders_team_rosettes():
     assert "function setRankingOpen(open" in javascript
     assert ".nfl-map-layout.ranking-open .ranking-card" in stylesheet
     assert "grid-template-columns: minmax(0, 1fr) 340px" not in stylesheet
+
+
+def test_every_explorer_uses_the_shared_map_first_workspace():
+    navigation = (ROOT / "docs" / "assets" / "sport-navigation.js").read_text(encoding="utf-8")
+    stylesheet = (ROOT / "docs" / "assets" / "styles.css").read_text(encoding="utf-8")
+    map_pages = [ROOT / "docs" / "index.html"] + [
+        ROOT / "docs" / sport / "index.html"
+        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+    ]
+
+    for page in map_pages:
+        html = page.read_text(encoding="utf-8")
+        assert 'id="map-explorer"' in html
+        assert 'class="map-layout' in html
+        assert "assets/sport-navigation.js" in html
+
+    assert "function enhanceMapWorkspace()" in navigation
+    assert 'data-map-sport-switcher' in navigation
+    assert 'class="ranking-toggle"' in navigation
+    assert 'scrim.className = "ranking-scrim"' in navigation
+    assert ".map-first-map-layout.ranking-open .ranking-card" in stylesheet
+    assert ".map-first-map-layout #talent-map" in stylesheet
+
+
+def test_shared_team_colour_registry_covers_opted_in_leagues():
+    javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")
+    colours = (ROOT / "docs" / "assets" / "team-colours.js").read_text(encoding="utf-8")
+
+    for sport, edition in (("afl", "AFL"), ("nrl", "NRL"), ("nba", "NBA"), ("nhl", "NHL"), ("mlb", "MLB")):
+        html = (ROOT / "docs" / sport / "index.html").read_text(encoding="utf-8")
+        payload = json.loads((ROOT / "docs" / sport / "data" / "dashboard.json").read_text(encoding="utf-8"))
+        assert 'src="../assets/team-colours.js"' in html
+        assert f"{edition}: {{" in colours
+        for team in payload["meta"]["teams"]:
+            assert team in colours
+
+    assert "const TEAM_STYLES" in javascript
+    assert "function aggregateTeamPlaces(records)" in javascript
+    assert "function renderTeamCityMap(records)" in javascript
+    assert "function revealPlaceMarker(marker)" in javascript
+    assert "marker.talentPlaceKey = place.key" in javascript
+    assert "state.teams.length < 6" in javascript
+    assert "projectTeamSplits(row, [split])" in javascript
+    assert (ROOT / "docs" / "FEATURE_PARITY.md").exists()
