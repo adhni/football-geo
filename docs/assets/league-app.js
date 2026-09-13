@@ -418,6 +418,17 @@ function popupPlayers(rows, maximum = 8) {
   return `${items}${rest > 0 ? `<small class="popup-rest">+ ${rest} more ${escapeHtml(EDITION.participantLabelPlural)}</small>` : ""}`;
 }
 
+function revealPlaceMarker(marker) {
+  if (!marker) return;
+  const placeKey = marker.talentPlaceKey;
+  const reveal = () => {
+    state.map.setView(marker.getLatLng(), 6, { animate: false });
+    (placeKey ? state.placeMarkers.get(placeKey) : marker)?.openPopup();
+  };
+  if (state.map.hasLayer(state.markerLayer) && state.markerLayer.zoomToShowLayer) state.markerLayer.zoomToShowLayer(marker, reveal);
+  else reveal();
+}
+
 function aggregateTeamPlaces(records) {
   const places = new Map();
   records.filter((row) => row.mapped).forEach((row) => {
@@ -507,6 +518,7 @@ function renderCityMap(places) {
     });
     marker.bindTooltip(`${escapeHtml(place.place)}, ${escapeHtml(place.country)} · ${number.format(metricValue(place))} ${metricLabel()}`);
     marker.bindPopup(`<div class="map-popup"><strong>${escapeHtml(place.place)}</strong><small>${escapeHtml(place.country)} · ${place.players} ${escapeHtml(EDITION.participantLabelPlural)}</small>${popupPlayers(place.playerList)}</div>`, { maxWidth: 310 });
+    marker.talentPlaceKey = place.key;
     state.markerLayer.addLayer(marker);
     state.placeMarkers.set(place.key, marker);
   });
@@ -1093,9 +1105,7 @@ function bindEvents() {
     if (!place) return;
     if (state.mapMode !== "city") $("#map-mode button[data-map-mode='city']").click();
     setTimeout(() => {
-      state.map.setView([place.lat, place.lon], 6);
-      const marker = state.placeMarkers.get(place.key);
-      if (marker) state.markerLayer.zoomToShowLayer ? state.markerLayer.zoomToShowLayer(marker, () => marker.openPopup()) : marker.openPopup();
+      revealPlaceMarker(state.placeMarkers.get(place.key));
     }, 40);
     updateFilterUi();
   });
@@ -1130,9 +1140,7 @@ function bindEvents() {
     if (removeTeam) { state.teams = state.teams.filter((team) => team !== removeTeam.dataset.removeTeam); updateTeamPicker(); render(); return; }
     const placeButton = event.target.closest("[data-place-key]");
     if (placeButton) {
-      const marker = state.placeMarkers.get(placeButton.dataset.placeKey);
-      if (marker && state.map.hasLayer(state.markerLayer) && state.markerLayer.zoomToShowLayer) state.markerLayer.zoomToShowLayer(marker, () => { state.map.setView(marker.getLatLng(), 6); marker.openPopup(); });
-      else if (marker) { state.map.setView(marker.getLatLng(), 6); marker.openPopup(); }
+      revealPlaceMarker(state.placeMarkers.get(placeButton.dataset.placeKey));
       return;
     }
     const countryButton = event.target.closest("[data-country-code]");

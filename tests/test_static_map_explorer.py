@@ -456,6 +456,8 @@ def test_shared_team_colour_registry_covers_opted_in_leagues():
     assert "const TEAM_STYLES" in javascript
     assert "function aggregateTeamPlaces(records)" in javascript
     assert "function renderTeamCityMap(records)" in javascript
+    assert "function revealPlaceMarker(marker)" in javascript
+    assert "marker.talentPlaceKey = place.key" in javascript
     assert "state.teams.length < 6" in javascript
     assert "projectTeamSplits(row, [split])" in javascript
     assert (ROOT / "docs" / "FEATURE_PARITY.md").exists()
