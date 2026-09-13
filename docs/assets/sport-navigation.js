@@ -87,6 +87,72 @@
     });
   }
 
+  function enhanceMapWorkspace() {
+    const view = document.querySelector("#view-map");
+    const explorer = view?.querySelector("#map-explorer");
+    const layout = view?.querySelector(".map-layout");
+    const ranking = layout?.querySelector(".ranking-card");
+    if (!view || !explorer || !layout || !ranking) return;
+    document.body.classList.add("map-first-layout");
+    if (view.querySelector(".map-workspace-toolbar")) return;
+
+    const heading = view.querySelector(":scope > .section-heading");
+    const headingCopy = heading?.querySelector(":scope > div:first-child");
+    const summary = heading?.querySelector(":scope > p");
+    heading?.classList.add("map-first-heading");
+    summary?.classList.add("map-scope-summary");
+    if (summary && headingCopy) headingCopy.append(summary);
+
+    const headingActions = document.createElement("div");
+    headingActions.className = "map-heading-actions";
+    headingActions.innerHTML = '<div class="map-switcher-slot" data-map-sport-switcher></div><button class="ranking-toggle" id="ranking-toggle" type="button" aria-controls="ranking-panel" aria-expanded="false"><span>Top locations</span><b id="ranking-toggle-count">—</b></button>';
+    heading?.append(headingActions);
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "map-workspace-toolbar";
+    explorer.before(toolbar);
+    const controls = document.querySelector("main > .controls");
+    const activeFilters = document.querySelector("main > .active-filters");
+    if (controls) { controls.classList.add("map-scope-controls"); toolbar.append(controls); }
+    if (activeFilters) toolbar.append(activeFilters);
+    toolbar.append(explorer);
+
+    layout.classList.add("map-first-map-layout");
+    ranking.id = "ranking-panel";
+    ranking.setAttribute("aria-hidden", "true");
+    const scrim = document.createElement("button");
+    scrim.className = "ranking-scrim";
+    scrim.type = "button";
+    scrim.setAttribute("aria-label", "Close top locations");
+    layout.insertBefore(scrim, ranking);
+    const close = document.createElement("button");
+    close.className = "ranking-close";
+    close.type = "button";
+    close.setAttribute("aria-label", "Close top locations");
+    close.textContent = "×";
+    ranking.querySelector(".card-heading")?.append(close);
+
+    const toggle = headingActions.querySelector(".ranking-toggle");
+    const toggleCount = headingActions.querySelector("#ranking-toggle-count");
+    const count = ranking.querySelector("#place-count");
+    const syncCount = () => { toggleCount.textContent = count?.textContent || "—"; };
+    const setOpen = (open, restoreFocus = true) => {
+      layout.classList.toggle("ranking-open", open);
+      ranking.setAttribute("aria-hidden", String(!open));
+      toggle.setAttribute("aria-expanded", String(open));
+      if (open) close.focus({ preventScroll: true });
+      else if (restoreFocus) toggle.focus({ preventScroll: true });
+    };
+    syncCount();
+    if (count) new MutationObserver(syncCount).observe(count, { childList: true, characterData: true, subtree: true });
+    toggle.addEventListener("click", () => setOpen(!layout.classList.contains("ranking-open")));
+    close.addEventListener("click", () => setOpen(false));
+    scrim.addEventListener("click", () => setOpen(false));
+    ranking.addEventListener("click", (event) => { if (event.target.closest("[data-place-key], [data-country-code], [data-hex-id]")) setOpen(false, false); });
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape" && layout.classList.contains("ranking-open")) { event.preventDefault(); setOpen(false); } });
+    document.querySelector(".view-tabs")?.addEventListener("click", (event) => { if (event.target.closest('[data-view]:not([data-view="map"])')) setOpen(false, false); });
+  }
+
   function renderDirectory(container) {
     if (!container) return;
     const number = new Intl.NumberFormat("en-US");
@@ -95,4 +161,5 @@
 
   window.TalentGeoNavigation = { sports, currentSport, rootUrl, readMapState, comparisonUrl, mountMapSwitcher, renderDirectory };
   renderHeaderNavigation();
+  enhanceMapWorkspace();
 }());

@@ -89,6 +89,8 @@ NRL explorer at `/nrl/`, the NBA explorer at `/nba/`, the NFL explorer at `/nfl/
 `/nhl/` and the MLB explorer at `/mlb/`. The `/sports/` directory summarises
 all editions, while the shared map selector preserves map mode, population
 resolution, viewpoint and compatible country filters when changing sport. To
+see the current cross-edition UI and metric contract, read the
+[feature-parity audit](docs/FEATURE_PARITY.md). To
 refresh the football data and preview every edition locally:
 
 ```bash
