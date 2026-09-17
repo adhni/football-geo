@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import time
-from collections import Counter, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import ExitStack
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Iterable
 
 import h3
 import requests
+
+from src.ftg.utils import write_json as _write_json
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT = ROOT / "docs" / "data" / "dashboard.json"
@@ -54,6 +58,32 @@ WORLDPOP_TERRITORY_BOUNDS = {
 
 def population_cache_key(cell_id: str, year: int, resolution: str) -> str:
     return f"{year}:{resolution}:{cell_id}"
+
+
+def _raster_cache_context(country_geometry_path: Path, raster_cache_dir: Path) -> str:
+    """Invalidate cell totals when the raster source or country-selection rules change."""
+    settings = {
+        "method": "official_country_rasters_v1",
+        "source": WORLDPOP_SOURCE,
+        "h3_version": h3.__version__,
+        "raster_directory": str(raster_cache_dir.resolve()),
+        "country_aliases": WORLDPOP_COUNTRY_ALIASES,
+        "country_names": WORLDPOP_COUNTRY_NAME_ALIASES,
+        "territory_bounds": WORLDPOP_TERRITORY_BOUNDS,
+    }
+    digest = hashlib.sha256(country_geometry_path.read_bytes())
+    digest.update(json.dumps(settings, sort_keys=True).encode("utf-8"))
+    return digest.hexdigest()[:24]
+
+
+def _raster_population_cache_key(
+    cell_id: str, year: int, resolution: str, context: str, countries: Iterable[str],
+) -> str:
+    # Hints can add small islands omitted from the country polygons. Include them
+    # so totals computed with different country coverage cannot be mixed.
+    hints = json.dumps(sorted(countries), ensure_ascii=False)
+    digest = hashlib.sha256(hints.encode("utf-8")).hexdigest()[:16]
+    return f"rasters:{context}:{population_cache_key(cell_id, year, resolution)}:{digest}"
 
 
 def occupied_hexes(payload: dict[str, Any], resolution: int = 3) -> dict[str, dict[str, Any]]:
@@ -181,6 +211,7 @@ def population_from_rasters(
     raster_cache_dir: Path,
     workers: int = 4,
     hinted_countries: dict[str, Iterable[str]] | None = None,
+    on_result: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Calculate coarse-cell population directly from official 1 km rasters."""
     import numpy as np
@@ -204,26 +235,38 @@ def population_from_rasters(
                 print(f"  prepared {index:,}/{len(required):,} country rasters", flush=True)
 
     results = {}
-    for index, cell_id in enumerate(cell_ids, start=1):
-        geometry = cell_polygon(cell_id)
-        population = 0.0
-        for code in country_codes[cell_id]:
-            with rasterio.open(rasters[code]) as source:
+    # Retain a bounded set of recently used files across cells, closing all
+    # handles even if masking or checkpointing fails.
+    with ExitStack() as stack:
+        sources: OrderedDict[str, Any] = OrderedDict()
+        for index, cell_id in enumerate(cell_ids, start=1):
+            geometry = cell_polygon(cell_id)
+            population = 0.0
+            for code in country_codes[cell_id]:
+                if code not in sources:
+                    if len(sources) >= 16:
+                        _, oldest = sources.popitem(last=False)
+                        oldest.close()
+                    sources[code] = stack.enter_context(rasterio.open(rasters[code]))
+                sources.move_to_end(code)
+                source = sources[code]
                 try:
                     values, _ = mask(source, [geometry], crop=True, filled=False)
                 except ValueError:
                     continue
                 population += float(np.ma.filled(np.ma.sum(values[0]), 0))
-        area_km2 = float(h3.cell_area(cell_id, unit="km^2"))
-        results[cell_id] = {
-            "population": round(population),
-            "area_km2": round(area_km2, 1),
-            "population_density": round(population / area_km2, 1) if area_km2 else 0,
-            "data_year": year,
-            "data_source": WORLDPOP_SOURCE,
-        }
-        if index % 10 == 0 or index == len(cell_ids):
-            print(f"  calculated {index:,}/{len(cell_ids):,} occupied areas", flush=True)
+            area_km2 = float(h3.cell_area(cell_id, unit="km^2"))
+            results[cell_id] = {
+                "population": round(population),
+                "area_km2": round(area_km2, 1),
+                "population_density": round(population / area_km2, 1) if area_km2 else 0,
+                "data_year": year,
+                "data_source": WORLDPOP_SOURCE,
+            }
+            if on_result is not None:
+                on_result(cell_id, results[cell_id])
+            if index % 10 == 0 or index == len(cell_ids):
+                print(f"  calculated {index:,}/{len(cell_ids):,} occupied areas", flush=True)
     return results
 
 
@@ -265,13 +308,6 @@ def _request_population(
     raise RuntimeError(f"Population lookup failed for {cell_id}: {last_error}")
 
 
-def _write_json(path: Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(value, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    temporary.replace(path)
-
-
 def build_population_hexes(
     payload: dict[str, Any],
     *,
@@ -283,27 +319,50 @@ def build_population_hexes(
     country_geometry_path: Path = DEFAULT_COUNTRY_GEOMETRY,
     raster_cache_dir: Path = DEFAULT_RASTER_CACHE,
     use_rasters: bool = False,
+    refresh_population: bool = False,
 ) -> dict[str, Any]:
     cells = occupied_hexes(payload, h3_resolution)
-    raster_population = None
     query_cells = sorted(cells)
-    if use_rasters or h3_resolution < WORLDPOP_MAX_H3_POLYGON_RESOLUTION:
-        raster_population = population_from_rasters(
-            cells,
-            year=year,
-            country_geometry_path=country_geometry_path,
-            raster_cache_dir=raster_cache_dir,
-            workers=workers,
-            hinted_countries={cell_id: cell["countries"].keys() for cell_id, cell in cells.items()},
-        )
+    raster_mode = use_rasters or h3_resolution < WORLDPOP_MAX_H3_POLYGON_RESOLUTION
+    if raster_mode and raster_resolution != "1km":
+        raise ValueError("Official country rasters support only raster_resolution='1km'")
     cache: dict[str, dict[str, Any]] = {}
-    if raster_population is None and cache_path.exists():
+    if cache_path.exists():
         cache = json.loads(cache_path.read_text(encoding="utf-8"))
+    context = _raster_cache_context(country_geometry_path, raster_cache_dir) if raster_mode and cells else ""
+    keys = {
+        cell_id: _raster_population_cache_key(cell_id, year, raster_resolution, context, cells[cell_id]["countries"])
+        if raster_mode else population_cache_key(cell_id, year, raster_resolution)
+        for cell_id in query_cells
+    }
     missing = [
         cell_id for cell_id in query_cells
-        if population_cache_key(cell_id, year, raster_resolution) not in cache
-    ] if raster_population is None else []
-    if missing:
+        if refresh_population or keys[cell_id] not in cache
+    ]
+    if missing and raster_mode:
+        completed = 0
+
+        def checkpoint(cell_id: str, result: dict[str, Any]) -> None:
+            nonlocal completed
+            cache[keys[cell_id]] = result
+            completed += 1
+            if completed % 10 == 0:
+                _write_json(cache_path, cache)
+
+        try:
+            population_from_rasters(
+                missing,
+                year=year,
+                country_geometry_path=country_geometry_path,
+                raster_cache_dir=raster_cache_dir,
+                workers=workers,
+                hinted_countries={cell_id: cells[cell_id]["countries"].keys() for cell_id in missing},
+                on_result=checkpoint,
+            )
+        finally:
+            # Preserve completed cells on an interrupted/failed run as well.
+            _write_json(cache_path, cache)
+    elif missing:
         print(
             f"Querying WorldPop for {len(missing):,} of {len(query_cells):,} population cells "
             f"covering {len(cells):,} occupied areas...",
@@ -323,7 +382,7 @@ def build_population_hexes(
                     errors.append(str(error))
                     print(f"  failed {cell_id}: {error}", flush=True)
                 else:
-                    cache[population_cache_key(cell_id, year, raster_resolution)] = result
+                    cache[keys[cell_id]] = result
                     if index % 10 == 0 or index == len(missing):
                         _write_json(cache_path, cache)
                         print(f"  processed {index:,}/{len(missing):,} · cached {len(cache):,}", flush=True)
@@ -333,9 +392,7 @@ def build_population_hexes(
 
     features = []
     for cell_id, cell in cells.items():
-        population = raster_population[cell_id] if raster_population is not None else cache[
-            population_cache_key(cell_id, year, raster_resolution)
-        ]
+        population = cache[keys[cell_id]]
         player_ids = sorted(cell["player_ids"])
         players_per_million = len(player_ids) / population["population"] * 1_000_000 if population["population"] else None
         features.append(
@@ -366,7 +423,7 @@ def build_population_hexes(
             "population_year": year,
             "raster_resolution": raster_resolution,
             "h3_resolution": h3_resolution,
-            "population_method": "official_country_rasters" if raster_population is not None else "polygon_api",
+            "population_method": "official_country_rasters" if raster_mode else "polygon_api",
             "occupied_cells": len(features),
             "mapped_players": sum(feature["properties"]["all_players"] for feature in features),
         },
@@ -384,6 +441,7 @@ def run(
     country_geometry_path: Path = DEFAULT_COUNTRY_GEOMETRY,
     raster_cache_dir: Path = DEFAULT_RASTER_CACHE,
     use_rasters: bool = False,
+    refresh_population: bool = False,
 ) -> dict[str, Any]:
     payload = json.loads(input_path.read_text(encoding="utf-8"))
     result = build_population_hexes(
@@ -395,6 +453,7 @@ def run(
         country_geometry_path=country_geometry_path,
         raster_cache_dir=raster_cache_dir,
         use_rasters=use_rasters,
+        refresh_population=refresh_population,
     )
     _write_json(output_path, result)
     print(
@@ -415,6 +474,7 @@ def main() -> None:
     parser.add_argument("--country-geometry", type=Path, default=DEFAULT_COUNTRY_GEOMETRY)
     parser.add_argument("--raster-cache", type=Path, default=DEFAULT_RASTER_CACHE)
     parser.add_argument("--use-rasters", action="store_true", help="Use official country rasters instead of the polygon API")
+    parser.add_argument("--refresh-population", action="store_true", help="Recompute cell totals, keeping downloaded raster files")
     args = parser.parse_args()
     run(
         input_path=args.input,
@@ -426,6 +486,7 @@ def main() -> None:
         country_geometry_path=args.country_geometry,
         raster_cache_dir=args.raster_cache,
         use_rasters=args.use_rasters,
+        refresh_population=args.refresh_population,
     )
 
 

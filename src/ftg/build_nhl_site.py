@@ -11,17 +11,25 @@ from typing import Any, Iterable
 
 import requests
 
-from src.ftg.build_nfl_site import (
+from src.ftg.geonames import (
+    ADMIN1_URL,
+    DEFAULT_ADMIN1_CACHE,
     DEFAULT_COUNTRIES_CACHE,
     DEFAULT_GEONAMES_CACHE,
     GEONAMES_CITIES_URL,
     GEONAMES_COUNTRIES_URL,
-    _download_binary,
     build_city_index,
+    load_admin1_aliases,
     load_country_codes,
-    normalize,
+    resolve_birthplace_with_admin1 as resolve_birthplace,
 )
 from src.ftg.http_cache import CachedHttpClient
+from src.ftg.utils import (
+    age_on as _age_on,
+    download_binary as _download_binary,
+    normalize_key as normalize,
+    write_json as _write_json,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 SEASON_ID = 20252026
@@ -30,25 +38,11 @@ SEASON_END = date(2026, 4, 16)
 STANDINGS_URL = "https://api-web.nhle.com/v1/standings/2026-04-16"
 CLUB_STATS_URL = "https://api-web.nhle.com/v1/club-stats/{team}/20252026/2"
 PLAYER_PROFILE_URL = "https://api-web.nhle.com/v1/player/{player_id}/landing"
-ADMIN1_URL = "https://download.geonames.org/export/dump/admin1CodesASCII.txt"
 
 DEFAULT_OUTPUT = ROOT / "docs" / "nhl" / "data" / "dashboard.json"
 DEFAULT_STANDINGS_CACHE = ROOT / "data" / "cache" / "nhl_standings_2025_26.json"
 DEFAULT_CLUB_CACHE = ROOT / "data" / "cache" / "nhl_club_stats_2025_26"
 DEFAULT_PROFILE_CACHE = ROOT / "data" / "cache" / "nhl_player_profiles_2025_26.json"
-DEFAULT_ADMIN1_CACHE = ROOT / "data" / "cache" / "geonames_admin1_codes.txt"
-
-
-def _write_json(path: Path, value: Any, *, pretty: bool = False) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    options = {"ensure_ascii": False, "sort_keys": pretty}
-    if pretty:
-        options["indent"] = 2
-    else:
-        options["separators"] = (",", ":")
-    temporary.write_text(json.dumps(value, **options), encoding="utf-8")
-    temporary.replace(path)
 
 
 def fetch_json(url: str, cache_path: Path, *, force: bool = False) -> dict[str, Any]:
@@ -228,58 +222,8 @@ def fetch_profiles(
     return cache
 
 
-def load_admin1_aliases(path: Path) -> dict[tuple[str, str], str]:
-    aliases: dict[tuple[str, str], str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        fields = line.split("\t")
-        if len(fields) < 3 or "." not in fields[0]:
-            continue
-        country_code, admin_code = fields[0].split(".", 1)
-        for value in (admin_code, fields[1], fields[2]):
-            if value:
-                aliases[(country_code, normalize(value))] = admin_code
-    return aliases
-
-
-def resolve_birthplace(
-    profile: dict[str, Any],
-    city_index: dict[str, list[dict[str, Any]]],
-    country_aliases: dict[str, str],
-    country_names: dict[str, str],
-    admin1_aliases: dict[tuple[str, str], str],
-) -> dict[str, Any] | None:
-    city = profile.get("birth_city")
-    country_code = country_aliases.get(normalize(profile.get("birth_country")))
-    if not city or not country_code:
-        return None
-    candidates = [
-        candidate for candidate in city_index.get(normalize(city), [])
-        if candidate["country_code"] == country_code
-    ]
-    state = normalize(profile.get("birth_state"))
-    admin_code = admin1_aliases.get((country_code, state)) if state else None
-    if admin_code:
-        candidates = [candidate for candidate in candidates if candidate["admin1"] == admin_code]
-    if not candidates:
-        return None
-    match = max(candidates, key=lambda candidate: candidate["population"])
-    return {
-        "place": str(city),
-        "country": country_names.get(country_code, str(profile.get("birth_country") or country_code)),
-        "lat": round(float(match["lat"]), 6),
-        "lon": round(float(match["lon"]), 6),
-        "geonames_id": str(match["geonames_id"]),
-    }
-
-
 def age_on(dob: str | None, on_date: date = SEASON_END) -> int | None:
-    if not dob:
-        return None
-    try:
-        born = date.fromisoformat(dob[:10])
-    except ValueError:
-        return None
-    return on_date.year - born.year - ((on_date.month, on_date.day) < (born.month, born.day))
+    return _age_on(dob, on_date)
 
 
 def build_payload(

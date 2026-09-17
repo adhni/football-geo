@@ -61,15 +61,16 @@ Raw HTML and external datasets should be cached locally but not committed unless
 
 ## Quick start
 
-Python 3.10 or newer is recommended.
+Python 3.10 or newer is recommended. The JavaScript behavior tests use Node.js
+22 or newer; they do not require npm packages.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\\Scripts\\activate
 pip install -r requirements.txt
 
-# Test the parser + metric engine
-pytest -q
+# Run Python and JavaScript tests
+make test
 
 # Build the seeded demo outputs
 python -m src.ftg.build_demo
@@ -90,21 +91,18 @@ NRL explorer at `/nrl/`, the NBA explorer at `/nba/`, the NFL explorer at `/nfl/
 all editions, while the shared map selector preserves map mode, population
 resolution, viewpoint and compatible country filters when changing sport. To
 see the current cross-edition UI and metric contract, read the
-[feature-parity audit](docs/FEATURE_PARITY.md). To
-refresh the football data and preview every edition locally:
+[feature-parity audit](docs/FEATURE_PARITY.md). To preview the committed
+snapshots locally (no data downloads or rebuild required):
 
 ```bash
-python -m src.ftg.export_static_site
-python -m src.ftg.build_population_hexes \
-  --output docs/data/population_hexes_r3.geojson \
-  --h3-resolution 3 --use-rasters
-python -m http.server 8000 --directory docs
+make preview
 ```
 
 Then open `http://localhost:8000`. The generated dashboard data is committed at
 `docs/data/dashboard.json`; raw and intermediate datasets remain local.
-The population command queries only occupied H3 cells and resumes from the
-ignored `data/cache/` checkpoint.
+For a data refresh, use the [Big Five rebuild](#rebuilding-the-current-big-five-edition)
+below. The exporter defaults to Big Five inputs and refuses to write another
+cohort or season to the live `docs/data/dashboard.json` path.
 
 To refresh the calendar-year 2025 men's and women's T20I snapshot:
 
@@ -375,7 +373,16 @@ official WorldPop country rasters because the public polygon API limits
 requests to 50,000 km². Each sport and area size derives a stable colour scale
 from its full unfiltered population-rate distribution.
 
-To rebuild the current Big Five edition:
+## Rebuilding the current Big Five edition
+
+With the Python environment activated, this rebuilds the source data, birthplace
+enrichment, dashboard JSON, and all three population resolutions in order:
+
+```bash
+make rebuild-football
+```
+
+The data preparation and export steps are:
 
 ```bash
 python -m src.ftg.import_top5
@@ -384,7 +391,25 @@ python -m src.ftg.build_top5
 python -m src.ftg.export_static_site \
   --input data/processed/top5_players_with_birthplace.parquet \
   --unresolved data/qa/top5_wikidata_resolution_queue.csv
+make football-population
 ```
+
+If the processed Big Five inputs already exist, use `make football-export`
+followed by `make football-population`. Review the resulting changes in `docs/`
+before publishing. Rebuild commands download external inputs and can take time;
+`make preview` only serves the committed site.
+
+Population builds cache both downloaded rasters and computed cell totals under
+the ignored `data/cache/` directory. Completed raster cells are checkpointed every
+10 results and on exit, including failures, so reruns calculate only missing
+cells. Cache entries distinguish the API from raster calculations and include
+the year, H3 cell, source release, country geometry, and country hints. Player
+membership and rates are rebuilt from the current dashboard on every run.
+Use `--refresh-population` with `build_population_hexes` to recompute totals
+after manually replacing downloaded rasters; downloaded files are retained.
+
+For contributor guidance, see the [dashboard JSON contract](docs/DASHBOARD_SCHEMA.md)
+and [code structure](docs/DEVELOPMENT.md).
 
 ## Importing the 20-team dataset
 
@@ -396,34 +421,53 @@ python -m src.ftg.import_data --input data/incoming
 
 The importer accepts split files, normalises common source headings, validates the frozen cohort and season window, prevents duplicate team-season-player rows, and writes coverage/issue reports to `data/qa/`. See `docs/INCOMING_DATA.md` and `config/incoming_player_seasons_template.csv` for the contract.
 
-## Full collection flow
+## Historical World Cup flow
+
+This is a separate dataset from the live Big Five edition. The importer already
+supplies Wikipedia links and dates of birth, so skip `enrich_players` (which parses
+11v11 profiles). Keep historical outputs separate from the published snapshot:
 
 ```bash
-# Option A: scrape all team-season squad tables politely and cache HTML
-python -m src.ftg.collect_11v11 --start-season 2000 --end-season 2026
-
-# Option B: import prepared CSV/Parquet files
-python -m src.ftg.import_data --input data/incoming
-
-# Bounded open-data fallback: World Cup finals, 2002-2022
+# World Cup finals, 2002-2022; --no-default preserves canonical season inputs
 git clone --depth 1 https://github.com/jfjelstul/worldcup.git /tmp/ftg-worldcup
-python -m src.ftg.import_worldcup --source-dir /tmp/ftg-worldcup/data-csv
-
-# 2) Build unique player table + fetch player profile metadata
-python -m src.ftg.enrich_players
-
-# 3) Resolve birthplace coordinates / birth country with Wikidata
-python -m src.ftg.enrich_wikidata
-
-# 3b) Build point-map inputs and birthplace coverage QA
-python -m src.ftg.build_birthplaces
+python -m src.ftg.import_worldcup --source-dir /tmp/ftg-worldcup/data-csv --no-default
+make worldcup-birthplaces
+python -m src.ftg.export_static_site \
+  --input data/processed/player_starts_with_birthplace.parquet \
+  --unresolved data/qa/wikidata_resolution_queue.csv \
+  --output data/processed/worldcup/dashboard.json
 
 # 4) Spatially join birthplace points to ADM1/ADM2
-python -m src.ftg.assign_admin --adm1 path/to/adm1.geojson --adm2 path/to/adm2.geojson
+python -m src.ftg.assign_admin \
+  --points data/processed/worldcup_players_enriched.parquet \
+  --adm1 path/to/adm1.geojson --adm2 path/to/adm2.geojson \
+  --output data/processed/worldcup_player_geography.parquet
 
 # 5) Join population table and calculate final metrics
-python -m src.ftg.build_metrics --population data/raw/population_admin.csv
+python -m src.ftg.build_metrics \
+  --starts data/processed/worldcup_player_starts.parquet \
+  --geography data/processed/worldcup_player_geography.parquet \
+  --population data/raw/population_admin.csv \
+  --output data/processed/worldcup_area_metrics.parquet
 ```
+
+The historical JSON export is an analysis artifact; the current football web
+interface expects Big Five leagues. `make birthplaces` remains an alias for
+`make worldcup-birthplaces`.
+
+## 11v11 collection (identity resolution incomplete)
+
+```bash
+python -m src.ftg.collect_11v11 --start-season 2000 --end-season 2026
+python -m src.ftg.enrich_players
+```
+
+These commands produce season counts and raw 11v11 player profiles. The current
+`enrich_wikidata` resolver requires English Wikipedia URLs plus source DOBs;
+it does not resolve 11v11 URLs by name. A separate verified identity-linking step
+is required before this collection can enter birthplace enrichment. Passing only
+11v11 URLs now fails with an explanatory error instead of producing an entirely
+unresolved export.
 
 ## Important data rule
 

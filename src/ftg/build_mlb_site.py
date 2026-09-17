@@ -10,18 +10,25 @@ from typing import Any, Iterable
 
 import requests
 
-from src.ftg.build_nfl_site import (
+from src.ftg.geonames import (
+    ADMIN1_URL,
+    DEFAULT_ADMIN1_CACHE,
     DEFAULT_COUNTRIES_CACHE,
     DEFAULT_GEONAMES_CACHE,
     GEONAMES_CITIES_URL,
     GEONAMES_COUNTRIES_URL,
-    _download_binary,
     build_city_index,
+    load_admin1_aliases,
     load_country_codes,
-    normalize,
+    resolve_birthplace_with_admin1 as resolve_birthplace,
 )
-from src.ftg.build_nhl_site import ADMIN1_URL, load_admin1_aliases, resolve_birthplace
 from src.ftg.http_cache import CachedHttpClient
+from src.ftg.utils import (
+    age_on as _age_on,
+    download_binary as _download_binary,
+    normalize_key as normalize,
+    write_json as _write_json,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 SEASON = 2025
@@ -36,19 +43,6 @@ TEAM_STATS_URL = (
 DEFAULT_OUTPUT = ROOT / "docs" / "mlb" / "data" / "dashboard.json"
 DEFAULT_TEAMS_CACHE = ROOT / "data" / "cache" / "mlb_teams_2025.json"
 DEFAULT_STATS_CACHE = ROOT / "data" / "cache" / "mlb_team_stats_2025"
-DEFAULT_ADMIN1_CACHE = ROOT / "data" / "cache" / "geonames_admin1_codes.txt"
-
-
-def _write_json(path: Path, value: Any, *, pretty: bool = False) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    options = {"ensure_ascii": False, "sort_keys": pretty}
-    if pretty:
-        options["indent"] = 2
-    else:
-        options["separators"] = (",", ":")
-    temporary.write_text(json.dumps(value, **options), encoding="utf-8")
-    temporary.replace(path)
 
 
 def fetch_json(url: str, cache_path: Path, *, force: bool = False) -> dict[str, Any]:
@@ -209,13 +203,7 @@ def aggregate_team_stats(
 
 
 def age_on(dob: str | None, on_date: date = SEASON_END) -> int | None:
-    if not dob:
-        return None
-    try:
-        born = date.fromisoformat(dob[:10])
-    except ValueError:
-        return None
-    return on_date.year - born.year - ((on_date.month, on_date.day) < (born.month, born.day))
+    return _age_on(dob, on_date)
 
 
 def build_payload(

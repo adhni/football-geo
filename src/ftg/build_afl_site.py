@@ -4,7 +4,6 @@ import argparse
 import hashlib
 import json
 import re
-import unicodedata
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -13,7 +12,6 @@ from urllib.parse import urlencode
 import pandas as pd
 import requests
 
-from src.ftg.build_nfl_site import _download_binary
 from src.ftg.enrich_wikidata import (
     _fetch_entities,
     _fetch_title_qids,
@@ -23,6 +21,11 @@ from src.ftg.enrich_wikidata import (
     entity_label,
 )
 from src.ftg.http_cache import CachedHttpClient
+from src.ftg.utils import (
+    age_on as _age_on,
+    download_binary as _download_binary,
+    normalize_key as normalize,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 SEASON = 2025
@@ -53,11 +56,6 @@ TEAM_NAMES = {
     "Sydney": "Sydney Swans",
     "West Coast": "West Coast Eagles",
 }
-
-
-def normalize(value: object) -> str:
-    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode().casefold()
-    return re.sub(r"[^a-z0-9]", "", text)
 
 
 def filter_home_and_away(stats: pd.DataFrame, season: int = SEASON) -> pd.DataFrame:
@@ -598,13 +596,7 @@ def fetch_wikidata(
 
 
 def age_on(dob: str | None, on_date: date = date(2025, 8, 24)) -> int | None:
-    if not dob:
-        return None
-    try:
-        born = date.fromisoformat(dob[:10])
-    except ValueError:
-        return None
-    return on_date.year - born.year - ((on_date.month, on_date.day) < (born.month, born.day))
+    return _age_on(dob, on_date)
 
 
 def build_payload(

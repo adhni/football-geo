@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import argparse
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
 
+from .utils import write_json
+
 ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = ROOT / "data" / "processed"
 QA = ROOT / "data" / "qa"
 DEFAULT_OUTPUT = ROOT / "docs" / "data" / "dashboard.json"
+DEFAULT_INPUT = PROCESSED / "top5_players_with_birthplace.parquet"
+DEFAULT_UNRESOLVED = QA / "top5_wikidata_resolution_queue.csv"
+BIG_FIVE_LEAGUES = {"Premier League", "La Liga", "Bundesliga", "Serie A", "Ligue 1"}
 
 
 def _date_string(value: object) -> str | None:
@@ -120,18 +124,26 @@ def build_payload(
 
 
 def run(
-    input_path: Path = PROCESSED / "player_starts_with_birthplace.parquet",
-    unresolved_path: Path = QA / "wikidata_resolution_queue.csv",
+    input_path: Path = DEFAULT_INPUT,
+    unresolved_path: Path = DEFAULT_UNRESOLVED,
     output_path: Path = DEFAULT_OUTPUT,
 ) -> dict:
     data = pd.read_parquet(input_path)
+    if output_path.resolve() == DEFAULT_OUTPUT.resolve() and (
+        not {"league", "season_end_year"}.issubset(data.columns)
+        or data.empty
+        or data["league"].isna().any()
+        or not set(data["league"]).issubset(BIG_FIVE_LEAGUES)
+        or set(data["season_end_year"].dropna()) != {2026}
+        or data["season_end_year"].isna().any()
+    ):
+        raise ValueError(
+            "docs/data/dashboard.json is reserved for the 2025–26 Big Five edition. "
+            "Export historical datasets with --output to a separate directory."
+        )
     unresolved = pd.read_csv(unresolved_path) if unresolved_path.exists() else None
     payload = build_payload(data, unresolved)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-        encoding="utf-8",
-    )
+    write_json(output_path, payload)
     print(
         f"Wrote {len(payload['records']):,} records and "
         f"{payload['summary']['birthplaces']:,} birthplaces to {output_path}"
@@ -141,8 +153,8 @@ def run(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export the static GitHub Pages dataset")
-    parser.add_argument("--input", type=Path, default=PROCESSED / "player_starts_with_birthplace.parquet")
-    parser.add_argument("--unresolved", type=Path, default=QA / "wikidata_resolution_queue.csv")
+    parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
+    parser.add_argument("--unresolved", type=Path, default=DEFAULT_UNRESOLVED)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
     run(args.input, args.unresolved, args.output)

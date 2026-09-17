@@ -191,6 +191,12 @@ def run(
     if players["player_id"].duplicated().any():
         raise ValueError("players_source must contain one row per player_id")
     players["wikipedia_title"] = players["player_url"].map(wikipedia_title)
+    if not players.empty and players["wikipedia_title"].isna().all():
+        raise ValueError(
+            "This resolver requires English Wikipedia player URLs and source DOBs. "
+            "Use worldcup_players_source.parquet for the World Cup flow; "
+            "11v11 profiles require a separate identity-resolution step."
+        )
 
     session = requests.Session()
     session.headers.update(

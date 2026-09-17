@@ -16,7 +16,6 @@ from urllib.parse import urlencode
 import requests
 from bs4 import BeautifulSoup
 
-from src.ftg.build_motogp_site import fetch_wikidata_birthplaces
 from src.ftg.enrich_wikidata import (
     _fetch_entities,
     claim_coordinates,
@@ -25,6 +24,8 @@ from src.ftg.enrich_wikidata import (
     entity_label,
 )
 from src.ftg.http_cache import CachedHttpClient
+from src.ftg.utils import write_json as _write_json
+from src.ftg.wikidata_birthplaces import fetch_wikidata_birthplaces
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -53,16 +54,6 @@ def normalize(value: object) -> str:
     text = str(value or "").translate(str.maketrans({"ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "đ": "d", "Đ": "D"}))
     text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().casefold()
     return re.sub(r"[^a-z0-9]", "", text)
-
-
-def _write_json(path: Path, value: Any, *, pretty: bool = False) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    options = {"ensure_ascii": False, "indent": 2, "sort_keys": True} if pretty else {
-        "ensure_ascii": False, "separators": (",", ":")
-    }
-    temporary.write_text(json.dumps(value, **options), encoding="utf-8")
-    temporary.replace(path)
 
 
 def _read_input(path: Path, url: str, *, force: bool = False) -> tuple[bytes, str]:

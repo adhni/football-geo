@@ -16,24 +16,21 @@ from urllib.parse import urlencode
 import pdfplumber
 import requests
 
-from src.ftg.build_nfl_site import (
+from src.ftg.geonames import (
     DEFAULT_COUNTRIES_CACHE,
     DEFAULT_GEONAMES_CACHE,
     GEONAMES_CITIES_URL,
     GEONAMES_COUNTRIES_URL,
-    _download_binary,
     build_city_index,
     load_country_codes,
 )
 from src.ftg.http_cache import CachedHttpClient
-from src.ftg.enrich_wikidata import (
-    _fetch_entities,
-    _fetch_title_qids,
-    claim_coordinates,
-    claim_date,
-    claim_entity,
-    entity_label,
+from src.ftg.utils import (
+    age_on as _age_on,
+    download_binary as _download_binary,
+    write_json as _write_json,
 )
+from src.ftg.wikidata_birthplaces import fetch_wikidata_birthplaces
 
 ROOT = Path(__file__).resolve().parents[2]
 SEASON = 2025
@@ -55,7 +52,6 @@ WCR_POINTS = (25, 20, 16, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1)
 DEFAULT_OUTPUT = ROOT / "docs" / "motogp" / "data" / "dashboard.json"
 DEFAULT_CACHE = ROOT / "data" / "cache" / "motogp_2025"
 DEFAULT_WIKIDATA_CACHE = ROOT / "data" / "cache" / "motogp_wikidata_2025.json"
-COUNTRY_PLACE_TYPES = {"Q6256", "Q3624078"}
 NON_CITY_NAMES = {
     "argentina", "australia", "cantabria", "italy", "japan", "java", "larioja",
     "malaysia", "newzealand", "southafrica", "spain", "terengganu",
@@ -66,16 +62,6 @@ def normalize(value: object) -> str:
     text = str(value or "").translate(str.maketrans({"ø": "o", "Ø": "O", "ł": "l", "Ł": "L", "đ": "d", "Đ": "D"}))
     text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().casefold()
     return re.sub(r"[^a-z0-9]", "", text)
-
-
-def _write_json(path: Path, value: Any, *, pretty: bool = False) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    options = {"ensure_ascii": False, "indent": 2, "sort_keys": True} if pretty else {
-        "ensure_ascii": False, "separators": (",", ":")
-    }
-    temporary.write_text(json.dumps(value, **options), encoding="utf-8")
-    temporary.replace(path)
 
 
 def _read_input(path: Path, url: str, *, force: bool = False) -> tuple[bytes, str]:
@@ -355,77 +341,7 @@ def aggregate_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def age_on(dob: str | None) -> int | None:
-    if not dob:
-        return None
-    try:
-        born = date.fromisoformat(dob[:10])
-    except ValueError:
-        return None
-    return SEASON_END.year - born.year - ((SEASON_END.month, SEASON_END.day) < (born.month, born.day))
-
-
-def _claim_ids(entity: dict[str, Any], property_id: str) -> set[str]:
-    output = set()
-    for claim in entity.get("claims", {}).get(property_id, []):
-        value = (claim.get("mainsnak", {}).get("datavalue") or {}).get("value")
-        if isinstance(value, dict) and value.get("id"):
-            output.add(value["id"])
-    return output
-
-
-def fetch_wikidata_birthplaces(
-    players: list[dict[str, Any]], profiles: dict[str, dict[str, Any]], cache_path: Path,
-    *, force: bool = False,
-) -> dict[str, dict[str, Any]]:
-    if cache_path.exists() and not force:
-        return json.loads(cache_path.read_text(encoding="utf-8"))
-    session = requests.Session()
-    session.headers.update({"User-Agent": "TalentGeography/1.0 (research; github.com/adhni/football-geo)"})
-    client = CachedHttpClient(session, delay=0.06, retries=3, timeout=120)
-    titles = [player["name"] for player in players]
-    title_qids = _fetch_title_qids(client, titles, batch_size=40, force=force)
-    people = _fetch_entities(
-        client, [qid for qid in title_qids.values() if qid], "motogp_person_batches",
-        batch_size=30, force=force, languages="en|es|it|fr|de|pt|nl|ja",
-    )
-    selected = {}
-    for player in players:
-        qid = title_qids.get(player["name"])
-        entity = people.get(qid, {})
-        source_dob = profiles.get(player["playerId"], {}).get("dob")
-        if qid and claim_entity(entity, "P31") == "Q5" and source_dob and claim_date(entity) == source_dob:
-            selected[player["playerId"]] = qid
-    place_by_player = {key: claim_entity(people.get(qid, {}), "P19") for key, qid in selected.items()}
-    places = _fetch_entities(client, [qid for qid in place_by_player.values() if qid], "motogp_place_batches", batch_size=30, force=force)
-    parents = _fetch_entities(
-        client, [qid for entity in places.values() if (qid := claim_entity(entity, "P131"))],
-        "motogp_parent_batches", batch_size=30, force=force,
-    )
-    locations = {**parents, **places}
-    countries = _fetch_entities(
-        client, [qid for entity in locations.values() if (qid := claim_entity(entity, "P17"))],
-        "motogp_country_batches", batch_size=30, force=force,
-    )
-    output: dict[str, dict[str, Any]] = {}
-    for key, person_qid in selected.items():
-        place_qid = place_by_player.get(key)
-        place = places.get(place_qid, {})
-        if not place_qid or _claim_ids(place, "P31") & COUNTRY_PLACE_TYPES:
-            continue
-        parent = parents.get(claim_entity(place, "P131"), {})
-        coordinate_entity = place if claim_coordinates(place) != (None, None) else parent
-        lat, lon = claim_coordinates(coordinate_entity)
-        country_qid = claim_entity(place, "P17") or claim_entity(parent, "P17")
-        country = entity_label(countries.get(country_qid, {}))
-        if lat is None or lon is None or not country:
-            continue
-        output[key] = {
-            "place": entity_label(place), "country": country, "lat": lat, "lon": lon,
-            "wikidata_qid": person_qid, "birth_place_qid": place_qid,
-            "resolution_source": "Wikidata identity verified against official DOB",
-        }
-    _write_json(cache_path, output, pretty=True)
-    return output
+    return _age_on(dob, SEASON_END)
 
 
 def birth_city_search_name(value: str | None) -> tuple[str | None, str | None]:

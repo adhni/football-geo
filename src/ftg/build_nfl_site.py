@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import io
 import json
 import re
 import time
-import unicodedata
-import zipfile
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
@@ -17,7 +14,22 @@ from typing import Any, Iterable
 import pandas as pd
 import requests
 
+from src.ftg.geonames import (
+    DEFAULT_COUNTRIES_CACHE,
+    DEFAULT_GEONAMES_CACHE,
+    GEONAMES_CITIES_URL,
+    GEONAMES_COUNTRIES_URL,
+    build_city_index,
+    load_country_codes,
+    resolve_birthplace,
+)
 from src.ftg.http_cache import CachedHttpClient
+from src.ftg.utils import (
+    age_on as _age_on,
+    download_binary as _download_binary,
+    normalize_key as normalize,
+    write_json as _write_json,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 SNAPS_URL = "https://github.com/nflverse/nflverse-data/releases/download/snap_counts/snap_counts_2025.csv"
@@ -25,8 +37,6 @@ PLAYERS_URL = "https://github.com/nflverse/nflverse-data/releases/download/playe
 ESPN_ATHLETE_URL = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2025/athletes/{athlete_id}?lang=en&region=us"
 ESPN_COLLEGE_TEAMS_URL = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams?limit=1000"
 ESPN_COLLEGE_SCHEDULE_URL = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/{team_id}/schedule?season=2025"
-GEONAMES_CITIES_URL = "https://download.geonames.org/export/dump/cities500.zip"
-GEONAMES_COUNTRIES_URL = "https://download.geonames.org/export/dump/countryInfo.txt"
 
 DEFAULT_OUTPUT = ROOT / "docs" / "nfl" / "data" / "dashboard.json"
 DEFAULT_SNAPS_CACHE = ROOT / "data" / "cache" / "nfl_snap_counts_2025.csv"
@@ -34,8 +44,6 @@ DEFAULT_PLAYERS_CACHE = ROOT / "data" / "cache" / "nfl_players.csv"
 DEFAULT_ESPN_CACHE = ROOT / "data" / "cache" / "nfl_espn_athletes_2025.json"
 DEFAULT_COLLEGE_TEAMS_CACHE = ROOT / "data" / "cache" / "nfl_espn_college_teams.json"
 DEFAULT_COLLEGE_VENUES_CACHE = ROOT / "data" / "cache" / "nfl_espn_college_venues_2025.json"
-DEFAULT_GEONAMES_CACHE = ROOT / "data" / "cache" / "cities500.zip"
-DEFAULT_COUNTRIES_CACHE = ROOT / "data" / "cache" / "geonames_country_info.txt"
 
 TEAM_META = {
     "ARI": ("Arizona Cardinals", "NFC", "NFC West"),
@@ -114,11 +122,6 @@ COLLEGE_COORDINATE_OVERRIDES = {
     "Alcorn State": {"place": "Alcorn State", "country": "United States", "lat": 31.877216, "lon": -91.142854},
     "Saginaw Valley State": {"place": "University Center", "country": "United States", "lat": 43.51176, "lon": -83.964273},
 }
-
-
-def normalize(value: object) -> str:
-    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode().casefold()
-    return re.sub(r"[^a-z0-9]", "", text)
 
 
 def split_college_history(value: object) -> list[str]:
@@ -227,27 +230,6 @@ def fetch_college_venues(
                 results[college] = result
     _write_json(venues_cache, {"retrieved_at": datetime.now(timezone.utc).isoformat(), "season": 2025, "colleges": results})
     return results
-
-
-def _write_json(path: Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(value, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    temporary.replace(path)
-
-
-def _download_binary(url: str, path: Path, *, force: bool = False) -> Path:
-    if path.exists() and not force:
-        return path
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    with requests.get(url, timeout=120, stream=True, headers={"User-Agent": "TalentGeography/1.0"}) as response:
-        response.raise_for_status()
-        with temporary.open("wb") as handle:
-            for chunk in response.iter_content(1024 * 1024):
-                handle.write(chunk)
-    temporary.replace(path)
-    return path
 
 
 def load_csv(url: str, cache_path: Path, input_path: Path | None = None, *, force: bool = False) -> pd.DataFrame:
@@ -368,79 +350,6 @@ def fetch_espn_athletes(
     return cache
 
 
-def load_country_codes(path: Path) -> tuple[dict[str, str], dict[str, str]]:
-    aliases: dict[str, str] = {}
-    names: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line or line.startswith("#"):
-            continue
-        fields = line.split("\t")
-        if len(fields) < 5:
-            continue
-        iso, iso3, _, fips, country = fields[:5]
-        names[iso] = country
-        for value in (iso, iso3, fips, country):
-            if value:
-                aliases[normalize(value)] = iso
-    aliases.update({"usa": "US", "unitedstatesofamerica": "US", "uk": "GB"})
-    return aliases, names
-
-
-def build_city_index(cities_zip: Path, needed_names: set[str]) -> dict[str, list[dict[str, Any]]]:
-    index: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    with zipfile.ZipFile(cities_zip) as archive, archive.open("cities500.txt") as raw:
-        reader = csv.reader(io.TextIOWrapper(raw, encoding="utf-8"), delimiter="\t")
-        for fields in reader:
-            if len(fields) < 19:
-                continue
-            aliases = {normalize(fields[1]), normalize(fields[2])}
-            aliases.update(normalize(value) for value in fields[3].split(",") if value)
-            matches = aliases & needed_names
-            if not matches:
-                continue
-            candidate = {
-                "name": fields[1],
-                "lat": float(fields[4]),
-                "lon": float(fields[5]),
-                "country_code": fields[8],
-                "admin1": fields[10],
-                "population": int(fields[14] or 0),
-                "geonames_id": fields[0],
-            }
-            for alias in matches:
-                index[alias].append(candidate)
-    return dict(index)
-
-
-def resolve_birthplace(
-    athlete: dict[str, Any],
-    city_index: dict[str, list[dict[str, Any]]],
-    country_aliases: dict[str, str],
-    country_names: dict[str, str],
-) -> dict[str, Any] | None:
-    city = athlete.get("birth_city")
-    if not city:
-        return None
-    candidates = city_index.get(normalize(city), [])
-    country_code = country_aliases.get(normalize(athlete.get("birth_country")))
-    if not country_code:
-        return None
-    candidates = [candidate for candidate in candidates if candidate["country_code"] == country_code]
-    state = str(athlete.get("birth_state") or "").upper()
-    if country_code == "US" and state:
-        candidates = [candidate for candidate in candidates if candidate["admin1"].upper() == state]
-    if not candidates:
-        return None
-    match = max(candidates, key=lambda candidate: candidate["population"])
-    return {
-        "place": str(city),
-        "country": country_names.get(match["country_code"], athlete.get("birth_country") or match["country_code"]),
-        "lat": round(match["lat"], 6),
-        "lon": round(match["lon"], 6),
-        "geonames_id": match["geonames_id"],
-    }
-
-
 def resolve_college_location(
     venue: dict[str, Any],
     city_index: dict[str, list[dict[str, Any]]],
@@ -459,13 +368,7 @@ def resolve_college_location(
 
 
 def age_on(dob: str | None, on_date: date = date(2026, 2, 8)) -> int | None:
-    if not dob:
-        return None
-    try:
-        born = date.fromisoformat(dob[:10])
-    except ValueError:
-        return None
-    return on_date.year - born.year - ((on_date.month, on_date.day) < (born.month, born.day))
+    return _age_on(dob, on_date)
 
 
 def build_payload(
