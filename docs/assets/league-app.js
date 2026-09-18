@@ -52,7 +52,7 @@ const EDITION = {
   popupDetailField: null,
   showTeamFilter: true,
   comparisonHighlight: "outsideHome",
-  showPopulationReferenceCells: false,
+  showPopulationReferenceCells: true,
   ...window.TALENT_GEO_EDITION,
 };
 const TEAM_STYLES = window.TALENT_TEAM_COLOURS?.[EDITION.name] || null;

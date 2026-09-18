@@ -110,7 +110,7 @@ coverage totals. Geometry may be Polygon or MultiPolygon for cells crossing the
 antimeridian. A cell can span several countries; its country label does not
 restrict the resident denominator to that country.
 
-Editions may opt into populated-land reference cells. These cells have an
+Population layers include populated-land reference cells. These cells have an
 empty `player_ids` list and remain visible when filters leave an area with no
 selected participants. Cells with a zero population denominator are omitted.
 

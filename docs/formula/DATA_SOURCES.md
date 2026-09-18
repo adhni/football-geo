@@ -37,5 +37,5 @@ python -m src.ftg.build_population_hexes \
   --input docs/formula/data/dashboard.json \
   --output docs/formula/data/population_hexes_r3.geojson \
   --cache data/cache/formula_worldpop_population_2025_r3.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
