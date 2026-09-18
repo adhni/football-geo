@@ -16,14 +16,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_small_caribbean_territories_use_their_official_worldpop_rasters():
+    assert WORLDPOP_COUNTRY_NAME_ALIASES["Anguilla"] == "AIA"
     assert WORLDPOP_COUNTRY_NAME_ALIASES["Aruba"] == "ABW"
     assert WORLDPOP_COUNTRY_NAME_ALIASES["Barbados"] == "BRB"
+    assert WORLDPOP_COUNTRY_NAME_ALIASES["British Virgin Islands"] == "VGB"
     assert WORLDPOP_COUNTRY_NAME_ALIASES["Curacao"] == "CUW"
+    assert WORLDPOP_COUNTRY_NAME_ALIASES["Curaçao"] == "CUW"
     assert WORLDPOP_COUNTRY_NAME_ALIASES["Grenada"] == "GRD"
     assert WORLDPOP_COUNTRY_NAME_ALIASES["Saint Kitts and Nevis"] == "KNA"
 
 
 def test_small_pacific_islands_use_their_official_worldpop_rasters():
+    assert WORLDPOP_COUNTRY_NAME_ALIASES["Nauru"] == "NRU"
     assert WORLDPOP_COUNTRY_NAME_ALIASES["Samoa"] == "WSM"
     assert WORLDPOP_COUNTRY_NAME_ALIASES["Tonga"] == "TON"
 
@@ -64,7 +68,7 @@ def test_cell_polygon_splits_antimeridian_cells():
     )
 
 
-@pytest.mark.parametrize("sport", ["football", "cricket", "ufc", "formula", "motogp", "volleyball", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb"])
+@pytest.mark.parametrize("sport", ["football", "cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb"])
 @pytest.mark.parametrize("resolution", [1, 2, 3])
 def test_published_sport_population_layers_match_mapped_player_scope(sport, resolution):
     directory = ROOT / "docs" if sport == "football" else ROOT / "docs" / sport

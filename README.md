@@ -1,7 +1,8 @@
 # Talent Geography
 
 A reproducible data + visualisation project that started with football and now
-includes cricket, UFC, Formula, MotoGP, volleyball, tennis, padel, badminton, golf, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
+includes cricket, UFC, Formula, MotoGP, volleyball, athletics, tennis, padel,
+badminton, golf, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
 
 The football project asks:
 
@@ -83,7 +84,7 @@ streamlit run dashboard/app.py
 
 The public, backend-free dashboard lives in `docs/` and is served directly by
 GitHub Pages. The football explorer lives at `/`, the cricket explorer at
-`/cricket/`, the UFC explorer at `/ufc/`, the Formula explorer at `/formula/`, the MotoGP explorer at `/motogp/`, the volleyball explorer at `/volleyball/`, the tennis explorer at
+`/cricket/`, the UFC explorer at `/ufc/`, the Formula explorer at `/formula/`, the MotoGP explorer at `/motogp/`, the volleyball explorer at `/volleyball/`, the athletics explorer at `/athletics/`, the tennis explorer at
 `/tennis/`, the padel explorer at `/padel/`, the badminton explorer at
 `/badminton/`, the golf explorer at `/golf/`, the AFL explorer at `/afl/`, the
 NRL explorer at `/nrl/`, the NBA explorer at `/nba/`, the NFL explorer at `/nfl/`, the NHL explorer at
@@ -198,6 +199,22 @@ women's and men's competitions. Official set lineups, substitutions and libero
 usage determine participation; player profiles preserve matches, sets, points,
 attacks, blocks and aces. See `docs/volleyball/DATA_SOURCES.md` for scope and
 attribution.
+
+To refresh the 2025 World Athletics Championships snapshot:
+
+```bash
+python -m src.ftg.build_athletics_site
+python -m src.ftg.build_population_hexes \
+  --input docs/athletics/data/dashboard.json \
+  --output docs/athletics/data/population_hexes_r3.geojson \
+  --cache data/cache/athletics_worldpop_population_2025.json \
+  --h3-resolution 3 --use-rasters
+```
+
+The athletics builder covers all 49 Tokyo events and keeps only athletes with
+an actual start. Heats and finals collapse into one athlete-event entry,
+combined events count once, and relay participation comes from named lineups.
+See `docs/athletics/DATA_SOURCES.md` for scope and attribution.
 
 To refresh the completed 2025 AFL home-and-away snapshot:
 
