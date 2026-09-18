@@ -296,11 +296,18 @@ def test_athletics_explorer_uses_event_entries_and_all_tokyo_events():
     assert 'window.TALENT_GEO_EDITION={name:"Athletics"' in html
     assert 'workloadField:"entries"' in html
     assert 'profileLogType:"athletics"' in html
+    assert 'positionValuesField:"eventNames"' in html
+    assert 'participantDetailField:"eventNames"' in html
+    assert 'popupDetailField:"eventNames"' in html
+    assert '<label for="position-filter">Event</label>' in html
+    assert '<option value="all">All events</option>' in html
     assert '>Entries per 1M</button>' in html
     assert html.count('role="tab"') == 4
     assert payload["summary"]["events"] == 49
     assert payload["summary"]["players"] == 1992
     assert payload["summary"]["entries"] == 2274
+    assert all(record["eventNames"] for record in payload["records"])
+    assert "positionValues(row)" in (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")
 
 
 def test_every_sport_has_a_primary_workload_population_mode():
