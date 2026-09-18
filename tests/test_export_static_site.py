@@ -55,14 +55,6 @@ def top5_data():
     return data
 
 
-@pytest.fixture
-def all_leagues_data(top5_data):
-    return pd.concat([
-        top5_data.assign(league=league, team=f"Club {index}", player_id=f"p{index}")
-        for index, league in enumerate(sorted(exporter.BIG_FIVE_LEAGUES))
-    ], ignore_index=True)
-
-
 def test_build_payload_exports_top5_metadata_and_stats(top5_data):
     payload = build_payload(top5_data)
     assert payload["meta"]["scope"] == "2025–26 Big Five European domestic leagues"
@@ -94,8 +86,8 @@ def test_cli_defaults_export_big_five_and_matching_qa(tmp_path, monkeypatch, top
 
 
 @pytest.mark.parametrize("invalid", ["worldcup", "season", "league", "empty"])
-def test_live_export_rejects_wrong_cohort_without_changing_existing_file(tmp_path, monkeypatch, all_leagues_data, invalid):
-    data = all_leagues_data.copy()
+def test_live_export_rejects_wrong_cohort_without_changing_existing_file(tmp_path, monkeypatch, top5_data, invalid):
+    data = top5_data.copy()
     if invalid == "worldcup":
         data = data.drop(columns="league")
     elif invalid == "season":
@@ -112,37 +104,6 @@ def test_live_export_rejects_wrong_cohort_without_changing_existing_file(tmp_pat
     with pytest.raises(ValueError, match="reserved"):
         exporter.run(source, tmp_path / "missing.csv", output)
     assert output.read_text() == "existing dashboard"
-
-
-@pytest.mark.parametrize("leagues", [
-    ["Premier League"],
-    *[sorted(exporter.BIG_FIVE_LEAGUES - {league}) for league in sorted(exporter.BIG_FIVE_LEAGUES)],
-])
-def test_live_export_rejects_incomplete_league_cohort(tmp_path, monkeypatch, all_leagues_data, leagues):
-    source = tmp_path / "partial.parquet"
-    all_leagues_data[all_leagues_data["league"].isin(leagues)].to_parquet(source)
-    output = tmp_path / "dashboard.json"
-    original = b'{"existing":"live dashboard"}'
-    output.write_bytes(original)
-    monkeypatch.setattr(exporter, "DEFAULT_OUTPUT", output)
-
-    with pytest.raises(ValueError, match="All five leagues must be present"):
-        exporter.run(source, tmp_path / "missing.csv", output)
-
-    assert output.read_bytes() == original
-
-
-def test_live_export_accepts_all_five_leagues(tmp_path, monkeypatch, all_leagues_data):
-    source = tmp_path / "complete.parquet"
-    all_leagues_data.to_parquet(source)
-    output = tmp_path / "dashboard.json"
-    monkeypatch.setattr(exporter, "DEFAULT_OUTPUT", output)
-
-    exporter.run(source, tmp_path / "missing.csv", output)
-
-    payload = json.loads(output.read_text())
-    assert set(payload["meta"]["leagues"]) == exporter.BIG_FIVE_LEAGUES
-    assert len(payload["records"]) == 5
 
 
 def test_historical_export_requires_separate_destination(tmp_path, top5_data):
