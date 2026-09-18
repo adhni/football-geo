@@ -30,6 +30,7 @@
   const currentSport = sports.find((sport) => cleanPath(sport.path) === relativePath) || null;
   const isDirectory = relativePath === "sports";
   const isCompare = relativePath === "compare";
+  let mapStateReader = null;
   const escapeHtml = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
   const sportUrl = (sport) => new URL(sport.path, rootUrl);
 
@@ -37,9 +38,18 @@
     document.querySelectorAll(".sport-switcher").forEach((navigation) => {
       navigation.innerHTML = sports.map((sport) => {
         const active = currentSport?.id === sport.id;
-        return `<a${active ? ' class="active" aria-current="page"' : ""} href="${escapeHtml(sportUrl(sport).href)}">${escapeHtml(sport.name)}</a>`;
+        return `<a${active ? ' class="active" aria-current="page"' : ""} data-sport-id="${escapeHtml(sport.id)}" href="${escapeHtml(sportUrl(sport).href)}">${escapeHtml(sport.name)}</a>`;
       }).join("") + `<a${isCompare ? ' class="active" aria-current="page"' : ""} href="${escapeHtml(new URL("compare/", rootUrl).href)}">Compare</a><a${isDirectory ? ' class="active" aria-current="page"' : ""} href="${escapeHtml(new URL("sports/", rootUrl).href)}">All sports</a>`;
       navigation.querySelector("a.active")?.scrollIntoView({ block: "nearest", inline: "center" });
+      navigation.addEventListener("click", (event) => {
+        const link = event.target.closest("a[data-sport-id]");
+        const mapPanel = document.querySelector("#view-map");
+        if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !mapStateReader || !mapPanel?.classList.contains("active") || mapPanel.hidden) return;
+        const target = sports.find((sport) => sport.id === link.dataset.sportId);
+        if (!target || target.id === currentSport?.id) return;
+        event.preventDefault();
+        window.location.assign(comparisonUrl(target, mapStateReader()).href);
+      });
     });
   }
 
@@ -92,6 +102,7 @@
   function mountMapSwitcher(getMapState) {
     const explorer = document.querySelector("#map-explorer");
     if (!explorer || !currentSport) return;
+    mapStateReader = getMapState;
     const mount = explorer.closest(".view-panel")?.querySelector("[data-map-sport-switcher]") || explorer;
     if (mount.querySelector(".map-sport-handoff")) return;
     const compact = mount !== explorer;
@@ -101,6 +112,14 @@
       if (!target || target.id === currentSport.id) return;
       window.location.assign(comparisonUrl(target, getMapState()).href);
     });
+  }
+
+  function restoreMapScroll() {
+    if (!readMapState() || window.location.hash !== "#map") return;
+    const target = document.querySelector(".view-tabs") || document.querySelector("#view-map");
+    if (!target) return;
+    const top = Math.max(0, target.getBoundingClientRect().top + window.scrollY - 12);
+    window.scrollTo(0, top);
   }
 
   function enhanceMapWorkspace() {
@@ -175,7 +194,8 @@
     container.innerHTML = sports.map((sport) => `<article class="sport-card" style="--card-accent:${escapeHtml(sport.accent)}"><div><span>${escapeHtml(sport.season)}</span><strong>${escapeHtml(sport.name)}</strong><p>${escapeHtml(sport.scope)}</p></div><dl><div><dt>Cohort</dt><dd>${number.format(sport.participants)} ${escapeHtml(sport.participantLabel)}</dd></div><div><dt>Birthplace coverage</dt><dd>${sport.coverage.toFixed(1)}%</dd></div><div><dt>Map measures</dt><dd>${escapeHtml(sport.measures)}</dd></div></dl><a href="${escapeHtml(new URL(`${sport.path}#map`, rootUrl).href)}">Open map <span>→</span></a></article>`).join("");
   }
 
-  window.TalentGeoNavigation = { sports, currentSport, rootUrl, readMapState, comparisonUrl, sideBySideUrl, mountMapSwitcher, renderDirectory };
+  window.TalentGeoNavigation = { sports, currentSport, rootUrl, readMapState, comparisonUrl, sideBySideUrl, mountMapSwitcher, restoreMapScroll, renderDirectory };
   renderHeaderNavigation();
   enhanceMapWorkspace();
+  restoreMapScroll();
 }());

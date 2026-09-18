@@ -272,7 +272,6 @@ function aggregatePopulationCells(records) {
   const geojson = state.populationGeojson.get(state.populationResolution);
   return (geojson?.features || []).map((feature) => {
     const selected = (feature.properties.player_ids || []).filter((playerId) => players.has(playerId));
-    if (!selected.length) return null;
     const places = new Map();
     const countries = new Map();
     selected.forEach((playerId) => {
@@ -292,6 +291,7 @@ function aggregatePopulationCells(records) {
       workload,
       population,
       rate: population ? value / population * 1_000_000 : null,
+      reference: !selected.length,
       stable: selected.length >= 2 && population >= 100_000,
       label: leadingPlace,
       country: leadingCountry,
@@ -341,7 +341,7 @@ function populationRateColour(rate) {
 
 function updatePopulationRateScale() {
   const cells = aggregatePopulationCells(state.payload.records);
-  const allRates = cells.map((cell) => cell.rate).filter((rate) => rate !== null).sort((a, b) => a - b);
+  const allRates = cells.filter((cell) => !cell.reference).map((cell) => cell.rate).filter((rate) => rate !== null).sort((a, b) => a - b);
   const reliableRates = cells.filter((cell) => cell.stable).map((cell) => cell.rate).sort((a, b) => a - b);
   const rates = reliableRates.length >= 5 ? reliableRates : allRates;
   const quantile = (fraction) => rates[Math.min(rates.length - 1, Math.round((rates.length - 1) * fraction))] || 0;
@@ -587,10 +587,19 @@ function updatePopulationMap(records) {
   state.populationLayer = L.geoJSON({ type: "FeatureCollection", features: cells.map((cell) => cell.feature) }, {
     style: (feature) => {
       const cell = byId.get(feature.properties.hex_id);
-      return { color: cell.stable ? "#94c8b4" : "#62877d", weight: cell.stable ? .8 : .65, dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .82 : .42 };
+      const regional = state.populationResolution === 3;
+      if (cell.reference) return { color: "#66817a", weight: regional ? .18 : .35, fillColor: populationRateColour(0), fillOpacity: .13 };
+      return { color: cell.stable ? "#94c8b4" : "#62877d", weight: regional ? (cell.stable ? .55 : .4) : (cell.stable ? .8 : .65), dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .82 : .42 };
     },
     onEachFeature: (feature, layer) => {
       const cell = byId.get(feature.properties.hex_id);
+      if (cell.reference) {
+        const country = cell.country || "Populated land";
+        layer.bindTooltip(`<strong>${escapeHtml(country)} reference area</strong><br>No mapped players in this selection<br>population ${formatCompact.format(cell.population)}`, { sticky: true });
+        layer.bindPopup(`<div class="place-popup"><strong>${escapeHtml(country)} reference area</strong><p>No mapped players in this selection</p><ul><li><span>${formatNumber.format(cell.population)} residents</span><small>WorldPop 2025 · 1 km grid</small></li></ul></div>`, { maxWidth: 320, minWidth: 250 });
+        state.populationLayers.set(cell.hexId, layer);
+        return;
+      }
       const rateLabel = cell.rate === null ? "Population estimate unavailable" : `${formatCompact.format(cell.rate)} ${measure.short}`;
       const caution = cell.stable ? "" : "<br><em>Small-sample cell</em>";
       layer.bindTooltip(`<strong>${escapeHtml(cell.label)} area</strong><br>${escapeHtml(cell.country)}<br>${rateLabel}<br>${cell.players} players${measure.workload ? ` · ${formatNumber.format(cell.workload)} starts` : ""} · population ${cell.population ? formatCompact.format(cell.population) : "unavailable"}${caution}`, { sticky: true });
@@ -599,8 +608,9 @@ function updatePopulationMap(records) {
       state.populationLayers.set(cell.hexId, layer);
     },
   }).addTo(state.map);
-  if ((state.league !== "all" || state.team !== "all" || state.country !== "all" || state.ageBand !== "all") && cells.length) {
-    state.map.fitBounds(state.populationLayer.getBounds(), { padding: [35, 35], maxZoom: 6 });
+  const activeLayers = cells.filter((cell) => !cell.reference).map((cell) => state.populationLayers.get(cell.hexId));
+  if ((state.league !== "all" || state.team !== "all" || state.country !== "all" || state.ageBand !== "all") && activeLayers.length) {
+    state.map.fitBounds(L.featureGroup(activeLayers).getBounds(), { padding: [35, 35], maxZoom: 6 });
   } else state.map.setView([20, 4], 2);
   $("#map-legend").classList.add("population");
   $("#population-scale").hidden = false;
@@ -656,7 +666,9 @@ function updatePopulationRanking(records) {
   const top = reliable.slice(0, 10);
   const max = top[0]?.rate || 1;
   $("#ranking-title").textContent = measure.label;
-  $("#place-count").textContent = `${formatNumber.format(cells.length)} ${populationResolutionLabel().toLowerCase()} areas`;
+  const activeCount = cells.filter((cell) => !cell.reference).length;
+  const referenceCount = cells.length - activeCount;
+  $("#place-count").textContent = referenceCount ? `${formatNumber.format(activeCount)} active · ${formatNumber.format(referenceCount)} reference` : `${formatNumber.format(activeCount)} ${populationResolutionLabel().toLowerCase()} areas`;
   $("#place-ranking").innerHTML = top.map((cell, index) => `
     <li class="place-row" style="--bar:${cell.rate / max * 100}%"><button class="place-jump population-jump" data-hex-id="${escapeHtml(cell.hexId)}" aria-label="Zoom to ${escapeHtml(cell.label)} area">
       <span class="place-rank">${String(index + 1).padStart(2, "0")}</span>
@@ -1337,6 +1349,7 @@ async function boot() {
     window.TalentGeoNavigation?.mountMapSwitcher(currentMapHandoff);
     const initialView = window.location.hash.slice(1) || "map";
     setView(initialView, { scroll: false, updateHash: false });
+    window.TalentGeoNavigation?.restoreMapScroll();
     $("#loading-screen")?.classList.add("hidden");
     if (countryResult.error) showToast("Country boundaries could not be loaded. The rest of the dashboard is available.");
   } catch (error) {

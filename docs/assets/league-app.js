@@ -52,6 +52,7 @@ const EDITION = {
   popupDetailField: null,
   showTeamFilter: true,
   comparisonHighlight: "outsideHome",
+  showPopulationReferenceCells: true,
   ...window.TALENT_GEO_EDITION,
 };
 const TEAM_STYLES = window.TALENT_TEAM_COLOURS?.[EDITION.name] || null;
@@ -288,7 +289,7 @@ function aggregatePopulationCells(records) {
   const geojson = state.populationGeojson.get(state.populationResolution);
   return (geojson?.features || []).map((feature) => {
     const selected = (feature.properties.player_ids || []).filter((playerId) => players.has(playerId));
-    if (!selected.length) return null;
+    if (!selected.length && !EDITION.showPopulationReferenceCells) return null;
     const playerRows = selected.map((playerId) => players.get(playerId));
     const places = new Map();
     const countries = new Map();
@@ -308,6 +309,7 @@ function aggregatePopulationCells(records) {
       workload,
       population,
       rate: population ? value / population * 1_000_000 : null,
+      reference: !selected.length,
       stable: selected.length >= 2 && population >= 100_000,
       label: [...places.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || feature.properties.label,
       country: [...countries.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || feature.properties.country,
@@ -345,7 +347,7 @@ function populationRateColour(rate) {
 
 function updatePopulationRateScale() {
   const cells = aggregatePopulationCells(state.payload.records);
-  const allRates = cells.map((cell) => cell.rate).filter((rate) => rate !== null).sort((a, b) => a - b);
+  const allRates = cells.filter((cell) => !cell.reference).map((cell) => cell.rate).filter((rate) => rate !== null).sort((a, b) => a - b);
   const reliableRates = cells.filter((cell) => cell.stable).map((cell) => cell.rate).sort((a, b) => a - b);
   const rates = reliableRates.length >= 5 ? reliableRates : allRates;
   const quantile = (fraction) => rates[Math.min(rates.length - 1, Math.round((rates.length - 1) * fraction))] || 0;
@@ -613,10 +615,19 @@ function renderPopulationMap(records) {
   state.populationLayer = L.geoJSON({ type: "FeatureCollection", features: cells.map((cell) => cell.feature) }, {
     style(feature) {
       const cell = byId.get(feature.properties.hex_id);
-      return { color: cell.stable ? "#94c8b4" : "#62877d", weight: cell.stable ? .8 : .65, dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .82 : .42 };
+      const regional = state.populationResolution === 3;
+      if (cell.reference) return { color: "#66817a", weight: regional ? .18 : .35, fillColor: populationRateColour(0), fillOpacity: .13 };
+      return { color: cell.stable ? "#94c8b4" : "#62877d", weight: regional ? (cell.stable ? .55 : .4) : (cell.stable ? .8 : .65), dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .82 : .42 };
     },
     onEachFeature(feature, layer) {
       const cell = byId.get(feature.properties.hex_id);
+      if (cell.reference) {
+        const country = cell.country || "Populated land";
+        layer.bindTooltip(`<strong>${escapeHtml(country)} reference area</strong><br>No mapped ${escapeHtml(EDITION.participantLabelPlural)} in this selection<br>population ${compact.format(cell.population)}`, { sticky: true });
+        layer.bindPopup(`<div class="map-popup"><strong>${escapeHtml(country)} reference area</strong><small>No mapped ${escapeHtml(EDITION.participantLabelPlural)} in this selection</small><p>${number.format(cell.population)} residents · WorldPop 2025</p></div>`, { maxWidth: 320 });
+        state.populationLayers.set(cell.hexId, layer);
+        return;
+      }
       const rateLabel = cell.rate === null ? "Population estimate unavailable" : `${compact.format(cell.rate)} ${measure.short}`;
       const caution = cell.stable ? "" : " · small sample";
       layer.bindTooltip(`<strong>${escapeHtml(cell.label)} area</strong><br>${escapeHtml(cell.country)}<br>${rateLabel}<br>${cell.players} ${escapeHtml(EDITION.participantLabelPlural)}${measure.workload ? ` · ${number.format(cell.workload)} ${escapeHtml(EDITION.workloadShort)}` : ""} · population ${cell.population ? compact.format(cell.population) : "unavailable"}${caution}`, { sticky: true });
@@ -625,8 +636,10 @@ function renderPopulationMap(records) {
     },
   }).addTo(state.map);
   $("#ranking-title").textContent = measure.label;
-  $("#place-count").textContent = `${number.format(cells.length)} ${populationResolutionLabel().toLowerCase()} areas`;
-  const ranked = cells.filter((cell) => cell.rate !== null).sort((a, b) => Number(b.stable) - Number(a.stable) || b.rate - a.rate).slice(0, 12);
+  const activeCount = cells.filter((cell) => !cell.reference).length;
+  const referenceCount = cells.length - activeCount;
+  $("#place-count").textContent = referenceCount ? `${number.format(activeCount)} active · ${number.format(referenceCount)} reference` : `${number.format(activeCount)} ${populationResolutionLabel().toLowerCase()} areas`;
+  const ranked = cells.filter((cell) => !cell.reference && cell.rate !== null).sort((a, b) => Number(b.stable) - Number(a.stable) || b.rate - a.rate).slice(0, 12);
   const maximum = Math.max(...ranked.map((cell) => cell.rate), 1);
   $("#place-ranking").innerHTML = ranked.length ? ranked.map((cell, index) => `<li class="place-row" style="--bar:${cell.rate / maximum * 100}%"><button class="place-jump" type="button" data-hex-id="${escapeHtml(cell.hexId)}"><span class="place-rank">${String(index + 1).padStart(2, "0")}</span><span class="place-name"><strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)} · ${cell.players} ${escapeHtml(EDITION.participantLabelPlural)}${measure.workload ? ` · ${number.format(cell.workload)} ${escapeHtml(EDITION.workloadShort)}` : ""} / ${compact.format(cell.population)} people</small></span><span class="place-value">${compact.format(cell.rate)}</span></button></li>`).join("") : `<li>${emptyState("Try widening the current selection.")}</li>`;
   $("#map-legend").classList.add("population");
@@ -1236,6 +1249,7 @@ async function boot() {
     render();
     if (mapHandoff?.viewport) state.map.setView([mapHandoff.viewport.lat, mapHandoff.viewport.lon], mapHandoff.viewport.zoom);
     window.TalentGeoNavigation?.mountMapSwitcher(currentMapHandoff);
+    window.TalentGeoNavigation?.restoreMapScroll();
     $("#loading-screen").classList.add("hidden");
   } catch (error) {
     console.error(error);

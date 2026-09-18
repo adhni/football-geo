@@ -24,7 +24,7 @@ worldcup-birthplaces:
 	$(PYTHON) -m src.ftg.build_birthplaces --starts data/processed/worldcup_player_starts.parquet --players data/processed/worldcup_players_enriched.parquet
 
 population:
-	$(PYTHON) -m src.ftg.build_population_hexes --use-rasters
+	$(PYTHON) -m src.ftg.build_population_hexes --use-rasters --include-reference-cells
 
 preview:
 	$(PYTHON) -m http.server 8000 --directory docs
@@ -40,9 +40,9 @@ football-export:
 	$(PYTHON) -m src.ftg.export_static_site --input data/processed/top5_players_with_birthplace.parquet --unresolved data/qa/top5_wikidata_resolution_queue.csv
 
 football-population:
-	$(PYTHON) -m src.ftg.build_population_hexes --use-rasters --h3-resolution 1 --output docs/data/population_hexes_r1.geojson
-	$(PYTHON) -m src.ftg.build_population_hexes --use-rasters --h3-resolution 2 --output docs/data/population_hexes_r2.geojson
-	$(PYTHON) -m src.ftg.build_population_hexes --use-rasters --h3-resolution 3 --output docs/data/population_hexes_r3.geojson
+	$(PYTHON) -m src.ftg.build_population_hexes --use-rasters --include-reference-cells --h3-resolution 1 --output docs/data/population_hexes_r1.geojson
+	$(PYTHON) -m src.ftg.build_population_hexes --use-rasters --include-reference-cells --h3-resolution 2 --output docs/data/population_hexes_r2.geojson
+	$(PYTHON) -m src.ftg.build_population_hexes --use-rasters --include-reference-cells --h3-resolution 3 --output docs/data/population_hexes_r3.geojson
 
 app: demo
 	streamlit run dashboard/app.py

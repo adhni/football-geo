@@ -45,14 +45,16 @@ the birthplace or population maps.
 
 Population-normalized views use WorldPop Global 2 R2025A constrained 2025
 country rasters and H3 cells at resolutions 1–3. The denominator is the full
-population of every country raster intersecting each occupied cell. See the
-top-level dashboard schema for the shared GeoJSON contract.
+population of every country raster intersecting a cell. Populated land cells
+without a mapped athlete are retained as a faint reference layer; cells with
+no resident population are omitted. See the top-level dashboard schema for the
+shared GeoJSON contract.
 
 ## Rebuild
 
 ```bash
 python -m src.ftg.build_athletics_site
-python -m src.ftg.build_population_hexes --use-rasters \
+python -m src.ftg.build_population_hexes --use-rasters --include-reference-cells \
   --input docs/athletics/data/dashboard.json \
   --output docs/athletics/data/population_hexes_r3.geojson \
   --cache data/cache/athletics_worldpop_population_2025.json

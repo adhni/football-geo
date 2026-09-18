@@ -121,6 +121,28 @@ def occupied_hexes(payload: dict[str, Any], resolution: int = 3) -> dict[str, di
     return dict(cells)
 
 
+def reference_hexes(country_geometry_path: Path, resolution: int = 3) -> dict[str, dict[str, Any]]:
+    """Cover mapped land with H3 cells for an optional population reference layer.
+
+    H3 includes a cell when its centre falls inside a country polygon. Cells with
+    no residents are removed after population lookup, which keeps water and other
+    no-denominator areas out of the published layer.
+    """
+    countries = json.loads(country_geometry_path.read_text(encoding="utf-8"))["features"]
+    cells: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {"player_ids": [], "places": Counter(), "countries": Counter()}
+    )
+    for feature in countries:
+        properties = feature.get("properties", {})
+        if properties.get("ADM0_A3") == "ATA":
+            continue
+        country = str(properties.get("ADMIN") or properties.get("NAME") or "")
+        for cell_id in h3.geo_to_cells(feature["geometry"], resolution):
+            if country:
+                cells[cell_id]["countries"][country] += 1
+    return dict(cells)
+
+
 def cell_polygon(cell_id: str) -> dict[str, Any]:
     boundary = h3.cell_to_boundary(cell_id)
     coordinates = [[round(lon, 6), round(lat, 6)] for lat, lon in boundary]
@@ -229,7 +251,7 @@ def population_from_rasters(
     cell_ids = sorted(cell_ids)
     country_codes = _cell_country_codes(cell_ids, country_geometry_path, hinted_countries)
     required = sorted({code for codes in country_codes.values() for code in codes})
-    print(f"Preparing {len(required):,} WorldPop country rasters for {len(cell_ids):,} occupied areas...", flush=True)
+    print(f"Preparing {len(required):,} WorldPop country rasters for {len(cell_ids):,} population areas...", flush=True)
     rasters: dict[str, Path] = {}
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {
@@ -274,7 +296,7 @@ def population_from_rasters(
             if on_result is not None:
                 on_result(cell_id, results[cell_id])
             if index % 10 == 0 or index == len(cell_ids):
-                print(f"  calculated {index:,}/{len(cell_ids):,} occupied areas", flush=True)
+                print(f"  calculated {index:,}/{len(cell_ids):,} population areas", flush=True)
     return results
 
 
@@ -328,10 +350,19 @@ def build_population_hexes(
     raster_cache_dir: Path = DEFAULT_RASTER_CACHE,
     use_rasters: bool = False,
     refresh_population: bool = False,
+    include_reference_cells: bool = False,
 ) -> dict[str, Any]:
-    cells = occupied_hexes(payload, h3_resolution)
+    occupied = occupied_hexes(payload, h3_resolution)
+    cells = reference_hexes(country_geometry_path, h3_resolution) if include_reference_cells else {}
+    for cell_id, occupied_cell in occupied.items():
+        if cell_id not in cells:
+            cells[cell_id] = occupied_cell
+            continue
+        cells[cell_id]["player_ids"].extend(occupied_cell["player_ids"])
+        cells[cell_id]["places"].update(occupied_cell["places"])
+        cells[cell_id]["countries"].update(occupied_cell["countries"])
     query_cells = sorted(cells)
-    raster_mode = use_rasters or h3_resolution < WORLDPOP_MAX_H3_POLYGON_RESOLUTION
+    raster_mode = use_rasters or include_reference_cells or h3_resolution < WORLDPOP_MAX_H3_POLYGON_RESOLUTION
     if raster_mode and raster_resolution != "1km":
         raise ValueError("Official country rasters support only raster_resolution='1km'")
     cache: dict[str, dict[str, Any]] = {}
@@ -402,6 +433,8 @@ def build_population_hexes(
     for cell_id, cell in cells.items():
         population = cache[keys[cell_id]]
         player_ids = sorted(cell["player_ids"])
+        if include_reference_cells and not player_ids and population["population"] <= 0:
+            continue
         players_per_million = len(player_ids) / population["population"] * 1_000_000 if population["population"] else None
         features.append(
             {
@@ -413,6 +446,7 @@ def build_population_hexes(
                     "area_km2": population["area_km2"],
                     "population_density": population["population_density"],
                     "all_players": len(player_ids),
+                    "reference_cell": not player_ids,
                     "players_per_million": round(players_per_million, 2) if players_per_million is not None else None,
                     "player_ids": player_ids,
                     "label": cell["places"].most_common(1)[0][0] if cell["places"] else "Mapped area",
@@ -422,6 +456,7 @@ def build_population_hexes(
             }
         )
     features.sort(key=lambda feature: feature["properties"]["hex_id"])
+    occupied_count = sum(bool(feature["properties"]["player_ids"]) for feature in features)
     return {
         "type": "FeatureCollection",
         "metadata": {
@@ -432,7 +467,9 @@ def build_population_hexes(
             "raster_resolution": raster_resolution,
             "h3_resolution": h3_resolution,
             "population_method": "official_country_rasters" if raster_mode else "polygon_api",
-            "occupied_cells": len(features),
+            "occupied_cells": occupied_count,
+            "reference_cells": len(features) - occupied_count,
+            "total_cells": len(features),
             "mapped_players": sum(feature["properties"]["all_players"] for feature in features),
         },
         "features": features,
@@ -450,6 +487,7 @@ def run(
     raster_cache_dir: Path = DEFAULT_RASTER_CACHE,
     use_rasters: bool = False,
     refresh_population: bool = False,
+    include_reference_cells: bool = False,
 ) -> dict[str, Any]:
     payload = json.loads(input_path.read_text(encoding="utf-8"))
     result = build_population_hexes(
@@ -462,10 +500,12 @@ def run(
         raster_cache_dir=raster_cache_dir,
         use_rasters=use_rasters,
         refresh_population=refresh_population,
+        include_reference_cells=include_reference_cells,
     )
     _write_json(output_path, result)
     print(
-        f"Wrote {result['metadata']['occupied_cells']:,} occupied cells and "
+        f"Wrote {result['metadata']['occupied_cells']:,} occupied cells, "
+        f"{result['metadata']['reference_cells']:,} reference cells and "
         f"{result['metadata']['mapped_players']:,} mapped players to {output_path}"
     )
     return result
@@ -483,6 +523,11 @@ def main() -> None:
     parser.add_argument("--raster-cache", type=Path, default=DEFAULT_RASTER_CACHE)
     parser.add_argument("--use-rasters", action="store_true", help="Use official country rasters instead of the polygon API")
     parser.add_argument("--refresh-population", action="store_true", help="Recompute cell totals, keeping downloaded raster files")
+    parser.add_argument(
+        "--include-reference-cells",
+        action="store_true",
+        help="Include populated land cells without mapped participants as map context",
+    )
     args = parser.parse_args()
     run(
         input_path=args.input,
@@ -495,6 +540,7 @@ def main() -> None:
         raster_cache_dir=args.raster_cache,
         use_rasters=args.use_rasters,
         refresh_population=args.refresh_population,
+        include_reference_cells=args.include_reference_cells,
     )
 
 

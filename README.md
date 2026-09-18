@@ -116,7 +116,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/cricket/data/dashboard.json \
   --output docs/cricket/data/population_hexes_r3.geojson \
   --cache data/cache/cricket_worldpop_population_2025.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The cricket builder selects players representing ICC Full Member sides from
@@ -133,7 +133,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/ufc/data/dashboard.json \
   --output docs/ufc/data/population_hexes_r3.geojson \
   --cache data/cache/ufc_worldpop_population_2025_r3.json \
-  --h3-resolution 3
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The UFC builder reconciles all 42 event cards and 520 bouts, joins detailed
@@ -152,7 +152,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/formula/data/dashboard.json \
   --output docs/formula/data/population_hexes_r3.geojson \
   --cache data/cache/formula_worldpop_population_2025_r3.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The Formula builder combines completed 2025 championship classifications for
@@ -172,7 +172,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/motogp/data/dashboard.json \
   --output docs/motogp/data/population_hexes_r3.geojson \
   --cache data/cache/motogp_worldpop_population_2025_r3.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The MotoGP builder combines 2025 race classifications for MotoGP, Moto2,
@@ -191,7 +191,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/volleyball/data/dashboard.json \
   --output docs/volleyball/data/population_hexes_r3.geojson \
   --cache data/cache/volleyball_worldpop_population_2025_r3.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The volleyball builder combines all 232 completed 2025 VNL matches across the
@@ -208,7 +208,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/athletics/data/dashboard.json \
   --output docs/athletics/data/population_hexes_r3.geojson \
   --cache data/cache/athletics_worldpop_population_2025.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The athletics builder covers all 49 Tokyo events and keeps only athletes with
@@ -227,7 +227,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/afl/data/dashboard.json \
   --output docs/afl/data/population_hexes_r3.geojson \
   --cache data/cache/afl_worldpop_population_2025.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The AFL builder keeps numeric rounds only, validates all 18 clubs, preserves
@@ -248,7 +248,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/nrl/data/dashboard.json \
   --output docs/nrl/data/population_hexes_r3.geojson \
   --cache data/cache/nrl_worldpop_population_2025.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The NRL builder reads all 204 Champion Data match files, excludes period rows
@@ -264,7 +264,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/tennis/data/dashboard.json \
   --output docs/tennis/data/population_hexes_r3.geojson \
   --cache data/cache/tennis_worldpop_population_2025.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The tennis builder freezes exactly the ATP and WTA singles top 100 at their
@@ -281,7 +281,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/padel/data/dashboard.json \
   --output docs/padel/data/population_hexes_r3.geojson \
   --cache data/cache/padel_worldpop_population_2025.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The padel builder freezes 100 men and 100 women from the final 2025 FIP
@@ -298,7 +298,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/badminton/data/dashboard.json \
   --output docs/badminton/data/population_hexes_r3.geojson \
   --cache data/cache/badminton_worldpop_r3.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The badminton builder freezes the top 100 men's and women's singles players
@@ -315,7 +315,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/golf/data/dashboard.json \
   --output docs/golf/data/population_hexes_r3.geojson \
   --cache data/cache/golf_worldpop_r3.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The golf builder reads the official OWGR Week 52 PDF and WWGR 29 December CSV,
@@ -331,7 +331,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/nba/data/dashboard.json \
   --output docs/nba/data/population_hexes_r3.geojson \
   --cache data/cache/nba_worldpop_population_2025.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The command downloads a public NBA Stats API export, joins players to recorded
@@ -347,7 +347,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/nfl/data/dashboard.json \
   --output docs/nfl/data/population_hexes_r3.geojson \
   --cache data/cache/nfl_worldpop_population_2025.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 This joins nflverse regular-season snap counts to ESPN birth-city fields and
@@ -362,7 +362,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/nhl/data/dashboard.json \
   --output docs/nhl/data/population_hexes_r3.geojson \
   --cache data/cache/nhl_worldpop_population_2025.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 This reads exact per-team skater and goalie totals plus recorded birthplaces
@@ -377,7 +377,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/mlb/data/dashboard.json \
   --output docs/mlb/data/population_hexes_r3.geojson \
   --cache data/cache/mlb_worldpop_population_2025.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 This reads exact per-team hitting and pitching lines plus recorded birthplaces
