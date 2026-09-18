@@ -1349,6 +1349,7 @@ async function boot() {
     window.TalentGeoNavigation?.mountMapSwitcher(currentMapHandoff);
     const initialView = window.location.hash.slice(1) || "map";
     setView(initialView, { scroll: false, updateHash: false });
+    window.TalentGeoNavigation?.restoreMapScroll();
     $("#loading-screen")?.classList.add("hidden");
     if (countryResult.error) showToast("Country boundaries could not be loaded. The rest of the dashboard is available.");
   } catch (error) {

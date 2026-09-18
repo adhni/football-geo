@@ -371,6 +371,9 @@ def test_every_sport_uses_the_central_navigation_registry():
     assert "readMapState" in navigation
     assert "comparisonUrl" in navigation
     assert "mountMapSwitcher" in navigation
+    assert "restoreMapScroll" in navigation
+    assert 'data-sport-id=' in navigation
+    assert "mapStateReader" in navigation
     assert 'url.hash = "map"' in navigation
 
 
@@ -468,6 +471,24 @@ def test_nfl_college_lens_is_separate_and_disables_population_rates():
     assert payload["summary"]["college_player_coverage_pct"] >= 95
     assert sum(row["snaps"] for row in payload["records"] if row["collegeMapped"]) == payload["summary"]["college_mapped_snaps"]
     assert len({row["id"] for row in payload["records"]}) == payload["summary"]["players"]
+
+
+def test_nfl_population_map_preserves_reference_cells():
+    javascript = (ROOT / "docs" / "nfl" / "app.js").read_text(encoding="utf-8")
+
+    assert "reference: !selected.length" in javascript
+    assert "if (cell.reference)" in javascript
+    assert "activeCount" in javascript
+    assert "referenceCount" in javascript
+    assert "cells.filter((cell) => !cell.reference)" in javascript
+
+
+def test_ufc_population_rebuild_preserves_reference_cells():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    ufc_command = readme.split("To refresh the complete calendar-year 2025 UFC snapshot:", 1)[1].split("```", 2)[1]
+
+    assert "--use-rasters" in ufc_command
+    assert "--include-reference-cells" in ufc_command
 
 
 def test_nfl_multi_team_picker_renders_team_rosettes():

@@ -1249,6 +1249,7 @@ async function boot() {
     render();
     if (mapHandoff?.viewport) state.map.setView([mapHandoff.viewport.lat, mapHandoff.viewport.lon], mapHandoff.viewport.zoom);
     window.TalentGeoNavigation?.mountMapSwitcher(currentMapHandoff);
+    window.TalentGeoNavigation?.restoreMapScroll();
     $("#loading-screen").classList.add("hidden");
   } catch (error) {
     console.error(error);

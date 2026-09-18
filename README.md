@@ -133,7 +133,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/ufc/data/dashboard.json \
   --output docs/ufc/data/population_hexes_r3.geojson \
   --cache data/cache/ufc_worldpop_population_2025_r3.json \
-  --h3-resolution 3
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The UFC builder reconciles all 42 event cards and 520 bouts, joins detailed
