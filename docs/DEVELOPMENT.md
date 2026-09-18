@@ -53,7 +53,8 @@ wiring but do not establish that an interaction or calculation works.
 `make rebuild-football` executes import, enrichment, export and all three
 population layers for the Big Five edition. It requires external sources and
 can download large population rasters. The exporter defaults to Big Five inputs
-and protects the live dashboard path against other cohorts and seasons.
+and requires all five leagues before replacing the live dashboard. Other cohorts,
+seasons and partial exports require a separate output path.
 
 Historical World Cup and incomplete 11v11 collection instructions are separate
 in the [README](../README.md#historical-world-cup-flow). Historical exports use

@@ -133,13 +133,14 @@ def run(
         not {"league", "season_end_year"}.issubset(data.columns)
         or data.empty
         or data["league"].isna().any()
-        or not set(data["league"]).issubset(BIG_FIVE_LEAGUES)
+        or set(data["league"]) != BIG_FIVE_LEAGUES
         or set(data["season_end_year"].dropna()) != {2026}
         or data["season_end_year"].isna().any()
     ):
         raise ValueError(
             "docs/data/dashboard.json is reserved for the 2025–26 Big Five edition. "
-            "Export historical datasets with --output to a separate directory."
+            "All five leagues must be present. "
+            "Export partial or historical datasets with --output to a separate directory."
         )
     unresolved = pd.read_csv(unresolved_path) if unresolved_path.exists() else None
     payload = build_payload(data, unresolved)

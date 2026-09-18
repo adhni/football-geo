@@ -101,8 +101,9 @@ make preview
 Then open `http://localhost:8000`. The generated dashboard data is committed at
 `docs/data/dashboard.json`; raw and intermediate datasets remain local.
 For a data refresh, use the [Big Five rebuild](#rebuilding-the-current-big-five-edition)
-below. The exporter defaults to Big Five inputs and refuses to write another
-cohort or season to the live `docs/data/dashboard.json` path.
+below. The exporter defaults to Big Five inputs, requires all five leagues, and
+refuses to write another cohort or season to the live `docs/data/dashboard.json`
+path. Partial exports require a separate output path.
 
 To refresh the calendar-year 2025 men's and women's T20I snapshot:
 
