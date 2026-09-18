@@ -35,13 +35,21 @@ WORLDPOP_COUNTRY_ALIASES = {
 }
 WORLDPOP_COUNTRY_NAME_ALIASES = {
     "American Samoa": "ASM",
+    "Anguilla": "AIA",
     "Aruba": "ABW",
     "Barbados": "BRB",
+    "British Virgin Islands": "VGB",
     "Curacao": "CUW",
+    "Curaçao": "CUW",
     "Grenada": "GRD",
+    "Guernsey": "GGY",
+    "Maldives": "MDV",
+    "Nauru": "NRU",
     "Saint Kitts and Nevis": "KNA",
     "Saint Lucia": "LCA",
     "Samoa": "WSM",
+    "Seychelles": "SYC",
+    "São Tomé and Príncipe": "STP",
     "Tonga": "TON",
 }
 WORLDPOP_TERRITORY_BOUNDS = {

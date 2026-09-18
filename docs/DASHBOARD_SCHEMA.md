@@ -72,6 +72,7 @@ comparison workload field for each sport:
 | UFC | `bouts` | Fighter-bout appearances |
 | Formula, MotoGP | `laps` | Completed laps |
 | Volleyball | `sets` | Sets played |
+| Athletics | `entries` | Unique athlete-event starts |
 | Tennis, padel, badminton, golf | `points` | Edition-specific ranking points |
 | AFL, NRL | `games` | Games played |
 | NBA, NHL | `minutes` | Minutes played |

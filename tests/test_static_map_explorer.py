@@ -288,6 +288,21 @@ def test_volleyball_explorer_uses_sets_and_includes_women_and_men():
     assert (ROOT / "docs" / "volleyball" / "data" / "dashboard.json").exists()
 
 
+def test_athletics_explorer_uses_event_entries_and_all_tokyo_events():
+    html = (ROOT / "docs" / "athletics" / "index.html").read_text(encoding="utf-8")
+    payload = json.loads((ROOT / "docs" / "athletics" / "data" / "dashboard.json").read_text(encoding="utf-8"))
+
+    assert 'class="athletics-site"' in html
+    assert 'window.TALENT_GEO_EDITION={name:"Athletics"' in html
+    assert 'workloadField:"entries"' in html
+    assert 'profileLogType:"athletics"' in html
+    assert '>Entries per 1M</button>' in html
+    assert html.count('role="tab"') == 4
+    assert payload["summary"]["events"] == 49
+    assert payload["summary"]["players"] == 1992
+    assert payload["summary"]["entries"] == 2274
+
+
 def test_every_sport_has_a_primary_workload_population_mode():
     expected = {
         "index.html": "Starts per 1M",
@@ -306,6 +321,7 @@ def test_every_sport_has_a_primary_workload_population_mode():
         "formula/index.html": "Laps per 1M",
         "motogp/index.html": "Laps per 1M",
         "volleyball/index.html": "Sets per 1M",
+        "athletics/index.html": "Entries per 1M",
     }
 
     for relative_path, label in expected.items():
@@ -333,7 +349,7 @@ def test_cached_population_mode_restores_area_size_controls():
 def test_every_sport_uses_the_central_navigation_registry():
     pages = [ROOT / "docs" / "index.html"] + [
         ROOT / "docs" / sport / "index.html"
-        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
     ]
 
     for page in pages:
@@ -342,7 +358,7 @@ def test_every_sport_uses_the_central_navigation_registry():
         assert "assets/sport-navigation.js" in html
 
     navigation = (ROOT / "docs" / "assets" / "sport-navigation.js").read_text(encoding="utf-8")
-    expected_order = ("football", "cricket", "ufc", "formula", "motogp", "volleyball", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+    expected_order = ("football", "cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
     offsets = [navigation.index(f'id: "{sport}"') for sport in expected_order]
     assert offsets == sorted(offsets)
     assert "readMapState" in navigation
@@ -356,7 +372,7 @@ def test_all_sports_directory_explains_comparison_scope():
     stylesheet = (ROOT / "docs" / "sports" / "sports.css").read_text(encoding="utf-8")
 
     assert 'id="sport-directory"' in html
-    assert "Sixteen sporting lenses" in html
+    assert "Seventeen sporting lenses" in html
     assert "workload measures retain their sport-specific meanings" in html
     assert "TalentGeoNavigation.renderDirectory" in html
     assert ".sport-directory" in stylesheet
@@ -399,11 +415,11 @@ def test_comparison_registry_workload_fields_exist_in_every_payload():
     payload_paths = {"football": ROOT / "docs" / "data" / "dashboard.json"}
     payload_paths.update({
         sport: ROOT / "docs" / sport / "data" / "dashboard.json"
-        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
     })
     workload_fields = {
         "football": "starts", "cricket": "appearances", "ufc": "bouts",
-        "formula": "laps", "motogp": "laps", "volleyball": "sets",
+        "formula": "laps", "motogp": "laps", "volleyball": "sets", "athletics": "entries",
         "tennis": "points", "padel": "points", "badminton": "points",
         "golf": "points", "afl": "games", "nrl": "games", "nba": "minutes",
         "nfl": "snaps", "nhl": "minutes", "mlb": "minutes",
@@ -477,7 +493,7 @@ def test_every_explorer_uses_the_shared_map_first_workspace():
     stylesheet = (ROOT / "docs" / "assets" / "styles.css").read_text(encoding="utf-8")
     map_pages = [ROOT / "docs" / "index.html"] + [
         ROOT / "docs" / sport / "index.html"
-        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
     ]
 
     for page in map_pages:

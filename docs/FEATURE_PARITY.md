@@ -1,6 +1,6 @@
 # Sport explorer feature-parity audit
 
-Audited 14 September 2026. This is the contract for the current static editions, not a promise that unlike sports will use identical terminology.
+Audited 18 September 2026. This is the contract for the current static editions, not a promise that unlike sports will use identical terminology.
 
 ## Shared map contract
 
@@ -26,6 +26,7 @@ Population rates remain birthplace-only when an edition also publishes a fallbac
 | Formula | Laps / starts | Birthplace | Series and team | Not yet |
 | MotoGP | Laps / starts | Birthplace | Series and team | Not yet |
 | Volleyball | Sets / matches | Birthplace | Gender and national team | Not yet |
+| Athletics | Event entries / rounds | Birthplace | Competition and federation | Not yet |
 | Tennis | Ranking points | Birthplace | Tour | Not applicable |
 | Padel | Ranking points | Birthplace | Division | Not applicable |
 | Badminton | Allocated ranking points | Birthplace | Group and event | Not applicable |
@@ -44,4 +45,3 @@ Population rates remain birthplace-only when an edition also publishes a fallbac
 - National-team colour comparison for Football, Cricket and Volleyball is the next sensible parity extension.
 - Motorsport constructors need a season-aware colour registry before Formula and MotoGP can safely use the same interaction.
 - All-team views stay neutral. Team colours activate only for an explicit selection of one to six teams, preventing an unreadable 17–32-colour map.
-
