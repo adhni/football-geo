@@ -201,6 +201,7 @@ select:focus-visible, input:focus-visible { border-color: var(--mint); box-shado
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { color: var(--text); background: #0a1713; }.leaflet-popup-content { margin: 16px; font-family: "Manrope", sans-serif; }.place-popup > strong { font-size: 14px; }.place-popup > p { margin: 6px 0 12px; color: var(--muted); font-size: 11px; }.place-popup ul { max-height: 230px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }.place-popup li { padding: 0; border-top: 1px solid var(--line-soft); }.place-popup li span, .place-popup li small { display: block; }.place-popup li span { font-size: 11px; font-weight: 650; }.place-popup li small, .popup-overflow { margin-top: 3px; color: var(--muted); font-size: 11px; }.popup-overflow { margin-bottom: 0; }
 .popup-player { width: 100%; min-height: 44px; padding: 8px 0; color: inherit; border: 0; background: transparent; text-align: left; cursor: pointer; }
 .popup-player:hover span { color: var(--accent); }
+.popup-player-detail { display: block; max-width: 190px; margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.35; }
 .location-kind { display: inline-block; margin: .25rem 0 0 .45rem; padding: .08rem .35rem; border: 1px solid currentColor; border-radius: 999px; color: var(--accent); font: 500 .58rem/1.2 "DM Mono", monospace; letter-spacing: .04em; text-transform: uppercase; vertical-align: middle; }
 .location-kind.origin { color: #52a9c7; }
 .popup-player .location-kind { display: block; margin: .2rem 0 0; width: max-content; }

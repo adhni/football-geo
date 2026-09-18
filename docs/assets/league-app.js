@@ -47,6 +47,9 @@ const EDITION = {
   tableGroupLabel: "Team",
   tableStatField: "games",
   tableStatLabel: "Games",
+  positionValuesField: null,
+  participantDetailField: "position",
+  popupDetailField: null,
   showTeamFilter: true,
   comparisonHighlight: "outsideHome",
   ...window.TALENT_GEO_EDITION,
@@ -109,6 +112,22 @@ function normalSearch(value) {
   return String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
+function recordValues(row, field, fallbackField = null) {
+  const value = field ? row[field] : fallbackField ? row[fallbackField] : null;
+  const fallback = fallbackField && field !== fallbackField ? row[fallbackField] : null;
+  const selected = value === null || value === undefined || value === "" ? fallback : value;
+  return (Array.isArray(selected) ? selected : [selected]).filter(Boolean).map(String);
+}
+
+function positionValues(row) {
+  return recordValues(row, EDITION.positionValuesField, "position");
+}
+
+function participantDetail(row) {
+  const values = recordValues(row, EDITION.participantDetailField, "position");
+  return values.length ? values.join(" · ") : "Position unavailable";
+}
+
 function matchesTeam(team) {
   return TEAM_STYLES ? state.teams.length === 0 || state.teams.includes(team) : state.team === "all" || state.team === team;
 }
@@ -156,7 +175,7 @@ function projectTeamSplits(row, splits) {
 function filteredRecords(conference = state.conference) {
   return state.payload.records.flatMap((row) => {
     if (state.country !== "all" && row.country !== state.country) return [];
-    if (state.position !== "all" && row.position !== state.position) return [];
+    if (state.position !== "all" && !positionValues(row).includes(state.position)) return [];
     if (!row.teamSplits?.length) {
       return (conference === "all" || row.conference === conference)
         && matchesTeam(row.team) ? [row] : [];
@@ -413,7 +432,7 @@ function usePopulationBasemap(active) {
 
 function popupPlayers(rows, maximum = 8) {
   const visible = rows.slice(0, maximum);
-  const items = visible.map((row) => `<button type="button" class="popup-player" data-player-id="${escapeHtml(row.id)}"><span>${escapeHtml(row.name)}${EDITION.mixedLocationTypes ? `<small class="location-kind ${row.locationType && row.locationType !== "birthplace" ? "origin" : "birthplace"}">${row.locationType && row.locationType !== "birthplace" ? escapeHtml(EDITION.originLabel) : "Birthplace"}</small>` : ""}</span><b>${number.format(row.minutes)} ${escapeHtml(EDITION.workloadShort)}</b></button>`).join("");
+  const items = visible.map((row) => { const detail = recordValues(row, EDITION.popupDetailField).join(" · "); return `<button type="button" class="popup-player" data-player-id="${escapeHtml(row.id)}"><span>${escapeHtml(row.name)}${detail ? `<small class="popup-player-detail">${escapeHtml(detail)}</small>` : ""}${EDITION.mixedLocationTypes ? `<small class="location-kind ${row.locationType && row.locationType !== "birthplace" ? "origin" : "birthplace"}">${row.locationType && row.locationType !== "birthplace" ? escapeHtml(EDITION.originLabel) : "Birthplace"}</small>` : ""}</span><b>${number.format(row.minutes)} ${escapeHtml(EDITION.workloadShort)}</b></button>`; }).join("");
   const rest = rows.length - visible.length;
   return `${items}${rest > 0 ? `<small class="popup-rest">+ ${rest} more ${escapeHtml(EDITION.participantLabelPlural)}</small>` : ""}`;
 }
@@ -715,11 +734,11 @@ function updateAgeAndCountry() {
 function updatePlayerTable() {
   const query = normalSearch(state.search.trim());
   const players = filteredRecords()
-    .filter((row) => !query || [row.name, row.team, ...(row.teams || []), row.place, row.country].some((value) => normalSearch(value).includes(query)))
+    .filter((row) => !query || [row.name, row.team, ...(row.teams || []), row.place, row.country, ...positionValues(row)].some((value) => normalSearch(value).includes(query)))
     .sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name));
   const visible = players.slice(0, state.playerLimit);
   $("#player-table").innerHTML = visible.map((row) => `
-    <tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(row.id)}" aria-label="Open profile for ${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.position || "Position unavailable")}</small></button></td><td data-label="${escapeHtml(EDITION.tableGroupLabel)}">${escapeHtml((row.teams || [row.team]).join(", "))}</td>${EDITION.showConferenceColumn ? `<td data-label="${escapeHtml(EDITION.conferenceLabel)}">${escapeHtml(row.conference.replace(" Conference", ""))}</td>` : ""}<td data-label="${escapeHtml(EDITION.locationLabel)}">${row.mapped ? `${escapeHtml(row.place)}<br><small>${escapeHtml(row.country)}</small>${EDITION.mixedLocationTypes ? `<span class="location-kind ${row.locationType && row.locationType !== "birthplace" ? "origin" : "birthplace"}">${row.locationType && row.locationType !== "birthplace" ? escapeHtml(EDITION.originLabel) : "Birthplace"}</span>` : ""}` : `<span style="color:var(--danger)">Awaiting QA</span>`}</td><td class="numeric" data-label="${escapeHtml(EDITION.tableStatLabel)}">${number.format(row[EDITION.tableStatField])}</td>${EDITION.showWorkloadColumn ? `<td class="numeric" data-label="${escapeHtml(EDITION.workloadLabel)}">${number.format(row.minutes)}</td>` : ""}</tr>`).join("");
+    <tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(row.id)}" aria-label="Open profile for ${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(participantDetail(row))}</small></button></td><td data-label="${escapeHtml(EDITION.tableGroupLabel)}">${escapeHtml((row.teams || [row.team]).join(", "))}</td>${EDITION.showConferenceColumn ? `<td data-label="${escapeHtml(EDITION.conferenceLabel)}">${escapeHtml(row.conference.replace(" Conference", ""))}</td>` : ""}<td data-label="${escapeHtml(EDITION.locationLabel)}">${row.mapped ? `${escapeHtml(row.place)}<br><small>${escapeHtml(row.country)}</small>${EDITION.mixedLocationTypes ? `<span class="location-kind ${row.locationType && row.locationType !== "birthplace" ? "origin" : "birthplace"}">${row.locationType && row.locationType !== "birthplace" ? escapeHtml(EDITION.originLabel) : "Birthplace"}</span>` : ""}` : `<span style="color:var(--danger)">Awaiting QA</span>`}</td><td class="numeric" data-label="${escapeHtml(EDITION.tableStatLabel)}">${number.format(row[EDITION.tableStatField])}</td>${EDITION.showWorkloadColumn ? `<td class="numeric" data-label="${escapeHtml(EDITION.workloadLabel)}">${number.format(row.minutes)}</td>` : ""}</tr>`).join("");
   const empty = $("#player-empty-state");
   empty.hidden = players.length > 0;
   empty.innerHTML = players.length ? "" : `<h3>No ${escapeHtml(EDITION.participantLabelPlural)} found</h3><p>${escapeHtml(query ? "Try another search or clear the current filters." : `This selection has no ${EDITION.participantLabelPlural}.`)}</p><button type="button" class="empty-state-action" data-clear-filters>Clear filters</button>`;
@@ -820,7 +839,7 @@ function populateFilters() {
   addOptions("#conference-filter", state.payload.meta.conferences);
   addOptions("#team-filter", state.payload.meta.teams);
   addOptions("#country-filter", [...new Set(state.payload.records.filter((row) => row.mapped).map((row) => row.country))].sort());
-  if ($("#position-filter")) addOptions("#position-filter", [...new Set(state.payload.records.map((row) => row.position).filter(Boolean))].sort());
+  if ($("#position-filter")) addOptions("#position-filter", [...new Set(state.payload.records.flatMap(positionValues))].sort());
   const places = aggregatePlaces(state.payload.records).sort((a, b) => a.place.localeCompare(b.place));
   $("#place-options").innerHTML = places.map((place) => `<option value="${escapeHtml(place.place)}, ${escapeHtml(place.country)}"></option>`).join("");
   buildTeamPicker();
@@ -864,7 +883,7 @@ function openPlayerProfile(playerId, opener = document.activeElement) {
   const conferences = [...new Set((player.teamSplits || []).map((split) => split.conference))];
   const profileOrigin = player[EDITION.profileOriginField] || EDITION.profileOriginFallback;
   $("#profile-name").textContent = player.name;
-  $("#profile-meta").textContent = `${player.position || "Position unavailable"} · ${profileOrigin}`;
+  $("#profile-meta").textContent = `${participantDetail(player)} · ${profileOrigin}`;
   $("#profile-team").textContent = (player.teams || [player.team]).join(" · ");
   $("#profile-conference").textContent = (conferences.length ? conferences : [player.conference]).join(" · ");
   ["#profile-games", "#profile-minutes", "#profile-points", "#profile-rebounds", "#profile-assists"].forEach((selector, index) => {

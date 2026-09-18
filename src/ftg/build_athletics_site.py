@@ -227,6 +227,7 @@ def aggregate_results(pages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         genders = athlete.pop("genders")
         conference = "Men" if "M" in genders else "Women" if "W" in genders else "Mixed relay only"
         disciplines = sorted({row["discipline"] for row in event_rows})
+        event_names = [row["event"] for row in event_rows]
         medals_won = [row["medal"] for row in event_rows if row["medal"]]
         entries = len(event_rows)
         rounds = sum(row["rounds"] for row in event_rows)
@@ -235,6 +236,7 @@ def aggregate_results(pages: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "conference": conference, "series": [conference], "gender": conference,
             "team": team, "teamCode": team, "teams": [team],
             "position": disciplines[0] if len(disciplines) == 1 else "Multiple disciplines",
+            "eventNames": event_names,
             "entries": entries, "games": rounds, "rounds": rounds, "medals": len(medals_won),
             "gold": medals_won.count("Gold"), "silver": medals_won.count("Silver"),
             "bronze": medals_won.count("Bronze"), "eventLog": event_rows,

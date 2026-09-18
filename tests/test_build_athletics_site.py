@@ -44,6 +44,7 @@ def test_aggregate_results_counts_entries_once_and_excludes_dns(monkeypatch):
     assert {row["sourcePlayerId"] for row in players} == {"1001", "2001"}
     by_id = {row["sourcePlayerId"]: row for row in players}
     assert by_id["1001"]["entries"] == 1
+    assert by_id["1001"]["eventNames"] == ["Men's 100 Metres"]
     assert by_id["1001"]["rounds"] == 2
     assert by_id["1001"]["gold"] == 1
     assert by_id["2001"]["entries"] == 1
@@ -62,3 +63,5 @@ def test_published_payload_reconciles_entries_and_birthplace_coverage():
     assert sum(row["entries"] for row in records) == payload["summary"]["entries"]
     assert sum(row["entries"] for row in records if row["mapped"]) == payload["summary"]["mapped_entries"]
     assert all(row["entries"] == len(row["eventLog"]) for row in records)
+    assert all(row["eventNames"] == [event["event"] for event in row["eventLog"]] for row in records)
+    assert len({event for row in records for event in row["eventNames"]}) == 49
