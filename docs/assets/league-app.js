@@ -615,8 +615,9 @@ function renderPopulationMap(records) {
   state.populationLayer = L.geoJSON({ type: "FeatureCollection", features: cells.map((cell) => cell.feature) }, {
     style(feature) {
       const cell = byId.get(feature.properties.hex_id);
-      if (cell.reference) return { color: "#66817a", weight: .35, fillColor: populationRateColour(0), fillOpacity: .13 };
-      return { color: cell.stable ? "#94c8b4" : "#62877d", weight: cell.stable ? .8 : .65, dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .82 : .42 };
+      const regional = state.populationResolution === 3;
+      if (cell.reference) return { color: "#66817a", weight: regional ? .18 : .35, fillColor: populationRateColour(0), fillOpacity: .13 };
+      return { color: cell.stable ? "#94c8b4" : "#62877d", weight: regional ? (cell.stable ? .55 : .4) : (cell.stable ? .8 : .65), dashArray: cell.stable ? null : "3 3", fillColor: populationRateColour(cell.rate), fillOpacity: cell.stable ? .82 : .42 };
     },
     onEachFeature(feature, layer) {
       const cell = byId.get(feature.properties.hex_id);
