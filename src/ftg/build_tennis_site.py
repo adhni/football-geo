@@ -5,7 +5,6 @@ import csv
 import io
 import json
 import re
-import unicodedata
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -21,6 +20,7 @@ from src.ftg.enrich_wikidata import (
     entity_label,
 )
 from src.ftg.http_cache import CachedHttpClient
+from src.ftg.utils import age_on as _age_on, normalize_key as normalize, write_json as _write_json
 
 ROOT = Path(__file__).resolve().parents[2]
 SEASON = 2025
@@ -58,21 +58,6 @@ OFFICIAL_BIRTHPLACE_OVERRIDES = {
     "WTA:221012": ("Shiyan", "https://www.wtatennis.com/players/328120/qinwen-zheng"),
     "WTA:216133": ("Shenzhen", "https://www.wtatennis.com/players/326376/xinyu-wang/"),
 }
-
-
-def normalize(value: object) -> str:
-    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode().casefold()
-    return re.sub(r"[^a-z0-9]", "", text)
-
-
-def _write_json(path: Path, value: Any, *, pretty: bool = False) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    options = {"ensure_ascii": False, "indent": 2, "sort_keys": True} if pretty else {
-        "ensure_ascii": False, "separators": (",", ":")
-    }
-    temporary.write_text(json.dumps(value, **options), encoding="utf-8")
-    temporary.replace(path)
 
 
 def _read_text(path: Path | None, url: str, cache_path: Path, *, force: bool) -> tuple[str, str]:
@@ -267,13 +252,7 @@ def fetch_birthplaces(
 
 
 def age_on(dob: str | None) -> int | None:
-    if not dob:
-        return None
-    try:
-        born = date.fromisoformat(dob[:10])
-    except ValueError:
-        return None
-    return SEASON_END.year - born.year - ((SEASON_END.month, SEASON_END.day) < (born.month, born.day))
+    return _age_on(dob, SEASON_END)
 
 
 def build_payload(

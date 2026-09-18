@@ -1,5 +1,8 @@
 # Data Dictionary
 
+For the published multi-sport site, see the [dashboard JSON contract](DASHBOARD_SCHEMA.md).
+The tables below describe the historical football pipeline's intermediate files.
+
 ## player_season_starts.parquet
 
 The same canonical table can hold season aggregates or explicitly labelled tournament aggregates. Check `dataset_scope` before analysis; never describe World Cup-only rows as complete national-team seasons.

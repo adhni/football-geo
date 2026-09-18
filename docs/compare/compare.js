@@ -346,11 +346,12 @@
       renderBoth();
     });
     $("#copy-link").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
       updateUrl();
       try {
         await navigator.clipboard.writeText(window.location.href);
-        event.currentTarget.textContent = "Copied";
-        window.setTimeout(() => { event.currentTarget.textContent = "Copy link"; }, 1500);
+        button.textContent = "Copied";
+        window.setTimeout(() => { button.textContent = "Copy link"; }, 1500);
       } catch (_) {
         showError("Copy failed. Use the address bar to copy this comparison.");
       }
