@@ -362,6 +362,59 @@ def test_all_sports_directory_explains_comparison_scope():
     assert ".sport-directory" in stylesheet
 
 
+def test_cross_sport_comparison_has_synchronised_maps_and_independent_measures():
+    html = (ROOT / "docs" / "compare" / "index.html").read_text(encoding="utf-8")
+    javascript = (ROOT / "docs" / "compare" / "compare.js").read_text(encoding="utf-8")
+    stylesheet = (ROOT / "docs" / "compare" / "compare.css").read_text(encoding="utf-8")
+    navigation = (ROOT / "docs" / "assets" / "sport-navigation.js").read_text(encoding="utf-8")
+
+    for element_id in (
+        "left-sport",
+        "right-sport",
+        "left-map",
+        "right-map",
+        "view-mode",
+        "resolution-control",
+        "swap-sports",
+        "copy-link",
+    ):
+        assert f'id="{element_id}"' in html
+
+    assert 'data-preset="nfl,nba"' in html
+    assert 'data-preset="afl,nrl"' in html
+    assert 'data-preset="tennis,golf"' in html
+    assert 'role="tablist"' in html
+    assert "function syncViewport(sourceSide)" in javascript
+    assert "target.setView(source.getCenter(), source.getZoom()" in javascript
+    assert "function populationCells(" in javascript
+    assert 'record.locationType === "birthplace"' in javascript
+    assert "leftMeasure" in javascript and "rightMeasure" in javascript
+    assert ".compare-grid" in stylesheet
+    assert ".active-mobile-panel" in stylesheet
+    assert "sideBySideUrl" in navigation
+    assert 'href="../compare/' in (ROOT / "docs" / "sports" / "index.html").read_text(encoding="utf-8")
+
+
+def test_comparison_registry_workload_fields_exist_in_every_payload():
+    payload_paths = {"football": ROOT / "docs" / "data" / "dashboard.json"}
+    payload_paths.update({
+        sport: ROOT / "docs" / sport / "data" / "dashboard.json"
+        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+    })
+    workload_fields = {
+        "football": "starts", "cricket": "appearances", "ufc": "bouts",
+        "formula": "laps", "motogp": "laps", "volleyball": "sets",
+        "tennis": "points", "padel": "points", "badminton": "points",
+        "golf": "points", "afl": "games", "nrl": "games", "nba": "minutes",
+        "nfl": "snaps", "nhl": "minutes", "mlb": "minutes",
+    }
+
+    for sport, path in payload_paths.items():
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        assert payload["records"]
+        assert all(workload_fields[sport] in record for record in payload["records"])
+
+
 def test_mlb_explorer_reuses_the_accessible_sport_shell():
     html = (ROOT / "docs" / "mlb" / "index.html").read_text(encoding="utf-8")
     shared_javascript = (ROOT / "docs" / "assets" / "league-app.js").read_text(encoding="utf-8")

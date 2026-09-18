@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Compare the mapped sporting geographies of two Talent Geography editions in one synchronized view.">
+  <meta name="theme-color" content="#07110e">
+  <title>Compare Sports · Talent Geography</title>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="../assets/styles.css">
+  <link rel="stylesheet" href="./compare.css">
+</head>
+<body class="sport-compare-site">
+  <a class="skip-link" href="#main-content">Skip to comparison</a>
+  <header class="site-header">
+    <a class="brand" href="../" aria-label="Talent Geography home"><span class="brand-mark" aria-hidden="true"><i></i></span><span>Talent <b>Geography</b></span></a>
+    <nav class="sport-switcher" aria-label="Choose a sport"></nav>
+    <div class="header-meta"><span class="status-pill"><i></i> Synced maps</span><a href="../sports/">All editions</a></div>
+  </header>
+
+  <main id="main-content" tabindex="-1">
+    <section class="compare-hero">
+      <div>
+        <p class="eyebrow">Side-by-side explorer</p>
+        <h1>Same world.<br><em>Two sporting lenses.</em></h1>
+      </div>
+      <p>Pan or zoom either map and the other follows. Choose each sport’s own workload or its mapped people; circle sizes are scaled within each panel.</p>
+    </section>
+
+    <section class="compare-workspace" aria-label="Cross-sport map comparison">
+      <div class="compare-toolbar">
+        <div class="preset-control">
+          <span class="toolbar-label">Quick comparisons</span>
+          <div class="preset-list" aria-label="Comparison presets">
+            <button type="button" data-preset="nfl,nba">NFL · NBA</button>
+            <button type="button" data-preset="afl,nrl">AFL · NRL</button>
+            <button type="button" data-preset="tennis,golf">Tennis · Golf</button>
+          </div>
+        </div>
+        <div class="view-control">
+          <span class="toolbar-label">Shared geographic view</span>
+          <div class="segmented" id="view-mode" aria-label="Choose a geographic view">
+            <button type="button" data-view="places" aria-pressed="true">Places</button>
+            <button type="button" data-view="population" aria-pressed="false">Per 1M areas</button>
+          </div>
+        </div>
+        <div class="resolution-control" id="resolution-control" hidden>
+          <span class="toolbar-label">Area size</span>
+          <div class="segmented" aria-label="Choose population area size">
+            <button type="button" data-resolution="1" aria-pressed="false">Very large</button>
+            <button type="button" data-resolution="2" aria-pressed="false">Large</button>
+            <button type="button" data-resolution="3" aria-pressed="true">Regional</button>
+          </div>
+        </div>
+        <div class="toolbar-actions">
+          <button class="utility-button" id="swap-sports" type="button" title="Swap the two sports">⇄ <span>Swap</span></button>
+          <button class="utility-button" id="copy-link" type="button">Copy link</button>
+        </div>
+      </div>
+
+      <div class="mobile-panel-tabs" role="tablist" aria-label="Choose visible comparison map">
+        <button type="button" role="tab" id="mobile-left-tab" aria-controls="left-panel" aria-selected="true" data-mobile-panel="left">A · NFL</button>
+        <button type="button" role="tab" id="mobile-right-tab" aria-controls="right-panel" aria-selected="false" data-mobile-panel="right">B · NBA</button>
+      </div>
+
+      <div class="compare-grid">
+        <article class="compare-panel active-mobile-panel" id="left-panel" data-side="left" aria-labelledby="left-title">
+          <header class="panel-header">
+            <label for="left-sport"><span>Map A</span><span class="select-wrap"><select id="left-sport" data-sport-select="left"></select></span></label>
+            <div class="panel-title"><p id="left-season"></p><h2 id="left-title">NFL</h2><p id="left-scope"></p></div>
+          </header>
+          <div class="panel-measures" id="left-measures" aria-label="Map A measure">
+            <button type="button" data-side="left" data-measure="workload" aria-pressed="true">Snaps</button>
+            <button type="button" data-side="left" data-measure="people" aria-pressed="false">Players</button>
+          </div>
+          <div class="panel-summary" id="left-summary" aria-live="polite">Loading NFL…</div>
+          <div class="compare-map" id="left-map" aria-label="Map A"></div>
+          <div class="panel-legend" id="left-legend"></div>
+          <div class="map-loading" id="left-loading" role="status">Loading map…</div>
+        </article>
+
+        <article class="compare-panel" id="right-panel" data-side="right" aria-labelledby="right-title">
+          <header class="panel-header">
+            <label for="right-sport"><span>Map B</span><span class="select-wrap"><select id="right-sport" data-sport-select="right"></select></span></label>
+            <div class="panel-title"><p id="right-season"></p><h2 id="right-title">NBA</h2><p id="right-scope"></p></div>
+          </header>
+          <div class="panel-measures" id="right-measures" aria-label="Map B measure">
+            <button type="button" data-side="right" data-measure="workload" aria-pressed="true">Minutes</button>
+            <button type="button" data-side="right" data-measure="people" aria-pressed="false">Players</button>
+          </div>
+          <div class="panel-summary" id="right-summary" aria-live="polite">Loading NBA…</div>
+          <div class="compare-map" id="right-map" aria-label="Map B"></div>
+          <div class="panel-legend" id="right-legend"></div>
+          <div class="map-loading" id="right-loading" role="status">Loading map…</div>
+        </article>
+      </div>
+    </section>
+
+    <aside class="comparison-note">
+      <span>Read the maps carefully</span>
+      <p>The maps share a viewport and birthplace-first geography, but each panel scales its own symbols and retains its sport-specific cohort and workload unit. Population mode excludes labelled hometown or origin fallbacks because they are not birthplaces. Rates with fewer than two mapped people or fewer than 100,000 residents are shown as small samples.</p>
+    </aside>
+  </main>
+
+  <footer><div class="brand footer-brand"><span class="brand-mark" aria-hidden="true"><i></i></span><span>Talent <b>Geography</b></span></div><p>Sixteen completed-season views. One synchronized comparison.</p><p><a href="../sports/">Browse all editions →</a></p></footer>
+  <div class="error-toast" id="error-toast" role="alert"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="../assets/sport-navigation.js"></script>
+  <script src="./compare.js"></script>
+</body>
+</html>
