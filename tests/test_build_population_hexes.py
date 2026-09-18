@@ -1,6 +1,8 @@
 import json
+from collections import Counter
 from pathlib import Path
 
+import h3
 import pytest
 
 from src.ftg.build_population_hexes import (
@@ -9,6 +11,7 @@ from src.ftg.build_population_hexes import (
     cell_polygon,
     occupied_hexes,
     population_cache_key,
+    reference_hexes,
 )
 
 
@@ -66,6 +69,78 @@ def test_cell_polygon_splits_antimeridian_cells():
         max(point[0] for point in polygon[0]) - min(point[0] for point in polygon[0]) < 180
         for polygon in geometry["coordinates"]
     )
+
+
+def test_reference_hexes_cover_country_land(tmp_path):
+    geometry = tmp_path / "countries.geojson"
+    geometry.write_text(json.dumps({
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "properties": {"ADMIN": "Testland"},
+            "geometry": {"type": "Polygon", "coordinates": [[[-1, 50], [1, 50], [1, 52], [-1, 52], [-1, 50]]]},
+        }],
+    }))
+
+    cells = reference_hexes(geometry, resolution=3)
+
+    london_cell = next(iter(occupied_hexes({"records": [{"id": "p1", "mapped": True, "lat": 51.5, "lon": -.1}]}, 3)))
+    assert london_cell in cells
+    assert cells[london_cell]["countries"]["Testland"] == 1
+
+
+def test_reference_hexes_exclude_uninhabited_antarctica(tmp_path):
+    geometry = tmp_path / "countries.geojson"
+    geometry.write_text(json.dumps({
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "properties": {"ADM0_A3": "ATA", "ADMIN": "Antarctica"},
+            "geometry": {"type": "Polygon", "coordinates": [[[0, -90], [20, -80], [-20, -80], [0, -90]]]},
+        }],
+    }))
+
+    assert reference_hexes(geometry, resolution=1) == {}
+
+
+def test_reference_build_keeps_populated_cells_and_drops_zero_population(tmp_path, monkeypatch):
+    from src.ftg import build_population_hexes as builder
+
+    payload = {"records": [{"id": "p1", "mapped": True, "lat": 51.5, "lon": -.1, "country": "Testland"}]}
+    occupied_id = next(iter(occupied_hexes(payload)))
+    reference_id = h3.latlng_to_cell(48.8, 2.3, 3)
+    empty_id = h3.latlng_to_cell(25, -40, 3)
+    geometry = tmp_path / "countries.geojson"
+    geometry.write_text('{"features":[]}')
+
+    def context_cell(country):
+        return {"player_ids": [], "places": Counter(), "countries": Counter({country: 1})}
+
+    monkeypatch.setattr(builder, "reference_hexes", lambda *args: {
+        reference_id: context_cell("Testland"), empty_id: context_cell("Testland")
+    })
+
+    def calculate(cells, *, on_result, year, **kwargs):
+        for cell_id in cells:
+            result = _population_result(year)
+            if cell_id == empty_id:
+                result = {**result, "population": 0}
+            on_result(cell_id, result)
+
+    monkeypatch.setattr(builder, "population_from_rasters", calculate)
+    result = builder.build_population_hexes(
+        payload,
+        cache_path=tmp_path / "population.json",
+        country_geometry_path=geometry,
+        use_rasters=True,
+        include_reference_cells=True,
+    )
+
+    assert {feature["properties"]["hex_id"] for feature in result["features"]} == {occupied_id, reference_id}
+    assert result["metadata"]["occupied_cells"] == 1
+    assert result["metadata"]["reference_cells"] == 1
+    assert result["metadata"]["total_cells"] == 2
+    assert sorted(feature["properties"]["reference_cell"] for feature in result["features"]) == [False, True]
 
 
 @pytest.mark.parametrize("sport", ["football", "cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb"])

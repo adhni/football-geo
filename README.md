@@ -208,7 +208,7 @@ python -m src.ftg.build_population_hexes \
   --input docs/athletics/data/dashboard.json \
   --output docs/athletics/data/population_hexes_r3.geojson \
   --cache data/cache/athletics_worldpop_population_2025.json \
-  --h3-resolution 3 --use-rasters
+  --h3-resolution 3 --use-rasters --include-reference-cells
 ```
 
 The athletics builder covers all 49 Tokyo events and keeps only athletes with

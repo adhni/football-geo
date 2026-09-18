@@ -101,6 +101,7 @@ Each dashboard is accompanied by `population_hexes_r1.geojson`,
 | `area_km2`, `population_density` | Cell area and population per km² |
 | `player_ids` | Unique birthplace-mapped participant IDs in this cell |
 | `all_players` | Number of those IDs in the unfiltered snapshot |
+| `reference_cell` | True when the published cell has no mapped participant IDs |
 | `players_per_million` | Unfiltered player count / population × 1,000,000; null if denominator unavailable |
 | `label`, `country` | Representative labels, not polygon boundaries or nationality |
 
@@ -108,6 +109,10 @@ Top-level `metadata` records source, license, method, raster/H3 resolution and
 coverage totals. Geometry may be Polygon or MultiPolygon for cells crossing the
 antimeridian. A cell can span several countries; its country label does not
 restrict the resident denominator to that country.
+
+Editions may opt into populated-land reference cells. These cells have an
+empty `player_ids` list and remain visible when filters leave an area with no
+selected participants. Cells with a zero population denominator are omitted.
 
 For a filtered view, intersect `player_ids` with the selected unique players,
 sum their matching workload contributions, then divide by the same resident
