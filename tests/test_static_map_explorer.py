@@ -413,7 +413,7 @@ def test_cross_sport_comparison_has_synchronised_maps_and_independent_measures()
     assert "function syncViewport(sourceSide)" in javascript
     assert "target.setView(source.getCenter(), source.getZoom()" in javascript
     assert "function populationCells(" in javascript
-    assert 'record.locationType === "birthplace"' in javascript
+    assert 'record.locationType !== "birthplace"' in javascript
     assert "leftMeasure" in javascript and "rightMeasure" in javascript
     assert ".compare-grid" in stylesheet
     assert ".active-mobile-panel" in stylesheet
