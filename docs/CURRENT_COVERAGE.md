@@ -22,9 +22,10 @@ The per-capita view groups mapped player birthplaces into selectable H3
 resolution-1 (Very broad), resolution-2 (Large), or resolution-3 (Regional)
 cells and divides unique players by each cell's estimated 2025 population.
 Population totals come from the WorldPop Global 2 R2025A 1 km population grid.
-Only occupied cells are included in the static GeoJSON.
+Populated land cells without mapped players remain as faint reference hexagons;
+cells with no resident population are omitted.
 
-The map displays every occupied cell, but the ranked hotspot list requires at
+The map displays every populated reference cell, but the ranked hotspot list requires at
 least two selected players and at least 100,000 estimated residents. Dashed
 cells fall below one of those thresholds and should be interpreted cautiously.
 Hex colour uses a continuous scale derived from the full unfiltered rate

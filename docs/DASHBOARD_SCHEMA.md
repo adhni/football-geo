@@ -49,8 +49,8 @@ are not birthplace population denominators.
 Football records repeat the same `id` for different club/season contributions.
 For example, two rows with starts of 20 and 17 represent **one person with 37
 starts**, not two people and not one row chosen arbitrarily. Count unique IDs
-for people and sum contributions for workloads. This is the intended contract;
-the cross-sport comparison's football deduplication remains a known follow-up.
+for people and sum contributions for workloads. The cross-sport comparison
+follows the same contract.
 
 Other editions currently publish one record per participant. Where present,
 `teamSplits` partitions the participant's contributions between teams or groups.

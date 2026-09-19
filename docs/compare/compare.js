@@ -39,6 +39,17 @@
   const populationUrl = (sport, resolution) => new URL(`${sport.path}data/population_hexes_r${resolution}.geojson`, rootUrl);
   const otherSide = (side) => side === "left" ? "right" : "left";
 
+  function mappedPeople(records, sport, birthplaceOnly = false) {
+    const people = new Map();
+    records.forEach((record) => {
+      if (!record.mapped || (birthplaceOnly && record.locationType && record.locationType !== "birthplace")) return;
+      const id = String(record.id);
+      if (!people.has(id)) people.set(id, { ...record, workload: 0 });
+      people.get(id).workload += workloadValue(record, sport);
+    });
+    return people;
+  }
+
   function showError(message) {
     const toast = $("#error-toast");
     toast.textContent = message;
@@ -126,7 +137,7 @@
 
   function aggregatePlaces(records, sport) {
     const places = new Map();
-    records.forEach((record) => {
+    mappedPeople(records, sport).forEach((record) => {
       const lat = Number(record.lat);
       const lon = Number(record.lon);
       if (!record.mapped || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
@@ -134,7 +145,7 @@
       if (!places.has(key)) places.set(key, { lat, lon, place: record.place || "Mapped place", country: record.country || "Country unavailable", people: 0, workload: 0, origins: 0 });
       const place = places.get(key);
       place.people += 1;
-      place.workload += workloadValue(record, sport);
+      place.workload += record.workload;
       if (record.locationType && record.locationType !== "birthplace") place.origins += 1;
     });
     return [...places.values()];
@@ -167,9 +178,9 @@
         fillOpacity: .76,
       }).bindTooltip(`<strong>${escapeHtml(place.place)}</strong><small>${escapeHtml(place.country)} · ${escapeHtml(kind)}</small>${number.format(value)} ${escapeHtml(panel.measure === "people" ? sport.participantLabel : sport.workloadLabel)}<small>${number.format(place.people)} ${escapeHtml(sport.participantLabel)} · ${number.format(place.workload)} ${escapeHtml(sport.workloadLabel)}</small>`, { className: "compare-tooltip", sticky: true }).addTo(panel.layer);
     });
-    const mapped = (payload.records || []).filter((record) => record.mapped);
-    const mappedWorkload = mapped.reduce((sum, record) => sum + workloadValue(record, sport), 0);
-    $(`#${side}-summary`).innerHTML = `<b>${number.format(mapped.length)}</b> mapped ${escapeHtml(sport.participantLabel)} · <b>${number.format(places.length)}</b> places · <b>${compact.format(mappedWorkload)}</b> ${escapeHtml(sport.workloadLabel)}`;
+    const mapped = mappedPeople(payload.records || [], sport);
+    const mappedWorkload = [...mapped.values()].reduce((sum, person) => sum + person.workload, 0);
+    $(`#${side}-summary`).innerHTML = `<b>${number.format(mapped.size)}</b> mapped ${escapeHtml(sport.participantLabel)} · <b>${number.format(places.length)}</b> places · <b>${compact.format(mappedWorkload)}</b> ${escapeHtml(sport.workloadLabel)}`;
     $(`#${side}-legend`).innerHTML = `<i></i> Size = ${escapeHtml(panel.measure === "people" ? sport.participantLabel : sport.workloadLabel)} · scaled within Map ${side === "left" ? "A" : "B"}`;
   }
 
@@ -191,12 +202,11 @@
   }
 
   function populationCells(records, geojson, sport, measure) {
-    const players = new Map(records.filter((record) => record.mapped && (!record.locationType || record.locationType === "birthplace")).map((record) => [record.id, record]));
+    const players = mappedPeople(records, sport, true);
     return (geojson.features || []).map((feature) => {
-      const selected = [...new Set(feature.properties.player_ids || [])].map((id) => players.get(id)).filter(Boolean);
-      if (!selected.length) return null;
+      const selected = [...new Set(feature.properties.player_ids || [])].map((id) => players.get(String(id))).filter(Boolean);
       const population = Number(feature.properties.population) || 0;
-      const workload = selected.reduce((sum, record) => sum + workloadValue(record, sport), 0);
+      const workload = selected.reduce((sum, record) => sum + record.workload, 0);
       const raw = measure === "people" ? selected.length : workload;
       return {
         feature,
@@ -204,6 +214,7 @@
         workload,
         population,
         rate: population ? raw / population * 1_000_000 : null,
+        reference: !selected.length,
         stable: selected.length >= 2 && population >= 100000,
         label: feature.properties.label || "Mapped area",
         country: feature.properties.country || "Country unavailable",
@@ -215,26 +226,33 @@
     const panel = state.sides[side];
     clearSideLayer(side);
     const cells = populationCells(payload.records || [], geojson, sport, panel.measure);
-    const rates = cells.map((cell) => cell.rate).filter((rate) => rate !== null).sort((a, b) => a - b);
+    const rates = cells.filter((cell) => !cell.reference).map((cell) => cell.rate).filter((rate) => rate !== null).sort((a, b) => a - b);
     const colourMaximum = quantile(rates, .9);
     const byId = new Map(cells.map((cell) => [cell.feature.properties.hex_id, cell]));
     panel.map.removeLayer(panel.layer);
     panel.layer = L.geoJSON({ type: "FeatureCollection", features: cells.map((cell) => cell.feature) }, {
       style(feature) {
         const cell = byId.get(feature.properties.hex_id);
+        const regional = state.resolution === 3;
+        if (cell.reference) return { color: "#66817a", weight: regional ? .18 : .35, fillColor: "#d9f1e8", fillOpacity: .13 };
         const strength = Math.sqrt(Math.min((cell.rate || 0) / Math.max(colourMaximum, 1), 1));
-        return { color: cell.stable ? sport.accent : "#82918c", weight: cell.stable ? .9 : .7, dashArray: cell.stable ? null : "3 3", fillColor: mixColour("#122d2e", sport.accent, strength), fillOpacity: cell.stable ? .8 : .42 };
+        return { color: cell.stable ? sport.accent : "#82918c", weight: regional ? (cell.stable ? .55 : .4) : (cell.stable ? .9 : .7), dashArray: cell.stable ? null : "3 3", fillColor: mixColour("#122d2e", sport.accent, strength), fillOpacity: cell.stable ? .8 : .42 };
       },
       onEachFeature(feature, layer) {
         const cell = byId.get(feature.properties.hex_id);
+        if (cell.reference) {
+          layer.bindTooltip(`<strong>${escapeHtml(cell.country)} reference area</strong><small>No mapped ${escapeHtml(sport.participantLabel)} in this cohort</small>${compact.format(cell.population)} residents`, { className: "compare-tooltip", sticky: true });
+          return;
+        }
         const label = panel.measure === "people" ? `${sport.participantLabel} per 1M` : `${sport.workloadLabel} per 1M`;
         layer.bindTooltip(`<strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)}${cell.stable ? "" : " · small sample"}</small>${cell.rate === null ? "Population unavailable" : `${compact.format(cell.rate)} ${escapeHtml(label)}`}<small>${cell.people} ${escapeHtml(sport.participantLabel)} · ${number.format(cell.workload)} ${escapeHtml(sport.workloadLabel)} · ${compact.format(cell.population)} residents</small>`, { className: "compare-tooltip", sticky: true });
       },
     }).addTo(panel.map);
-    const birthplacePlayers = new Set(cells.flatMap((cell) => cell.feature.properties.player_ids || []));
-    $(`#${side}-summary`).innerHTML = `<b>${number.format(cells.length)}</b> occupied areas · <b>${number.format(birthplacePlayers.size)}</b> birthplace-mapped ${escapeHtml(sport.participantLabel)} · H3 resolution ${state.resolution}`;
+    const active = cells.filter((cell) => !cell.reference);
+    const birthplaceCount = active.reduce((sum, cell) => sum + cell.people, 0);
+    $(`#${side}-summary`).innerHTML = `<b>${number.format(active.length)}</b> active · <b>${number.format(cells.length - active.length)}</b> reference areas · <b>${number.format(birthplaceCount)}</b> birthplace-mapped ${escapeHtml(sport.participantLabel)} · H3 resolution ${state.resolution}`;
     const rateLabel = panel.measure === "people" ? `${sport.participantLabel} per 1M` : `${sport.workloadLabel} per 1M`;
-    $(`#${side}-legend`).innerHTML = `<span class="colour-ramp"></span> ${escapeHtml(rateLabel)} · dashed = small sample`;
+    $(`#${side}-legend`).innerHTML = `<span class="colour-ramp"></span> ${escapeHtml(rateLabel)} · faint = no mapped ${escapeHtml(sport.participantLabel)} · dashed = small sample`;
   }
 
   function updatePanelCopy(side, sport) {
