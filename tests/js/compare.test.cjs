@@ -8,6 +8,7 @@ function clipboardHarness(writeText) {
   const copy = new EventTarget();
   copy.textContent = "Copy link";
   const swap = new EventTarget();
+  const clear = new EventTarget();
   const toast = { textContent: "", classList: { add() {}, remove() {} } };
   const timers = [];
   const context = {
@@ -21,7 +22,7 @@ function clipboardHarness(writeText) {
     navigator: { clipboard: { writeText } },
     document: {
       querySelectorAll: () => [],
-      querySelector: (selector) => ({ "#copy-link": copy, "#swap-sports": swap, "#error-toast": toast })[selector],
+      querySelector: (selector) => ({ "#copy-link": copy, "#swap-sports": swap, "#clear-hex-selection": clear, "#error-toast": toast })[selector],
     },
   };
   const source = readFileSync(resolve(__dirname, "../../docs/compare/compare.js"), "utf8");
@@ -37,12 +38,12 @@ function comparisonDataHarness() {
     URL, URLSearchParams,
     window: {
       location: { href: "https://example.test/compare/", search: "" },
-      TalentGeoNavigation: { sports: [], rootUrl: new URL("https://example.test/") },
+      TalentGeoNavigation: { sports: [{ id: "football", name: "Football", participantLabel: "players" }, { id: "athletics", name: "Athletics", participantLabel: "athletes" }], rootUrl: new URL("https://example.test/") },
     },
     document: {},
   };
   const source = readFileSync(resolve(__dirname, "../../docs/compare/compare.js"), "utf8");
-  vm.runInNewContext(source.replace(/\n  init\(\);\n/, "\n  window.comparisonData = { mappedPeople, aggregatePlaces, populationCells };\n"), context);
+  vm.runInNewContext(source.replace(/\n  init\(\);\n/, "\n  window.comparisonData = { mappedPeople, aggregatePlaces, populationCells, selectedAreaSide, state };\n"), context);
   return context.window.comparisonData;
 }
 
@@ -77,6 +78,22 @@ test("population comparison retains empty reference cells and excludes origin fa
   assert.deepEqual(Array.from(populationCells(records, { features }, sport, "people"), (cell) => [cell.people, cell.reference, cell.rate]), [
     [1, false, 10], [0, true, 0], [0, true, 0],
   ]);
+});
+
+test("selected area distinguishes zero participants from an unavailable cell", () => {
+  const { selectedAreaSide, state } = comparisonDataHarness();
+  state.selectedHexId = "833f64fffffffff";
+  state.sides.left.id = "football";
+  state.sides.right.id = "athletics";
+  state.sides.left.hexCells = new Map([[state.selectedHexId, { people: 2, population: 100000 }]]);
+  state.sides.right.hexCells = new Map([[state.selectedHexId, { people: 0, population: 100000 }]]);
+
+  assert.match(selectedAreaSide("left"), /<strong>2<\/strong> players/);
+  assert.match(selectedAreaSide("left"), /20 per 1M people/);
+  assert.match(selectedAreaSide("right"), /<strong>0<\/strong> athletes/);
+  assert.match(selectedAreaSide("right"), /0 per 1M people/);
+  state.sides.right.hexCells = new Map();
+  assert.match(selectedAreaSide("right"), /Area unavailable/);
 });
 
 test("copy link survives asynchronous clipboard completion and resets its label", async () => {
