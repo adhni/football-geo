@@ -6,6 +6,7 @@
   const rootUrl = navigation?.rootUrl || new URL("../", window.location.href);
   const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
   const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+  const rateNumber = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const parameters = new URLSearchParams(window.location.search);
   const sportById = (id) => sports.find((sport) => sport.id === id) || null;
   const validSportId = (id, fallback) => sportById(id)?.id || fallback;
@@ -16,6 +17,7 @@
   const initialViewport = Number.isFinite(initialLat) && Math.abs(initialLat) <= 90 && Number.isFinite(initialLon) && Math.abs(initialLon) <= 180 && Number.isFinite(initialZoom) && initialZoom >= 1 && initialZoom <= 18
     ? { lat: initialLat, lon: initialLon, zoom: initialZoom }
     : { lat: 12, lon: 5, zoom: 1 };
+  const initialHex = parameters.get("hex");
 
   const state = {
     view: parameters.get("view") === "population" ? "population" : "places",
@@ -25,6 +27,7 @@
     population: new Map(),
     urlTimer: null,
     syncingViewport: false,
+    selectedHexId: /^[0-9a-f]{15}$/.test(initialHex || "") ? initialHex : null,
     sides: {
       left: { id: validSportId(parameters.get("left"), "nfl"), measure: validMeasure(parameters.get("leftMeasure")), token: 0 },
       right: { id: validSportId(parameters.get("right"), "nba"), measure: validMeasure(parameters.get("rightMeasure")), token: 0 },
@@ -127,6 +130,8 @@
     url.searchParams.set("rightMeasure", state.sides.right.measure);
     if (state.view === "population") url.searchParams.set("resolution", String(state.resolution));
     else url.searchParams.delete("resolution");
+    if (state.view === "population" && state.selectedHexId) url.searchParams.set("hex", state.selectedHexId);
+    else url.searchParams.delete("hex");
     if (center) {
       url.searchParams.set("lat", center.lat.toFixed(5));
       url.searchParams.set("lon", center.lng.toFixed(5));
@@ -155,6 +160,10 @@
     const panel = state.sides[side];
     if (panel.layer && panel.map.hasLayer(panel.layer)) panel.map.removeLayer(panel.layer);
     panel.layer = L.layerGroup().addTo(panel.map);
+    panel.hexCells = null;
+    panel.hexLayers = null;
+    panel.hexStyle = null;
+    panel.highlightedHexId = null;
   }
 
   function markerRadius(value, maximum) {
@@ -222,6 +231,54 @@
     }).filter(Boolean);
   }
 
+  function selectedAreaSide(side) {
+    const panel = state.sides[side];
+    const sport = sportById(panel.id);
+    const cell = panel.hexCells?.get(state.selectedHexId);
+    const title = `${side === "left" ? "A" : "B"} · ${sport.name}`;
+    if (!panel.hexCells) return `<div class="hex-comparison-side ${side}"><span>${escapeHtml(title)}</span><p>Loading this sport…</p></div>`;
+    if (!cell) return `<div class="hex-comparison-side ${side}"><span>${escapeHtml(title)}</span><p>Area unavailable</p><small>No published population cell here</small></div>`;
+    const rawRate = cell.population ? cell.people / cell.population * 1_000_000 : null;
+    const rate = rawRate === null ? "Unavailable" : rawRate > 0 && rawRate < .01 ? "<0.01" : rateNumber.format(rawRate);
+    return `<div class="hex-comparison-side ${side}"><span>${escapeHtml(title)}</span><p><strong>${number.format(cell.people)}</strong> ${escapeHtml(sport.participantLabel)}</p><b>${rate} per 1M people</b><small>${number.format(cell.population)} residents · WorldPop 2025</small></div>`;
+  }
+
+  function updateSelectedArea() {
+    const card = $("#hex-comparison");
+    if (state.view !== "population" || !state.selectedHexId) { card.hidden = true; return; }
+    const cells = ["left", "right"].map((side) => state.sides[side].hexCells?.get(state.selectedHexId)).filter(Boolean);
+    const labelled = cells.find((cell) => !cell.reference && cell.label !== "Mapped area");
+    const country = labelled?.country || cells[0]?.country || "Selected area";
+    $("#hex-comparison-title").textContent = labelled ? labelled.label === country ? `${country} area` : `Near ${labelled.label} · ${country}` : `${country} area`;
+    $("#hex-comparison-meta").textContent = `H3 resolution ${state.resolution} · ${state.selectedHexId}`;
+    $("#hex-comparison-values").innerHTML = selectedAreaSide("left") + selectedAreaSide("right");
+    card.hidden = false;
+  }
+
+  function highlightSelectedHex() {
+    for (const side of ["left", "right"]) {
+      const panel = state.sides[side];
+      if (!panel.hexLayers) continue;
+      if (panel.highlightedHexId && panel.highlightedHexId !== state.selectedHexId) {
+        const previous = panel.hexLayers.get(panel.highlightedHexId);
+        if (previous) previous.setStyle(panel.hexStyle(panel.hexCells.get(panel.highlightedHexId)));
+      }
+      const layer = panel.hexLayers.get(state.selectedHexId);
+      if (layer) {
+        layer.setStyle({ color: "#ffffff", weight: state.resolution === 3 ? 1.7 : 2.3, dashArray: null, fillOpacity: .55 });
+        layer.bringToFront();
+      }
+      panel.highlightedHexId = layer ? state.selectedHexId : null;
+    }
+  }
+
+  function selectHex(hexId) {
+    state.selectedHexId = hexId;
+    highlightSelectedHex();
+    updateSelectedArea();
+    scheduleUrlUpdate();
+  }
+
   function renderPopulation(side, payload, geojson, sport) {
     const panel = state.sides[side];
     clearSideLayer(side);
@@ -229,17 +286,20 @@
     const rates = cells.filter((cell) => !cell.reference).map((cell) => cell.rate).filter((rate) => rate !== null).sort((a, b) => a - b);
     const colourMaximum = quantile(rates, .9);
     const byId = new Map(cells.map((cell) => [cell.feature.properties.hex_id, cell]));
+    const hexLayers = new Map();
     panel.map.removeLayer(panel.layer);
+    const cellStyle = (cell) => {
+      const regional = state.resolution === 3;
+      if (cell.reference) return { color: "#66817a", weight: regional ? .18 : .35, fillColor: "#d9f1e8", fillOpacity: .13 };
+      const strength = Math.sqrt(Math.min((cell.rate || 0) / Math.max(colourMaximum, 1), 1));
+      return { color: cell.stable ? sport.accent : "#82918c", weight: regional ? (cell.stable ? .55 : .4) : (cell.stable ? .9 : .7), dashArray: cell.stable ? null : "3 3", fillColor: mixColour("#122d2e", sport.accent, strength), fillOpacity: cell.stable ? .8 : .42 };
+    };
     panel.layer = L.geoJSON({ type: "FeatureCollection", features: cells.map((cell) => cell.feature) }, {
-      style(feature) {
-        const cell = byId.get(feature.properties.hex_id);
-        const regional = state.resolution === 3;
-        if (cell.reference) return { color: "#66817a", weight: regional ? .18 : .35, fillColor: "#d9f1e8", fillOpacity: .13 };
-        const strength = Math.sqrt(Math.min((cell.rate || 0) / Math.max(colourMaximum, 1), 1));
-        return { color: cell.stable ? sport.accent : "#82918c", weight: regional ? (cell.stable ? .55 : .4) : (cell.stable ? .9 : .7), dashArray: cell.stable ? null : "3 3", fillColor: mixColour("#122d2e", sport.accent, strength), fillOpacity: cell.stable ? .8 : .42 };
-      },
+      style(feature) { return cellStyle(byId.get(feature.properties.hex_id)); },
       onEachFeature(feature, layer) {
         const cell = byId.get(feature.properties.hex_id);
+        hexLayers.set(feature.properties.hex_id, layer);
+        layer.on("click", () => selectHex(feature.properties.hex_id));
         if (cell.reference) {
           layer.bindTooltip(`<strong>${escapeHtml(cell.country)} reference area</strong><small>No mapped ${escapeHtml(sport.participantLabel)} in this cohort</small>${compact.format(cell.population)} residents`, { className: "compare-tooltip", sticky: true });
           return;
@@ -248,11 +308,17 @@
         layer.bindTooltip(`<strong>${escapeHtml(cell.label)} area</strong><small>${escapeHtml(cell.country)}${cell.stable ? "" : " · small sample"}</small>${cell.rate === null ? "Population unavailable" : `${compact.format(cell.rate)} ${escapeHtml(label)}`}<small>${cell.people} ${escapeHtml(sport.participantLabel)} · ${number.format(cell.workload)} ${escapeHtml(sport.workloadLabel)} · ${compact.format(cell.population)} residents</small>`, { className: "compare-tooltip", sticky: true });
       },
     }).addTo(panel.map);
+    panel.hexCells = byId;
+    panel.hexLayers = hexLayers;
+    panel.hexStyle = cellStyle;
+    panel.highlightedHexId = null;
+    highlightSelectedHex();
+    updateSelectedArea();
     const active = cells.filter((cell) => !cell.reference);
     const birthplaceCount = active.reduce((sum, cell) => sum + cell.people, 0);
     $(`#${side}-summary`).innerHTML = `<b>${number.format(active.length)}</b> active · <b>${number.format(cells.length - active.length)}</b> reference areas · <b>${number.format(birthplaceCount)}</b> birthplace-mapped ${escapeHtml(sport.participantLabel)} · H3 resolution ${state.resolution}`;
     const rateLabel = panel.measure === "people" ? `${sport.participantLabel} per 1M` : `${sport.workloadLabel} per 1M`;
-    $(`#${side}-legend`).innerHTML = `<span class="colour-ramp"></span> ${escapeHtml(rateLabel)} · faint = no mapped ${escapeHtml(sport.participantLabel)} · dashed = small sample`;
+    $(`#${side}-legend`).innerHTML = `<span class="colour-ramp"></span> ${escapeHtml(rateLabel)} · click a hex to compare · faint = 0 · dashed = small sample`;
   }
 
   function updatePanelCopy(side, sport) {
@@ -273,7 +339,10 @@
     const panel = state.sides[side];
     const sport = sportById(panel.id);
     const token = ++panel.token;
+    panel.hexCells = null;
+    panel.hexLayers = null;
     updatePanelCopy(side, sport);
+    updateSelectedArea();
     $(`#${side}-loading`).hidden = false;
     $(`#${side}-loading`).textContent = `Loading ${sport.name}…`;
     try {
@@ -302,13 +371,18 @@
 
   function setView(view) {
     state.view = view === "population" ? "population" : "places";
+    if (state.view !== "population") state.selectedHexId = null;
+    updateSelectedArea();
     document.querySelectorAll("#view-mode [data-view]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.view === state.view)));
     $("#resolution-control").hidden = state.view !== "population";
     renderBoth();
   }
 
   function setResolution(resolution) {
-    state.resolution = [1, 2, 3].includes(Number(resolution)) ? Number(resolution) : 3;
+    const nextResolution = [1, 2, 3].includes(Number(resolution)) ? Number(resolution) : 3;
+    if (state.resolution !== nextResolution) state.selectedHexId = null;
+    state.resolution = nextResolution;
+    updateSelectedArea();
     document.querySelectorAll("[data-resolution]").forEach((button) => button.setAttribute("aria-pressed", String(Number(button.dataset.resolution) === state.resolution)));
     if (state.view === "population") renderBoth();
   }
@@ -329,6 +403,7 @@
   }
 
   function bindEvents() {
+    $("#clear-hex-selection").addEventListener("click", () => selectHex(null));
     document.querySelectorAll("[data-sport-select]").forEach((select) => select.addEventListener("change", () => {
       const side = select.dataset.sportSelect;
       state.sides[side].id = select.value;

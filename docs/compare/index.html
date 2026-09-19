@@ -28,7 +28,7 @@
         <p class="eyebrow">Side-by-side explorer</p>
         <h1>Same world.<br><em>Two sporting lenses.</em></h1>
       </div>
-      <p>Pan or zoom either map and the other follows. Choose each sport’s own workload or its mapped people; circle sizes are scaled within each panel.</p>
+      <p>Pan or zoom either map and the other follows. Choose each sport’s own workload or its mapped people; circle sizes are scaled within each panel. In the per-1M view, select any hexagon to compare that area.</p>
     </section>
 
     <section class="compare-workspace" aria-label="Cross-sport map comparison">
@@ -98,11 +98,18 @@
           <div class="map-loading" id="right-loading" role="status">Loading map…</div>
         </article>
       </div>
+      <section class="hex-comparison" id="hex-comparison" aria-label="Selected area comparison" hidden>
+        <div class="hex-comparison-header">
+          <div><span>Same area · two sports</span><h2 id="hex-comparison-title">Selected area</h2><p id="hex-comparison-meta"></p></div>
+          <button type="button" id="clear-hex-selection" aria-label="Clear selected area">×</button>
+        </div>
+        <div class="hex-comparison-values" id="hex-comparison-values" aria-live="polite"></div>
+      </section>
     </section>
 
     <aside class="comparison-note">
       <span>Read the maps carefully</span>
-      <p>The maps share a viewport and birthplace-first geography, but each panel scales its own symbols and retains its sport-specific cohort and workload unit. Population mode shows faint populated-land reference cells and excludes labelled hometown or origin fallbacks because they are not birthplaces. Rates with fewer than two mapped people or fewer than 100,000 residents are shown as small samples.</p>
+      <p>The maps share a viewport and birthplace-first geography, but each panel scales its own symbols and retains its sport-specific cohort and workload unit. In population mode, select a hexagon to compare people per million in the same area. Faint populated-land cells mean zero mapped participants; an unavailable area has no published population cell. Labelled hometown or origin fallbacks are excluded because they are not birthplaces. Rates with fewer than two mapped people or fewer than 100,000 residents are shown as small samples.</p>
     </aside>
   </main>
 
