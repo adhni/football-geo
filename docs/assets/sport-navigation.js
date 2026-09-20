@@ -36,11 +36,36 @@
 
   function renderHeaderNavigation() {
     document.querySelectorAll(".sport-switcher").forEach((navigation) => {
-      navigation.innerHTML = sports.map((sport) => {
+      navigation.setAttribute("aria-label", "Primary navigation");
+      const sportLinks = (items) => items.map((sport) => {
         const active = currentSport?.id === sport.id;
-        return `<a${active ? ' class="active" aria-current="page"' : ""} data-sport-id="${escapeHtml(sport.id)}" href="${escapeHtml(sportUrl(sport).href)}">${escapeHtml(sport.name)}</a>`;
-      }).join("") + `<a${isCompare ? ' class="active" aria-current="page"' : ""} href="${escapeHtml(new URL("compare/", rootUrl).href)}">Compare</a><a${isDirectory ? ' class="active" aria-current="page"' : ""} href="${escapeHtml(new URL("sports/", rootUrl).href)}">All sports</a>`;
-      navigation.querySelector("a.active")?.scrollIntoView({ block: "nearest", inline: "center" });
+        return `<a${active ? ' class="active" aria-current="page"' : ""} data-sport-id="${escapeHtml(sport.id)}" href="${escapeHtml(sportUrl(sport).href)}"><i style="--sport-accent:${escapeHtml(sport.accent)}" aria-hidden="true"></i>${escapeHtml(sport.name)}</a>`;
+      }).join("");
+      const teamSportIds = new Set(["football", "cricket", "volleyball", "afl", "nrl", "nba", "nfl", "nhl", "mlb"]);
+      const teamSports = sports.filter((sport) => teamSportIds.has(sport.id));
+      const individualSports = sports.filter((sport) => !teamSportIds.has(sport.id));
+      const directoryUrl = escapeHtml(new URL("sports/", rootUrl).href);
+      const compareUrl = escapeHtml(new URL("compare/", rootUrl).href);
+      navigation.innerHTML = `
+        <details class="sport-menu">
+          <summary${currentSport || isDirectory ? ' class="active"' : ""}>Sports<span aria-hidden="true" class="sport-menu-chevron">⌄</span></summary>
+          <div class="sport-menu-panel">
+            <div class="sport-menu-heading"><strong>Explore ${sports.length} sports</strong><span>Choose an edition</span></div>
+            <div class="sport-menu-columns">
+              <div><span class="sport-menu-label">Team sports</span>${sportLinks(teamSports)}</div>
+              <div><span class="sport-menu-label">Individual &amp; racing</span>${sportLinks(individualSports)}</div>
+            </div>
+            <div class="sport-menu-footer">
+              <a class="sport-menu-directory" href="${directoryUrl}">Browse editions <span aria-hidden="true">→</span></a>
+              <a class="sport-menu-source" href="https://github.com/adhni/football-geo" target="_blank" rel="noreferrer">Source ↗</a>
+            </div>
+          </div>
+        </details>
+        <a class="nav-all-sports${isDirectory ? " active" : ""}"${isDirectory ? ' aria-current="page"' : ""} href="${directoryUrl}">All sports</a>
+        <a class="nav-compare${isCompare ? " active" : ""}" aria-label="Compare sports"${isCompare ? ' aria-current="page"' : ""} href="${compareUrl}"><span>Compare<span class="nav-compare-extra"> sports</span></span><span aria-hidden="true">↗</span></a>`;
+      const menu = navigation.querySelector(".sport-menu");
+      document.addEventListener("click", (event) => { if (!navigation.contains(event.target)) menu.open = false; });
+      navigation.addEventListener("keydown", (event) => { if (event.key === "Escape" && menu.open) { menu.open = false; menu.querySelector("summary").focus(); } });
       navigation.addEventListener("click", (event) => {
         const link = event.target.closest("a[data-sport-id]");
         const mapPanel = document.querySelector("#view-map");
