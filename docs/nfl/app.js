@@ -50,8 +50,8 @@ const state = {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
-const number = new Intl.NumberFormat("en-US");
-const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+let number = new Intl.NumberFormat(window.TalentGeoLanguage?.locale || "en-US");
+let compact = new Intl.NumberFormat(window.TalentGeoLanguage?.locale || "en-US", { notation: "compact", maximumFractionDigits: 1 });
 
 function escapeHtml(value) {
   return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
@@ -654,7 +654,7 @@ function updateAgeAndCountry() {
 
 function updatePlayerTable() {
   const query = normalSearch(state.search.trim());
-  const players = filteredRecords().filter((row) => !query || [row.name, row.team, row.division, row.place, row.country, row.college, ...(row.collegeHistory || [])].some((value) => normalSearch(value).includes(query))).sort((a, b) => b.snaps - a.snaps || a.name.localeCompare(b.name));
+  const players = filteredRecords().filter((row) => !query || [row.name, row.team, row.division, row.place, row.country, window.TalentGeoLanguage?.translate(row.country || ""), row.college, ...(row.collegeHistory || [])].some((value) => normalSearch(value).includes(query))).sort((a, b) => b.snaps - a.snaps || a.name.localeCompare(b.name));
   const visible = players.slice(0, state.playerLimit);
   $("#player-table").innerHTML = visible.map((row) => `<tr class="player-row"><td data-label="Player"><button type="button" class="player-open-button" data-player-id="${escapeHtml(row.id)}" aria-label="Open profile for ${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.position || "Position unavailable")}</small></button></td><td data-label="Team">${escapeHtml(row.team)}</td><td data-label="Division">${escapeHtml(row.division)}</td><td data-label="Birthplace">${row.mapped ? `${escapeHtml(row.place)}<br><small>${escapeHtml(row.country)}</small>` : `<span style="color:var(--danger)">Awaiting QA</span>`}</td><td class="numeric" data-label="Games">${number.format(row.games)}</td><td class="numeric" data-label="Snaps">${number.format(row.snaps)}</td></tr>`).join("");
   const empty = $("#player-empty-state");
@@ -741,7 +741,7 @@ function updateFilterUi() {
 function updateSnapshotCopy() {
   const { meta, summary } = state.payload;
   const generated = new Date(meta.generated_at);
-  const updated = Number.isNaN(generated.getTime()) ? "" : generated.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" });
+  const updated = Number.isNaN(generated.getTime()) ? "" : generated.toLocaleDateString(window.TalentGeoLanguage?.locale || "en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" });
   if (updated) $(".status-pill").innerHTML = `<i aria-hidden="true"></i> ${meta.season} · Updated ${escapeHtml(updated)}`;
   $(".hero-statline").innerHTML = `<strong>${number.format(summary.players)} players</strong><span>${number.format(summary.teams)} teams</span><span>${number.format(summary.birthplaces)} birthplaces</span>`;
 }
@@ -911,7 +911,7 @@ function bindEvents() {
       console.warn(error); $("#error-toast").textContent = `${populationResolutionLabel()} population areas are unavailable. Try another size.`; $("#error-toast").classList.add("show");
     });
   });
-  $("#place-search").addEventListener("change", (event) => { state.placeQuery = event.target.value.trim(); $("#clear-place-search").hidden = !state.placeQuery; const query = normalSearch(state.placeQuery); const place = aggregatePlaces(filteredRecords()).find((item) => normalSearch(`${item.place}, ${item.country}`) === query || normalSearch(item.place) === query); if (!place) return; if (state.mapMode !== "city") $("#map-mode button[data-map-mode='city']").click(); setTimeout(() => revealPlaceMarker(state.placeMarkers.get(place.key)), 40); updateFilterUi(); });
+  $("#place-search").addEventListener("change", (event) => { state.placeQuery = event.target.value.trim(); $("#clear-place-search").hidden = !state.placeQuery; const query = normalSearch(state.placeQuery); const place = aggregatePlaces(filteredRecords()).find((item) => [`${item.place}, ${item.country}`, `${item.place}, ${window.TalentGeoLanguage?.translate(item.country || "")}`, item.place].some((value) => normalSearch(value) === query)); if (!place) return; if (state.mapMode !== "city") $("#map-mode button[data-map-mode='city']").click(); setTimeout(() => revealPlaceMarker(state.placeMarkers.get(place.key)), 40); updateFilterUi(); });
   $("#clear-place-search").addEventListener("click", () => { state.placeQuery = ""; $("#place-search").value = ""; $("#clear-place-search").hidden = true; updateFilterUi(); });
   $("#player-search").addEventListener("input", (event) => { state.search = event.target.value; state.playerLimit = PLAYER_BATCH; updatePlayerTable(); updateFilterUi(); });
   $("#load-more-players").addEventListener("click", () => { state.playerLimit += PLAYER_BATCH; updatePlayerTable(); });
@@ -938,5 +938,18 @@ async function boot() {
     prepareCountryMetadata(); populateFilters(); const mapHandoff = applyMapHandoff(); if (state.mapMode === "country" && !state.countryGeojson) state.mapMode = "city"; initMap(); bindEvents(); updateSnapshotCopy(); updateQuality(); setView(location.hash.slice(1) || "map", { updateHash: false }); if (isPopulationMode()) { try { await loadPopulationGeometry(); } catch (error) { console.warn(error); state.mapMode = "city"; } } render(); if (mapHandoff?.viewport) state.map.setView([mapHandoff.viewport.lat, mapHandoff.viewport.lon], mapHandoff.viewport.zoom); window.TalentGeoNavigation?.mountMapSwitcher(currentMapHandoff); window.TalentGeoNavigation?.restoreMapScroll(); $("#loading-screen").classList.add("hidden");
   } catch (error) { console.error(error); $("#loading-screen").classList.add("hidden"); $("#error-toast").innerHTML = `NFL data could not load. <button type="button" onclick="location.reload()">Retry</button>`; $("#error-toast").classList.add("show"); }
 }
+
+document.addEventListener("talentgeolanguagechange", () => {
+  const locale = window.TalentGeoLanguage?.locale || "en-US";
+  number = new Intl.NumberFormat(locale);
+  compact = new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 });
+  if (!state.payload || !state.map) return;
+  const center = state.map.getCenter();
+  const zoom = state.map.getZoom();
+  updateSnapshotCopy();
+  updateQuality();
+  render();
+  state.map.setView(center, zoom, { animate: false });
+});
 
 boot();

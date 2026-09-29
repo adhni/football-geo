@@ -60,8 +60,12 @@ const state = {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
-const formatNumber = new Intl.NumberFormat("en-US");
-const formatCompact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+let formatNumber = new Intl.NumberFormat(window.FootballLanguage?.locale || "en-US");
+let formatCompact = new Intl.NumberFormat(window.FootballLanguage?.locale || "en-US", { notation: "compact", maximumFractionDigits: 1 });
+let formatDecimalOne = new Intl.NumberFormat(window.FootballLanguage?.locale || "en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+let formatInteger = new Intl.NumberFormat(window.FootballLanguage?.locale || "en-US", { maximumFractionDigits: 0 });
+const formatOne = (value) => formatDecimalOne.format(value);
+const formatZero = (value) => formatInteger.format(value);
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -347,7 +351,7 @@ function updatePopulationRateScale() {
   const quantile = (fraction) => rates[Math.min(rates.length - 1, Math.round((rates.length - 1) * fraction))] || 0;
   const values = [0, quantile(.25), quantile(.5), quantile(.75), quantile(.95)];
   state.populationRateStops = values.map((value, index) => ({ value, colour: POPULATION_RATE_COLOURS[index] }));
-  const formatRate = (value, index) => `${value < 10 ? value.toFixed(1) : Math.round(value)}${index === values.length - 1 ? "+" : ""}`;
+  const formatRate = (value, index) => `${value < 10 ? formatOne(value) : formatZero(value)}${index === values.length - 1 ? "+" : ""}`;
   $$("#population-scale b").forEach((label, index) => { label.textContent = index ? formatRate(values[index], index) : "0"; });
 }
 
@@ -428,7 +432,7 @@ function updateKpis(records, places) {
   if ($("#kpi-players")) $("#kpi-players").textContent = formatNumber.format(players.length);
   if ($("#kpi-starts")) $("#kpi-starts").textContent = formatNumber.format(records.reduce((sum, row) => sum + row.starts, 0));
   if ($("#kpi-places")) $("#kpi-places").textContent = formatNumber.format(places.length);
-  if ($("#kpi-coverage")) $("#kpi-coverage").textContent = players.length ? `${((mapped / players.length) * 100).toFixed(1)}%` : "—";
+  if ($("#kpi-coverage")) $("#kpi-coverage").textContent = players.length ? `${formatOne((mapped / players.length) * 100)}%` : "—";
 
   const startsCard = $("#kpi-starts")?.closest(".kpi");
   const coverageCard = $("#kpi-coverage")?.closest(".kpi");
@@ -715,10 +719,10 @@ function updateLeagueComparison() {
     const continents = league.continentCounts.map(([name, count]) => `<span>${escapeHtml(name)} <b>${count}</b></span>`).join("");
     const countries = league.topCountries.map(([name, count]) => `<li><span>${escapeHtml(name)}</span><b>${count}</b></li>`).join("");
     return `<article class="league-card" style="--order:${index}">
-      <header><div><span>0${index + 1}</span><h3>${escapeHtml(league.league)}</h3></div><strong>${league.diversity.toFixed(0)}<small>/100 diversity</small></strong></header>
-      <div class="league-primary"><div><b>${league.domesticPct.toFixed(1)}%</b><span>domestic-born</span></div><div><b>${league.countries}</b><span>birth countries</span></div><div><b>${league.continents}</b><span>continents</span></div></div>
+      <header><div><span>0${index + 1}</span><h3>${escapeHtml(league.league)}</h3></div><strong>${formatZero(league.diversity)}<small>/100 diversity</small></strong></header>
+      <div class="league-primary"><div><b>${formatOne(league.domesticPct)}%</b><span>domestic-born</span></div><div><b>${formatNumber.format(league.countries)}</b><span>birth countries</span></div><div><b>${formatNumber.format(league.continents)}</b><span>continents</span></div></div>
       <div class="domestic-track"><i style="width:${league.domesticPct}%"></i></div>
-      <div class="league-age"><span><b>${league.medianAge?.toFixed(1) ?? "—"}</b> median age</span><span><b>${league.under21Pct.toFixed(1)}%</b> U21</span><span><b>${league.over30Pct.toFixed(1)}%</b> 30+</span></div>
+      <div class="league-age"><span><b>${league.medianAge === null ? "—" : formatOne(league.medianAge)}</b> median age</span><span><b>${formatOne(league.under21Pct)}%</b> U21</span><span><b>${formatOne(league.over30Pct)}%</b> 30+</span></div>
       <div class="league-detail"><div><span class="card-label">Leading birth countries</span><ol>${countries}</ol></div><div><span class="card-label">Continents</span><div class="continent-chips">${continents}</div></div></div>
       <div class="league-footer">${formatNumber.format(league.mapped)} of ${formatNumber.format(league.players)} players mapped</div>
     </article>`;
@@ -730,14 +734,14 @@ function renderAgeBandChart(groups) {
     const counts = AGE_BANDS.map((band) => group.players.filter((player) => matchesAgeBand(player.age, band.id)).length);
     const summary = AGE_BANDS.map((band, index) => {
       const percentage = group.players.length ? counts[index] / group.players.length * 100 : 0;
-      return `${band.label}: ${counts[index]} players, ${percentage.toFixed(1)}%`;
+      return `${band.label}: ${formatNumber.format(counts[index])} players, ${formatOne(percentage)}%`;
     }).join("; ");
     const segments = AGE_BANDS.map((band, index) => {
       const percentage = group.players.length ? counts[index] / group.players.length * 100 : 0;
       const muted = state.ageBand !== "all" && state.ageBand !== band.id ? " muted" : "";
-      return `<i class="age-${index}${muted}" style="width:${percentage}%" aria-hidden="true" title="${escapeHtml(band.label)}: ${counts[index]} players (${percentage.toFixed(1)}%)"></i>`;
+      return `<i class="age-${index}${muted}" style="width:${percentage}%" aria-hidden="true" title="${escapeHtml(band.label)}: ${formatNumber.format(counts[index])} players (${formatOne(percentage)}%)"></i>`;
     }).join("");
-    return `<div class="age-league-row"><div><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(group.detail)} · ${group.players.length} players · median ${median(group.ages)?.toFixed(1) ?? "—"}</small></div><div class="age-stack" role="img" aria-label="${escapeHtml(`${group.name} age bands. ${summary}`)}">${segments}</div></div>`;
+    return `<div class="age-league-row"><div><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(group.detail)} · ${formatNumber.format(group.players.length)} players · median ${formatOne(median(group.ages))}</small></div><div class="age-stack" role="img" aria-label="${escapeHtml(`${group.name} age bands. ${summary}`)}">${segments}</div></div>`;
   }).join("");
   return `<div class="age-legend">${AGE_BANDS.map((band, index) => `<span><i class="age-${index}"></i>${escapeHtml(band.label)}</span>`).join("")}</div>${rows}`;
 }
@@ -765,7 +769,7 @@ function renderAgeDensityChart(groups) {
     const line = group.density.points.map((point, index) => `${index ? "L" : "M"}${x(point.age).toFixed(1)},${y(point.density).toFixed(1)}`).join(" ");
     const area = `M0,${baseline} ${line.replace(/^M/, "L")} L${width},${baseline} Z`;
     const medianX = x(median(group.ages));
-    return `<div class="age-density-row"><div><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(group.detail)} · ${group.players.length} players · median ${median(group.ages)?.toFixed(1) ?? "—"}</small></div><svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Age distribution for ${escapeHtml(group.name)}">${highlight}<line class="density-baseline" x1="0" y1="${baseline}" x2="${width}" y2="${baseline}"/><path class="density-area" d="${area}"/><path class="density-line" d="${line}"/><line class="density-median" x1="${medianX.toFixed(1)}" y1="8" x2="${medianX.toFixed(1)}" y2="${baseline}"/></svg></div>`;
+    return `<div class="age-density-row"><div><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(group.detail)} · ${formatNumber.format(group.players.length)} players · median ${formatOne(median(group.ages))}</small></div><svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Age distribution for ${escapeHtml(group.name)}">${highlight}<line class="density-baseline" x1="0" y1="${baseline}" x2="${width}" y2="${baseline}"/><path class="density-area" d="${area}"/><path class="density-line" d="${line}"/><line class="density-median" x1="${medianX.toFixed(1)}" y1="8" x2="${medianX.toFixed(1)}" y2="${baseline}"/></svg></div>`;
   }).join("");
   return { html: `${axis}${rows}`, bandwidths: series.map((group) => group.density.bandwidth) };
 }
@@ -778,10 +782,10 @@ function updateAgeView() {
   const ages = players.map((player) => player.age);
   const exact = players.filter((player) => player.ageExact).length;
   $("#age-overview").innerHTML = `
-    <article><span>Median age</span><strong>${median(ages)?.toFixed(1) ?? "—"}</strong><small>at 30 June 2026</small></article>
-    <article><span>Under 21</span><strong>${formatNumber.format(ages.filter((age) => age < 21).length)}</strong><small>${ages.length ? (ages.filter((age) => age < 21).length / ages.length * 100).toFixed(1) : 0}% of players</small></article>
-    <article><span>Age 30+</span><strong>${formatNumber.format(ages.filter((age) => age >= 30).length)}</strong><small>${ages.length ? (ages.filter((age) => age >= 30).length / ages.length * 100).toFixed(1) : 0}% of players</small></article>
-    <article><span>Exact ages</span><strong>${players.length ? (exact / players.length * 100).toFixed(1) : 0}%</strong><small>remaining values approximate</small></article>`;
+    <article><span>Median age</span><strong>${ages.length ? formatOne(median(ages)) : "—"}</strong><small>at 30 June 2026</small></article>
+    <article><span>Under 21</span><strong>${formatNumber.format(ages.filter((age) => age < 21).length)}</strong><small>${formatOne(ages.length ? ages.filter((age) => age < 21).length / ages.length * 100 : 0)}% of players</small></article>
+    <article><span>Age 30+</span><strong>${formatNumber.format(ages.filter((age) => age >= 30).length)}</strong><small>${formatOne(ages.length ? ages.filter((age) => age >= 30).length / ages.length * 100 : 0)}% of players</small></article>
+    <article><span>Exact ages</span><strong>${formatOne(players.length ? exact / players.length * 100 : 0)}%</strong><small>remaining values approximate</small></article>`;
 
   const groups = ageComparisonGroups(records);
   const level = state.ageGroupMode === "league" ? "league" : "club";
@@ -816,14 +820,14 @@ function updateTeamChart() {
     <div class="team-row">
       <div class="team-name"><strong>${escapeHtml(team.team)}</strong><small>${escapeHtml(team.leagues.join(", "))}</small></div>
       <div class="team-track"><i style="width:${(team.starts / max) * 100}%"></i></div>
-      <div class="team-value">${formatNumber.format(team.starts)}<small>${team.coverage.toFixed(1)}% birthplace coverage</small></div>
+      <div class="team-value">${formatNumber.format(team.starts)}<small>${formatOne(team.coverage)}% birthplace coverage</small></div>
     </div>`).join("") || emptyState("No clubs match this selection.");
 }
 
 function updatePlayerTable() {
   const query = state.search.trim().toLowerCase();
   const players = aggregatePlayers(filteredRecords())
-    .filter((player) => !query || [player.name, player.place, player.country, ...player.teams].some((value) => String(value ?? "").toLowerCase().includes(query)))
+    .filter((player) => !query || [player.name, player.place, player.country, window.FootballLanguage?.translate(player.country || ""), ...player.teams].some((value) => String(value ?? "").toLowerCase().includes(query)))
     .sort((a, b) => b.starts - a.starts || a.name.localeCompare(b.name));
   const visible = players.slice(0, state.playerLimit);
   $("#player-table").innerHTML = visible.map((player) => `
@@ -940,8 +944,8 @@ function handleModalKeydown(event) {
 
 function updateQuality() {
   const { summary, unresolved } = state.payload;
-  $("#quality-player-coverage").textContent = `${summary.player_coverage_pct}%`;
-  $("#quality-start-coverage").textContent = `${summary.start_coverage_pct}%`;
+  $("#quality-player-coverage").textContent = `${formatOne(summary.player_coverage_pct)}%`;
+  $("#quality-start-coverage").textContent = `${formatOne(summary.start_coverage_pct)}%`;
   $("#quality-player-bar").style.width = `${summary.player_coverage_pct}%`;
   $("#quality-start-bar").style.width = `${summary.start_coverage_pct}%`;
   $("#quality-mapped-players").textContent = `${formatNumber.format(summary.mapped_players)} mapped`;
@@ -995,7 +999,7 @@ function updateSnapshotCopy() {
   const generated = new Date(meta.generated_at);
   const updated = Number.isNaN(generated.getTime())
     ? ""
-    : generated.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" });
+    : generated.toLocaleDateString(window.FootballLanguage?.locale || "en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" });
   const status = $(".status-pill");
   if (status && updated) {
     status.innerHTML = `<i aria-hidden="true"></i> 2025–26 · Updated ${escapeHtml(updated)}`;
@@ -1010,7 +1014,7 @@ function updateSnapshotCopy() {
 function filteredPlaces() {
   const query = state.placeQuery.trim().toLowerCase();
   return aggregatePlaces(filteredRecords()).filter((place) =>
-    !query || `${place.place} ${place.country}`.toLowerCase().includes(query)
+    !query || `${place.place} ${place.country} ${window.FootballLanguage?.translate(place.country || "") || ""}`.toLowerCase().includes(query)
   );
 }
 
@@ -1029,7 +1033,7 @@ function render() {
   const records = filteredRecords();
   const allPlaces = aggregatePlaces(records);
   const query = state.placeQuery.trim().toLowerCase();
-  const places = allPlaces.filter((place) => !query || `${place.place} ${place.country}`.toLowerCase().includes(query));
+  const places = allPlaces.filter((place) => !query || `${place.place} ${place.country} ${window.FootballLanguage?.translate(place.country || "") || ""}`.toLowerCase().includes(query));
   updateKpis(records, allPlaces);
   updateFilterSummary();
   updateActiveFilters();
@@ -1357,5 +1361,27 @@ async function boot() {
     showError("The dashboard data could not be loaded. Please refresh or try again shortly.");
   }
 }
+
+document.addEventListener("footballlanguagechange", () => {
+  const locale = window.FootballLanguage?.locale || "en-US";
+  formatNumber = new Intl.NumberFormat(locale);
+  formatCompact = new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 });
+  formatDecimalOne = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  formatInteger = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
+  if (!state.payload) return;
+  const center = state.map?.getCenter();
+  const zoom = state.map?.getZoom();
+  updateSnapshotCopy();
+  render();
+  if (center && zoom !== undefined) state.map.setView(center, zoom, { animate: false });
+  if (state.profilePlayerId) {
+    const player = aggregatePlayers(state.payload.records.filter((row) => row.id === state.profilePlayerId))[0];
+    if (player) {
+      for (const [id, value] of Object.entries({ apps: player.apps, starts: player.starts, minutes: player.minutes, goals: player.goals, assists: player.assists })) {
+        $(`#profile-${id}`).textContent = formatNumber.format(value);
+      }
+    }
+  }
+});
 
 boot();

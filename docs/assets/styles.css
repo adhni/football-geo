@@ -95,6 +95,9 @@ main:focus { outline: 0; }
 .brand-mark i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); z-index: 1; box-shadow: 0 0 14px rgba(217,255,87,.7); }
 .header-meta { display: flex; align-items: center; font-size: 12px; color: var(--muted); }
 .header-meta > a { display: none; }
+.language-control { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; color: var(--muted); font-size: 11px; font-weight: 700; }
+.language-control select { min-height: 40px; max-width: 140px; padding: 0 9px; color: var(--text); border: 1px solid var(--line); border-radius: 9px; background: #0c1b16; font: inherit; cursor: pointer; }
+.language-control select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .status-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 999px; color: #b7c7c1; }
 .status-pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 10px var(--mint); }
 .site-header .sport-switcher { position: relative; z-index: 1200; display: flex; align-items: center; gap: 7px; margin-left: auto; padding: 0; flex: 0 0 auto; border: 0; background: transparent; }
@@ -280,9 +283,12 @@ footer { min-height: 150px; padding: 36px 0; display: grid; grid-template-column
 
 @media (max-width: 720px) {
   .site-header, main, footer { width: calc(100% - 28px); }
-  .site-header { height: 64px; gap: 8px; }
+  .site-header { height: auto; min-height: 64px; gap: 8px; flex-wrap: wrap; padding-block: 10px; }
   .brand { flex: 0 0 auto; }
-  .site-header .sport-switcher { gap: 5px; margin-left: auto; }
+  .site-header .sport-switcher { order: 3; flex-basis: 100%; justify-content: flex-end; gap: 5px; margin-left: 0; }
+  .language-control { margin-inline-start: auto; }
+  .language-control span { display: none; }
+  .language-control select { max-width: 136px; min-height: 38px; }
   .sport-switcher .sport-menu summary, .sport-switcher > a { min-height: 38px; padding-inline: 10px; font-size: 11px; }
   .sport-switcher > a.nav-all-sports { display: none; }
   .sport-menu-panel { padding: 13px; }
@@ -451,3 +457,17 @@ footer { min-height: 150px; padding: 36px 0; display: grid; grid-template-column
   .team-picker-panel { position: static; width: 100%; margin-top: 7px; box-shadow: none; }
   .team-options { grid-template-columns: 1fr; max-height: 320px; }
 }
+
+html[dir="rtl"] #talent-map, html[dir="rtl"] #player-mini-map { direction: ltr; }
+html[dir="rtl"] .site-header .sport-switcher { margin-left: 0; margin-inline-start: auto; }
+html[dir="rtl"] .secondary-filters, html[dir="rtl"] .more-filters-grid { left: auto; right: 0; }
+html[dir="rtl"] .select-wrap::after { right: auto; left: 14px; }
+html[dir="rtl"] .place-jump, html[dir="rtl"] .popup-player, html[dir="rtl"] .player-row td { text-align: right; }
+html[dir="rtl"] .team-value, html[dir="rtl"] .unresolved-row span:last-child { text-align: left; }
+html[dir="rtl"] .profile-drawer { border-left: 0; border-right: 1px solid var(--line); }
+html[dir="rtl"] .profile-close { right: auto; left: 22px; }
+html[dir="rtl"] .map-first-map-layout .ranking-card { right: auto; left: 14px; }
+html[lang="ar"] body { font-family: Tahoma, Arial, sans-serif; }
+html[lang="ar"] h1, html[lang="ar"] h2, html[lang="ar"] h3 { letter-spacing: 0; line-height: 1.3; }
+html[lang="ar"] .eyebrow, html[lang="ar"] .card-label, html[lang="ar"] .control-label { letter-spacing: 0; text-transform: none; }
+@media (max-width: 720px) { html[dir="rtl"] .map-first-map-layout .ranking-card { right: 0; left: 0; } }
