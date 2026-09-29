@@ -93,8 +93,8 @@ const state = {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
-const number = new Intl.NumberFormat("en-US");
-const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+let number = new Intl.NumberFormat(window.TalentGeoLanguage?.locale || "en-US");
+let compact = new Intl.NumberFormat(window.TalentGeoLanguage?.locale || "en-US", { notation: "compact", maximumFractionDigits: 1 });
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -839,7 +839,7 @@ function buildTeamPicker() {
 function updateSnapshotCopy() {
   const { meta, summary } = state.payload;
   const generated = new Date(meta.generated_at);
-  const updated = Number.isNaN(generated.getTime()) ? "" : generated.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" });
+  const updated = Number.isNaN(generated.getTime()) ? "" : generated.toLocaleDateString(window.TalentGeoLanguage?.locale || "en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" });
   if (updated) $(".status-pill").innerHTML = `<i aria-hidden="true"></i> ${escapeHtml(meta.season)} · Updated ${escapeHtml(updated)}`;
   $(".hero-statline").innerHTML = `<strong>${number.format(summary.players)} ${escapeHtml(EDITION.participantLabelPlural)}</strong><span>${number.format(summary.teams)} ${escapeHtml(EDITION.groupLabelPlural)}</span><span>${number.format(summary.birth_countries)} birth countries</span>`;
 }
@@ -1258,5 +1258,18 @@ async function boot() {
     $("#error-toast").classList.add("show");
   }
 }
+
+document.addEventListener("talentgeolanguagechange", () => {
+  const locale = window.TalentGeoLanguage?.locale || "en-US";
+  number = new Intl.NumberFormat(locale);
+  compact = new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 });
+  if (!state.payload || !state.map) return;
+  const center = state.map.getCenter();
+  const zoom = state.map.getZoom();
+  updateSnapshotCopy();
+  updateQuality();
+  render();
+  state.map.setView(center, zoom, { animate: false });
+});
 
 boot();

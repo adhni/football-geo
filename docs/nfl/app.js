@@ -50,8 +50,8 @@ const state = {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
-const number = new Intl.NumberFormat("en-US");
-const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+let number = new Intl.NumberFormat(window.TalentGeoLanguage?.locale || "en-US");
+let compact = new Intl.NumberFormat(window.TalentGeoLanguage?.locale || "en-US", { notation: "compact", maximumFractionDigits: 1 });
 
 function escapeHtml(value) {
   return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
@@ -741,7 +741,7 @@ function updateFilterUi() {
 function updateSnapshotCopy() {
   const { meta, summary } = state.payload;
   const generated = new Date(meta.generated_at);
-  const updated = Number.isNaN(generated.getTime()) ? "" : generated.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" });
+  const updated = Number.isNaN(generated.getTime()) ? "" : generated.toLocaleDateString(window.TalentGeoLanguage?.locale || "en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" });
   if (updated) $(".status-pill").innerHTML = `<i aria-hidden="true"></i> ${meta.season} · Updated ${escapeHtml(updated)}`;
   $(".hero-statline").innerHTML = `<strong>${number.format(summary.players)} players</strong><span>${number.format(summary.teams)} teams</span><span>${number.format(summary.birthplaces)} birthplaces</span>`;
 }
@@ -938,5 +938,18 @@ async function boot() {
     prepareCountryMetadata(); populateFilters(); const mapHandoff = applyMapHandoff(); if (state.mapMode === "country" && !state.countryGeojson) state.mapMode = "city"; initMap(); bindEvents(); updateSnapshotCopy(); updateQuality(); setView(location.hash.slice(1) || "map", { updateHash: false }); if (isPopulationMode()) { try { await loadPopulationGeometry(); } catch (error) { console.warn(error); state.mapMode = "city"; } } render(); if (mapHandoff?.viewport) state.map.setView([mapHandoff.viewport.lat, mapHandoff.viewport.lon], mapHandoff.viewport.zoom); window.TalentGeoNavigation?.mountMapSwitcher(currentMapHandoff); window.TalentGeoNavigation?.restoreMapScroll(); $("#loading-screen").classList.add("hidden");
   } catch (error) { console.error(error); $("#loading-screen").classList.add("hidden"); $("#error-toast").innerHTML = `NFL data could not load. <button type="button" onclick="location.reload()">Retry</button>`; $("#error-toast").classList.add("show"); }
 }
+
+document.addEventListener("talentgeolanguagechange", () => {
+  const locale = window.TalentGeoLanguage?.locale || "en-US";
+  number = new Intl.NumberFormat(locale);
+  compact = new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 });
+  if (!state.payload || !state.map) return;
+  const center = state.map.getCenter();
+  const zoom = state.map.getZoom();
+  updateSnapshotCopy();
+  updateQuality();
+  render();
+  state.map.setView(center, zoom, { animate: false });
+});
 
 boot();

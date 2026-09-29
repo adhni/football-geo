@@ -4,9 +4,9 @@
   const navigation = window.TalentGeoNavigation;
   const sports = navigation?.sports || [];
   const rootUrl = navigation?.rootUrl || new URL("../", window.location.href);
-  const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
-  const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
-  const rateNumber = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+  let number = new Intl.NumberFormat(window.TalentGeoLanguage?.locale || "en-US", { maximumFractionDigits: 1 });
+  let compact = new Intl.NumberFormat(window.TalentGeoLanguage?.locale || "en-US", { notation: "compact", maximumFractionDigits: 1 });
+  let rateNumber = new Intl.NumberFormat(window.TalentGeoLanguage?.locale || "en-US", { maximumFractionDigits: 2 });
   const parameters = new URLSearchParams(window.location.search);
   const sportById = (id) => sports.find((sport) => sport.id === id) || null;
   const validSportId = (id, fallback) => sportById(id)?.id || fallback;
@@ -468,6 +468,14 @@
     setMobilePanel("left");
     setView(state.view);
   }
+
+  document.addEventListener?.("talentgeolanguagechange", () => {
+    const locale = window.TalentGeoLanguage?.locale || "en-US";
+    number = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
+    compact = new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 });
+    rateNumber = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
+    if (state.sides.left.map && state.sides.right.map) renderBoth();
+  });
 
   init();
 }());

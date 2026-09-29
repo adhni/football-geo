@@ -215,7 +215,7 @@
 
   function renderDirectory(container) {
     if (!container) return;
-    const number = new Intl.NumberFormat("en-US");
+    const number = new Intl.NumberFormat(window.TalentGeoLanguage?.locale || "en-US");
     container.innerHTML = sports.map((sport) => `<article class="sport-card" style="--card-accent:${escapeHtml(sport.accent)}"><div><span>${escapeHtml(sport.season)}</span><strong>${escapeHtml(sport.name)}</strong><p>${escapeHtml(sport.scope)}</p></div><dl><div><dt>Cohort</dt><dd>${number.format(sport.participants)} ${escapeHtml(sport.participantLabel)}</dd></div><div><dt>Birthplace coverage</dt><dd>${sport.coverage.toFixed(1)}%</dd></div><div><dt>Map measures</dt><dd>${escapeHtml(sport.measures)}</dd></div></dl><a href="${escapeHtml(new URL(`${sport.path}#map`, rootUrl).href)}">Open map <span>→</span></a></article>`).join("");
   }
 
@@ -223,4 +223,5 @@
   renderHeaderNavigation();
   enhanceMapWorkspace();
   restoreMapScroll();
+  document.addEventListener("talentgeolanguagechange", () => renderDirectory(document.querySelector("#sport-directory")));
 }());
