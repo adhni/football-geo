@@ -1,9 +1,17 @@
 PYTHON ?= python
 NODE ?= node
 
-.PHONY: test test-python test-js demo ingest birthplaces worldcup-birthplaces population app preview rebuild-football football-export football-population
+.PHONY: test test-python test-js catalogs check-catalogs demo ingest birthplaces worldcup-birthplaces population app preview rebuild-football football-export football-population
 
-test: test-python test-js
+test: check-catalogs test-python test-js
+
+catalogs:
+	$(PYTHON) -m src.ftg.build_edition_catalog
+	$(PYTHON) -m src.ftg.build_language_catalog
+
+check-catalogs:
+	$(PYTHON) -m src.ftg.build_edition_catalog --check
+	$(PYTHON) -m src.ftg.build_language_catalog --check
 
 test-python:
 	$(PYTHON) -m pytest -q

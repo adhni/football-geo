@@ -366,8 +366,9 @@ def test_every_sport_uses_the_central_navigation_registry():
 
     navigation = (ROOT / "docs" / "assets" / "sport-navigation.js").read_text(encoding="utf-8")
     expected_order = ("football", "cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
-    offsets = [navigation.index(f'id: "{sport}"') for sport in expected_order]
-    assert offsets == sorted(offsets)
+    catalog = json.loads((ROOT / "config/editions.json").read_text(encoding="utf-8"))
+    assert tuple(entry["id"] for entry in catalog["editions"]) == expected_order
+    assert "window.TALENT_GEO_CATALOG" in navigation
     assert "readMapState" in navigation
     assert "comparisonUrl" in navigation
     assert "mountMapSwitcher" in navigation

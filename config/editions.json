@@ -1,0 +1,1025 @@
+{
+  "schemaVersion": 1,
+  "editions": [
+    {
+      "id": "football",
+      "name": "Football",
+      "path": "",
+      "participantLabel": "players",
+      "measures": "Starts · Starters · Players",
+      "workloadField": "starts",
+      "workloadLabel": "starts",
+      "workloadShort": "starts",
+      "accent": "#d9ff57",
+      "sportId": "football",
+      "kind": "team",
+      "phase": "regular season"
+    },
+    {
+      "id": "cricket",
+      "name": "Cricket",
+      "path": "cricket/",
+      "participantLabel": "players",
+      "measures": "Appearances · Players",
+      "workloadField": "appearances",
+      "workloadLabel": "appearances",
+      "workloadShort": "apps",
+      "accent": "#f4c95d",
+      "sportId": "cricket",
+      "kind": "team",
+      "phase": "competition cohort",
+      "renderer": {
+        "name": "Cricket",
+        "homeCountry": "",
+        "outsideHomeLabel": "",
+        "allConferenceLabel": "Men and women",
+        "conferenceLabel": "Competition",
+        "markerStroke": "#e7fff3",
+        "markerFill": "#4cdb8f",
+        "countryHue": 147,
+        "countrySaturation": 65,
+        "countryEmpty": "#132a20",
+        "workloadField": "appearances",
+        "workloadLabel": "appearances",
+        "workloadShort": "apps",
+        "defaultMetric": "minutes",
+        "showWorkloadColumn": true,
+        "showConferenceColumn": true,
+        "showTeamFilter": true,
+        "groupLabelPlural": "teams",
+        "tableGroupLabel": "Team",
+        "tableStatField": "runs",
+        "tableStatLabel": "Runs",
+        "comparisonHighlight": "coverage",
+        "profileOriginField": "representedCountry",
+        "profileOriginFallback": "Represented team unavailable",
+        "teamSplitStats": [
+          "appearances",
+          "runs",
+          "wickets",
+          "catches",
+          "playerOfMatch"
+        ],
+        "profileStats": [
+          "appearances",
+          "runs",
+          "wickets",
+          "catches",
+          "playerOfMatch"
+        ],
+        "qualityWorkloadCoverageField": "appearance_coverage_pct",
+        "qualityMappedWorkloadField": "mapped_appearances",
+        "qualityTotalWorkloadField": "appearances",
+        "additionalMetrics": [
+          {
+            "field": "runs",
+            "label": "Runs"
+          },
+          {
+            "field": "wickets",
+            "label": "Wickets"
+          },
+          {
+            "field": "catches",
+            "label": "Catches"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ufc",
+      "name": "UFC",
+      "path": "ufc/",
+      "participantLabel": "fighters",
+      "measures": "Bouts · Fighters",
+      "workloadField": "bouts",
+      "workloadLabel": "bouts",
+      "workloadShort": "bouts",
+      "accent": "#ef4444",
+      "sportId": "mma",
+      "kind": "individual",
+      "phase": "competition cohort",
+      "renderer": {
+        "name": "UFC",
+        "homeCountry": "",
+        "outsideHomeLabel": "",
+        "allConferenceLabel": "Men and women",
+        "conferenceLabel": "Gender",
+        "markerStroke": "#ffd9da",
+        "markerFill": "#d71920",
+        "originMarkerFill": "#4b9dc1",
+        "originLabel": "Fighter origin",
+        "countryHue": 358,
+        "countrySaturation": 72,
+        "countryEmpty": "#282222",
+        "workloadField": "bouts",
+        "workloadLabel": "bouts",
+        "workloadShort": "bouts",
+        "defaultMetric": "minutes",
+        "showWorkloadColumn": true,
+        "showConferenceColumn": false,
+        "showTeamFilter": true,
+        "groupLabelPlural": "divisions",
+        "tableGroupLabel": "Division",
+        "tableStatField": "wins",
+        "tableStatLabel": "Wins",
+        "comparisonHighlight": "coverage",
+        "profileOriginFallback": "UFC fighter",
+        "teamSplitStats": [
+          "bouts",
+          "wins",
+          "losses",
+          "draws",
+          "noContests",
+          "koTkoWins",
+          "submissionWins",
+          "decisionWins",
+          "knockdowns",
+          "significantStrikesLanded",
+          "significantStrikesAttempted",
+          "takedownsLanded",
+          "takedownsAttempted",
+          "submissionAttempts",
+          "detailedStatsBouts",
+          "titleBouts"
+        ],
+        "profileStats": [
+          "bouts",
+          "wins",
+          "koTkoWins",
+          "submissionWins",
+          "significantStrikesLanded"
+        ],
+        "mixedLocationTypes": true,
+        "locationLabel": "Location",
+        "locationPlural": "locations",
+        "countryGroupLabel": "location countries",
+        "qualityWorkloadCoverageField": "bout_coverage_pct",
+        "qualityMappedWorkloadField": "mapped_bouts",
+        "qualityTotalWorkloadField": "bouts",
+        "additionalMetrics": [
+          {
+            "field": "wins",
+            "label": "Wins"
+          },
+          {
+            "field": "koTkoWins",
+            "label": "KO/TKO wins"
+          },
+          {
+            "field": "submissionWins",
+            "label": "Submission wins"
+          },
+          {
+            "field": "significantStrikesLanded",
+            "label": "Significant strikes landed"
+          },
+          {
+            "field": "takedownsLanded",
+            "label": "Takedowns landed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "formula",
+      "name": "Formula",
+      "path": "formula/",
+      "participantLabel": "drivers",
+      "measures": "Laps · Starts · Drivers",
+      "workloadField": "laps",
+      "workloadLabel": "laps",
+      "workloadShort": "laps",
+      "accent": "#ff5a36",
+      "sportId": "motorsport",
+      "kind": "individual",
+      "phase": "competition cohort",
+      "renderer": {
+        "name": "Formula",
+        "homeCountry": "",
+        "outsideHomeLabel": "",
+        "allConferenceLabel": "All four series",
+        "conferenceLabel": "Series",
+        "markerStroke": "#d9f7ff",
+        "markerFill": "#00d2ff",
+        "countryHue": 190,
+        "countrySaturation": 88,
+        "countryEmpty": "#17242b",
+        "workloadField": "laps",
+        "workloadLabel": "laps",
+        "workloadShort": "laps",
+        "defaultMetric": "minutes",
+        "showWorkloadColumn": true,
+        "showConferenceColumn": true,
+        "singleGroupLabel": "All series",
+        "profileOriginField": "nationality",
+        "profileOriginFallback": "Nationality unavailable",
+        "teamSplitStats": [
+          "starts",
+          "laps",
+          "wins",
+          "podiums",
+          "dnfs",
+          "points"
+        ],
+        "profileStats": [
+          "starts",
+          "laps",
+          "wins",
+          "podiums",
+          "points"
+        ],
+        "participantLabelPlural": "drivers",
+        "groupLabelPlural": "teams",
+        "tableGroupLabel": "Team",
+        "tableStatField": "points",
+        "tableStatLabel": "Points",
+        "showTeamFilter": true,
+        "comparisonHighlight": "coverage",
+        "locationLabel": "Birthplace",
+        "locationPlural": "birthplaces",
+        "countryGroupLabel": "birth countries",
+        "qualityWorkloadCoverageField": "lap_coverage_pct",
+        "qualityMappedWorkloadField": "mapped_laps",
+        "qualityTotalWorkloadField": "laps",
+        "profileLogType": "race",
+        "profileLogTitle": "2025 race log",
+        "additionalMetrics": [
+          {
+            "field": "wins",
+            "label": "Wins"
+          },
+          {
+            "field": "podiums",
+            "label": "Podiums"
+          },
+          {
+            "field": "dnfs",
+            "label": "DNFs"
+          }
+        ]
+      }
+    },
+    {
+      "id": "motogp",
+      "name": "MotoGP",
+      "path": "motogp/",
+      "participantLabel": "riders",
+      "measures": "Laps · Starts · Riders",
+      "workloadField": "laps",
+      "workloadLabel": "laps",
+      "workloadShort": "laps",
+      "accent": "#ff3b30",
+      "sportId": "motorcycle-racing",
+      "kind": "individual",
+      "phase": "competition cohort",
+      "renderer": {
+        "name": "MotoGP",
+        "homeCountry": "",
+        "outsideHomeLabel": "",
+        "allConferenceLabel": "All five series",
+        "conferenceLabel": "Series",
+        "markerStroke": "#ffe0d9",
+        "markerFill": "#ff4b36",
+        "countryHue": 8,
+        "countrySaturation": 86,
+        "countryEmpty": "#2a1b19",
+        "workloadField": "laps",
+        "workloadLabel": "laps",
+        "workloadShort": "laps",
+        "defaultMetric": "minutes",
+        "showWorkloadColumn": true,
+        "showConferenceColumn": true,
+        "singleGroupLabel": "All series",
+        "profileOriginField": "nationality",
+        "profileOriginFallback": "Nationality unavailable",
+        "teamSplitStats": [
+          "starts",
+          "laps",
+          "wins",
+          "podiums",
+          "dnfs",
+          "points"
+        ],
+        "profileStats": [
+          "starts",
+          "laps",
+          "wins",
+          "podiums",
+          "points"
+        ],
+        "participantLabelPlural": "riders",
+        "groupLabelPlural": "teams",
+        "tableGroupLabel": "Team",
+        "tableStatField": "points",
+        "tableStatLabel": "Points",
+        "showTeamFilter": true,
+        "comparisonHighlight": "coverage",
+        "locationLabel": "Birthplace",
+        "locationPlural": "birthplaces",
+        "countryGroupLabel": "birth countries",
+        "qualityWorkloadCoverageField": "lap_coverage_pct",
+        "qualityMappedWorkloadField": "mapped_laps",
+        "qualityTotalWorkloadField": "laps",
+        "profileLogType": "race",
+        "profileLogTitle": "2025 race log",
+        "additionalMetrics": [
+          {
+            "field": "wins",
+            "label": "Wins"
+          },
+          {
+            "field": "podiums",
+            "label": "Podiums"
+          },
+          {
+            "field": "dnfs",
+            "label": "DNFs"
+          }
+        ]
+      }
+    },
+    {
+      "id": "volleyball",
+      "name": "Volleyball",
+      "path": "volleyball/",
+      "participantLabel": "players",
+      "measures": "Sets · Matches · Players",
+      "workloadField": "sets",
+      "workloadLabel": "sets",
+      "workloadShort": "sets",
+      "accent": "#ffcf33",
+      "sportId": "volleyball",
+      "kind": "team",
+      "phase": "competition cohort",
+      "renderer": {
+        "name": "Volleyball",
+        "homeCountry": "",
+        "outsideHomeLabel": "",
+        "allConferenceLabel": "Both competitions",
+        "conferenceLabel": "Gender",
+        "markerStroke": "#fff3c4",
+        "markerFill": "#ffcf33",
+        "countryHue": 47,
+        "countrySaturation": 92,
+        "countryEmpty": "#242315",
+        "workloadField": "sets",
+        "workloadLabel": "sets",
+        "workloadShort": "sets",
+        "defaultMetric": "minutes",
+        "showWorkloadColumn": true,
+        "showConferenceColumn": true,
+        "singleGroupLabel": "Both competitions",
+        "profileOriginField": "nationality",
+        "profileOriginFallback": "Nationality unavailable",
+        "teamSplitStats": [
+          "matches",
+          "sets",
+          "points",
+          "attackPoints",
+          "blockPoints",
+          "servePoints"
+        ],
+        "profileStats": [
+          "matches",
+          "sets",
+          "points",
+          "attackPoints",
+          "blockPoints"
+        ],
+        "participantLabelPlural": "players",
+        "groupLabelPlural": "national teams",
+        "tableGroupLabel": "National team",
+        "tableStatField": "points",
+        "tableStatLabel": "Points",
+        "showTeamFilter": true,
+        "comparisonHighlight": "coverage",
+        "locationLabel": "Birthplace",
+        "locationPlural": "birthplaces",
+        "countryGroupLabel": "birth countries",
+        "qualityWorkloadCoverageField": "set_coverage_pct",
+        "qualityMappedWorkloadField": "mapped_sets",
+        "qualityTotalWorkloadField": "sets",
+        "profileLogType": "volleyball",
+        "profileLogTitle": "2025 match log",
+        "additionalMetrics": [
+          {
+            "field": "points",
+            "label": "Points"
+          },
+          {
+            "field": "attackPoints",
+            "label": "Attack points"
+          },
+          {
+            "field": "blockPoints",
+            "label": "Block points"
+          },
+          {
+            "field": "servePoints",
+            "label": "Serve points"
+          }
+        ]
+      }
+    },
+    {
+      "id": "athletics",
+      "name": "Athletics",
+      "path": "athletics/",
+      "participantLabel": "athletes",
+      "measures": "Event entries · Rounds · Athletes",
+      "workloadField": "entries",
+      "workloadLabel": "event entries",
+      "workloadShort": "entries",
+      "accent": "#69e0c1",
+      "sportId": "athletics",
+      "kind": "individual",
+      "phase": "competition cohort",
+      "renderer": {
+        "name": "Athletics",
+        "homeCountry": "",
+        "outsideHomeLabel": "",
+        "allConferenceLabel": "All competitions",
+        "conferenceLabel": "Competition",
+        "markerStroke": "#dffdf5",
+        "markerFill": "#69e0c1",
+        "countryHue": 164,
+        "countrySaturation": 66,
+        "countryEmpty": "#173139",
+        "workloadField": "entries",
+        "workloadLabel": "event entries",
+        "workloadShort": "entries",
+        "defaultMetric": "minutes",
+        "showWorkloadColumn": true,
+        "showConferenceColumn": true,
+        "singleGroupLabel": "All competitions",
+        "profileOriginField": "representedCountry",
+        "profileOriginFallback": "Federation unavailable",
+        "teamSplitStats": [
+          "entries",
+          "rounds",
+          "medals",
+          "gold",
+          "silver",
+          "bronze"
+        ],
+        "profileStats": [
+          "rounds",
+          "entries",
+          "medals",
+          "gold",
+          "silver"
+        ],
+        "participantLabelPlural": "athletes",
+        "groupLabelPlural": "federations",
+        "tableGroupLabel": "Federation",
+        "tableStatField": "medals",
+        "tableStatLabel": "Medals",
+        "showTeamFilter": true,
+        "comparisonHighlight": "coverage",
+        "showPopulationReferenceCells": true,
+        "locationLabel": "Birthplace",
+        "locationPlural": "birthplaces",
+        "countryGroupLabel": "birth countries",
+        "qualityWorkloadCoverageField": "entry_coverage_pct",
+        "qualityMappedWorkloadField": "mapped_entries",
+        "qualityTotalWorkloadField": "entries",
+        "profileLogType": "athletics",
+        "profileLogTitle": "Tokyo 2025 events",
+        "positionValuesField": "eventNames",
+        "participantDetailField": "eventNames",
+        "popupDetailField": "eventNames",
+        "additionalMetrics": [
+          {
+            "field": "medals",
+            "label": "Medals"
+          },
+          {
+            "field": "gold",
+            "label": "Gold"
+          },
+          {
+            "field": "silver",
+            "label": "Silver"
+          },
+          {
+            "field": "bronze",
+            "label": "Bronze"
+          }
+        ]
+      }
+    },
+    {
+      "id": "tennis",
+      "name": "Tennis",
+      "path": "tennis/",
+      "participantLabel": "players",
+      "measures": "Ranking points · Players",
+      "workloadField": "points",
+      "workloadLabel": "ranking points",
+      "workloadShort": "pts",
+      "accent": "#b9ef72",
+      "sportId": "tennis",
+      "kind": "individual",
+      "phase": "ranking snapshot",
+      "renderer": {
+        "name": "Tennis",
+        "homeCountry": "",
+        "outsideHomeLabel": "",
+        "allConferenceLabel": "Both tours",
+        "conferenceLabel": "Tour",
+        "markerStroke": "#f4ffd0",
+        "markerFill": "#d9f244",
+        "countryHue": 72,
+        "countrySaturation": 73,
+        "countryEmpty": "#14261f",
+        "workloadField": "points",
+        "workloadLabel": "ranking points",
+        "workloadShort": "pts",
+        "defaultMetric": "minutes",
+        "showWorkloadColumn": true,
+        "showConferenceColumn": false,
+        "showTeamFilter": false,
+        "groupLabelPlural": "tours",
+        "tableGroupLabel": "Tour",
+        "tableStatField": "rank",
+        "tableStatLabel": "Rank",
+        "comparisonHighlight": "coverage",
+        "profileOriginFallback": "Ranking nationality unavailable",
+        "teamSplitStats": [],
+        "profileStats": [
+          "rank",
+          "points",
+          "age",
+          "heightCm",
+          "year"
+        ],
+        "qualityWorkloadCoverageField": "point_coverage_pct",
+        "qualityMappedWorkloadField": "mapped_points",
+        "qualityTotalWorkloadField": "points"
+      }
+    },
+    {
+      "id": "padel",
+      "name": "Padel",
+      "path": "padel/",
+      "participantLabel": "players",
+      "measures": "Ranking points · Players",
+      "workloadField": "points",
+      "workloadLabel": "ranking points",
+      "workloadShort": "pts",
+      "accent": "#5dd6db",
+      "sportId": "padel",
+      "kind": "individual",
+      "phase": "ranking snapshot",
+      "renderer": {
+        "name": "Padel",
+        "homeCountry": "",
+        "outsideHomeLabel": "",
+        "allConferenceLabel": "Both divisions",
+        "conferenceLabel": "Division",
+        "markerStroke": "#dffffc",
+        "markerFill": "#58ddd2",
+        "countryHue": 176,
+        "countrySaturation": 68,
+        "countryEmpty": "#142a34",
+        "workloadField": "points",
+        "workloadLabel": "ranking points",
+        "workloadShort": "pts",
+        "defaultMetric": "minutes",
+        "showWorkloadColumn": true,
+        "showConferenceColumn": false,
+        "showTeamFilter": false,
+        "groupLabelPlural": "divisions",
+        "tableGroupLabel": "Division",
+        "tableStatField": "rank",
+        "tableStatLabel": "Rank",
+        "comparisonHighlight": "coverage",
+        "profileOriginFallback": "Ranking nationality unavailable",
+        "teamSplitStats": [],
+        "profileStats": [
+          "rank",
+          "points",
+          "age",
+          "heightCm",
+          "year"
+        ],
+        "qualityWorkloadCoverageField": "point_coverage_pct",
+        "qualityMappedWorkloadField": "mapped_points",
+        "qualityTotalWorkloadField": "points"
+      }
+    },
+    {
+      "id": "badminton",
+      "name": "Badminton",
+      "path": "badminton/",
+      "participantLabel": "athletes",
+      "measures": "Allocated points · Athletes",
+      "workloadField": "points",
+      "workloadLabel": "allocated ranking points",
+      "workloadShort": "pts",
+      "accent": "#b592ff",
+      "sportId": "badminton",
+      "kind": "individual",
+      "phase": "ranking snapshot",
+      "renderer": {
+        "name": "Badminton",
+        "homeCountry": "",
+        "outsideHomeLabel": "",
+        "allConferenceLabel": "All groups",
+        "conferenceLabel": "Group",
+        "markerStroke": "#f0e7ff",
+        "markerFill": "#b887ff",
+        "countryHue": 266,
+        "countrySaturation": 72,
+        "countryEmpty": "#211735",
+        "workloadField": "points",
+        "workloadLabel": "allocated ranking points",
+        "workloadShort": "pts",
+        "defaultMetric": "minutes",
+        "showWorkloadColumn": true,
+        "showConferenceColumn": false,
+        "showTeamFilter": true,
+        "groupLabelPlural": "events",
+        "tableGroupLabel": "Event",
+        "tableStatField": "rank",
+        "tableStatLabel": "Best rank",
+        "comparisonHighlight": "coverage",
+        "profileOriginFallback": "BWF association unavailable",
+        "teamSplitStats": [
+          "points"
+        ],
+        "teamSplitMinStats": [
+          "rank"
+        ],
+        "profileStats": [
+          "rankedEntries",
+          "points",
+          "age",
+          "rank",
+          "year"
+        ],
+        "qualityWorkloadCoverageField": "point_coverage_pct",
+        "qualityMappedWorkloadField": "mapped_points",
+        "qualityTotalWorkloadField": "points",
+        "additionalMetrics": []
+      }
+    },
+    {
+      "id": "golf",
+      "name": "Golf",
+      "path": "golf/",
+      "participantLabel": "golfers",
+      "measures": "Ranking points · Golfers",
+      "workloadField": "points",
+      "workloadLabel": "ranking points",
+      "workloadShort": "pts",
+      "accent": "#e9c75f",
+      "sportId": "golf",
+      "kind": "individual",
+      "phase": "ranking snapshot",
+      "renderer": {
+        "name": "Golf",
+        "homeCountry": "",
+        "outsideHomeLabel": "",
+        "allConferenceLabel": "Both rankings",
+        "conferenceLabel": "Ranking",
+        "markerStroke": "#fff1bd",
+        "markerFill": "#f4c95d",
+        "countryHue": 43,
+        "countrySaturation": 79,
+        "countryEmpty": "#1f3024",
+        "workloadField": "points",
+        "workloadLabel": "ranking points",
+        "workloadShort": "pts",
+        "defaultMetric": "minutes",
+        "showWorkloadColumn": true,
+        "showConferenceColumn": false,
+        "showTeamFilter": false,
+        "groupLabelPlural": "rankings",
+        "tableGroupLabel": "Ranking",
+        "tableStatField": "rank",
+        "tableStatLabel": "Rank",
+        "comparisonHighlight": "coverage",
+        "profileOriginFallback": "Ranking country unavailable",
+        "teamSplitStats": [],
+        "profileStats": [
+          "rank",
+          "points",
+          "averagePoints",
+          "eventsPlayed",
+          "year"
+        ],
+        "profileStatDecimals": {
+          "averagePoints": 2
+        },
+        "qualityWorkloadCoverageField": "point_coverage_pct",
+        "qualityMappedWorkloadField": "mapped_points",
+        "qualityTotalWorkloadField": "points",
+        "additionalMetrics": [
+          {
+            "field": "eventsPlayed",
+            "label": "Events played"
+          }
+        ]
+      }
+    },
+    {
+      "id": "afl",
+      "name": "AFL",
+      "path": "afl/",
+      "participantLabel": "players",
+      "measures": "Games · Players",
+      "workloadField": "games",
+      "workloadLabel": "games",
+      "workloadShort": "games",
+      "accent": "#e5652f",
+      "sportId": "australian-football",
+      "kind": "team",
+      "phase": "regular season",
+      "renderer": {
+        "name": "AFL",
+        "homeCountry": "Australia",
+        "outsideHomeLabel": "Outside Australia",
+        "allConferenceLabel": "League-wide",
+        "conferenceLabel": "League",
+        "markerStroke": "#ffd9bc",
+        "markerFill": "#e5652f",
+        "originMarkerFill": "#52a9c7",
+        "countryHue": 19,
+        "countrySaturation": 79,
+        "countryEmpty": "#30251f",
+        "workloadField": "games",
+        "workloadLabel": "games",
+        "workloadShort": "games",
+        "defaultMetric": "games",
+        "showWorkloadColumn": false,
+        "showConferenceColumn": false,
+        "profileOriginFallback": "AFL player",
+        "locationLabel": "Location",
+        "locationPlural": "locations",
+        "countryGroupLabel": "location countries",
+        "mixedLocationTypes": true,
+        "qualityWorkloadCoverageField": "birthplace_game_coverage_pct",
+        "qualityMappedWorkloadField": "birthplace_mapped_games",
+        "teamSplitStats": [
+          "disposals",
+          "goals",
+          "marks",
+          "tackles"
+        ],
+        "profileStats": [
+          "games",
+          "disposals",
+          "goals",
+          "marks",
+          "tackles"
+        ],
+        "additionalMetrics": [
+          {
+            "field": "disposals",
+            "label": "Disposals"
+          },
+          {
+            "field": "goals",
+            "label": "Goals"
+          },
+          {
+            "field": "marks",
+            "label": "Marks"
+          },
+          {
+            "field": "tackles",
+            "label": "Tackles"
+          }
+        ]
+      }
+    },
+    {
+      "id": "nrl",
+      "name": "NRL",
+      "path": "nrl/",
+      "participantLabel": "players",
+      "measures": "Games · Players",
+      "workloadField": "games",
+      "workloadLabel": "games",
+      "workloadShort": "games",
+      "accent": "#78d69a",
+      "sportId": "rugby-league",
+      "kind": "team",
+      "phase": "regular season",
+      "renderer": {
+        "name": "NRL",
+        "homeCountry": "Australia",
+        "outsideHomeLabel": "Born outside Australia",
+        "allConferenceLabel": "League-wide",
+        "conferenceLabel": "League",
+        "markerStroke": "#dfffe8",
+        "markerFill": "#16a36a",
+        "countryHue": 151,
+        "countrySaturation": 64,
+        "countryEmpty": "#152b24",
+        "workloadField": "games",
+        "workloadLabel": "games",
+        "workloadShort": "games",
+        "defaultMetric": "games",
+        "showWorkloadColumn": false,
+        "showConferenceColumn": false,
+        "profileOriginFallback": "NRL player",
+        "teamSplitStats": [
+          "points",
+          "tries",
+          "runMetres",
+          "tackles"
+        ],
+        "profileStats": [
+          "games",
+          "points",
+          "tries",
+          "runMetres",
+          "tackles"
+        ],
+        "additionalMetrics": [
+          {
+            "field": "tries",
+            "label": "Tries"
+          },
+          {
+            "field": "runMetres",
+            "label": "Run metres"
+          },
+          {
+            "field": "tackles",
+            "label": "Tackles"
+          }
+        ]
+      }
+    },
+    {
+      "id": "nba",
+      "name": "NBA",
+      "path": "nba/",
+      "participantLabel": "players",
+      "measures": "Minutes · Games · Players",
+      "workloadField": "minutes",
+      "workloadLabel": "minutes",
+      "workloadShort": "min",
+      "accent": "#ff9b54",
+      "sportId": "basketball",
+      "kind": "team",
+      "phase": "regular season",
+      "renderer": {
+        "name": "NBA",
+        "additionalMetrics": [
+          {
+            "field": "points",
+            "label": "Points"
+          },
+          {
+            "field": "rebounds",
+            "label": "Rebounds"
+          },
+          {
+            "field": "assists",
+            "label": "Assists"
+          },
+          {
+            "field": "steals",
+            "label": "Steals"
+          },
+          {
+            "field": "blocks",
+            "label": "Blocks"
+          }
+        ]
+      }
+    },
+    {
+      "id": "nfl",
+      "name": "NFL",
+      "path": "nfl/",
+      "participantLabel": "players",
+      "measures": "Snaps · Games · Players",
+      "workloadField": "snaps",
+      "workloadLabel": "snaps",
+      "workloadShort": "snaps",
+      "accent": "#71b8ff",
+      "sportId": "american-football",
+      "kind": "team",
+      "phase": "regular season"
+    },
+    {
+      "id": "nhl",
+      "name": "NHL",
+      "path": "nhl/",
+      "participantLabel": "players",
+      "measures": "Minutes · Games · Players",
+      "workloadField": "minutes",
+      "workloadLabel": "minutes",
+      "workloadShort": "min",
+      "accent": "#65d4ec",
+      "sportId": "ice-hockey",
+      "kind": "team",
+      "phase": "regular season",
+      "renderer": {
+        "name": "NHL",
+        "homeCountry": "Canada",
+        "outsideHomeLabel": "Born outside Canada",
+        "markerStroke": "#d7f7ff",
+        "markerFill": "#59c9e8",
+        "countryHue": 190,
+        "countrySaturation": 72,
+        "countryEmpty": "#dce8eb",
+        "profileStats": [
+          "games",
+          "minutes",
+          "points",
+          "goals",
+          "assists"
+        ],
+        "additionalMetrics": [
+          {
+            "field": "goals",
+            "label": "Goals"
+          },
+          {
+            "field": "assists",
+            "label": "Assists"
+          },
+          {
+            "field": "points",
+            "label": "Points"
+          }
+        ],
+        "teamSplitStats": [
+          "goals",
+          "assists",
+          "points"
+        ]
+      }
+    },
+    {
+      "id": "mlb",
+      "name": "MLB",
+      "path": "mlb/",
+      "participantLabel": "players",
+      "measures": "Workload · Games · Players",
+      "workloadField": "minutes",
+      "workloadLabel": "workload",
+      "workloadShort": "workload",
+      "accent": "#f28c5c",
+      "sportId": "baseball",
+      "kind": "team",
+      "phase": "regular season",
+      "renderer": {
+        "name": "MLB",
+        "homeCountry": "United States",
+        "outsideHomeLabel": "Born outside US",
+        "allConferenceLabel": "Both leagues",
+        "conferenceLabel": "League",
+        "markerStroke": "#ffe4ce",
+        "markerFill": "#e86452",
+        "countryHue": 8,
+        "countrySaturation": 74,
+        "countryEmpty": "#263143",
+        "workloadLabel": "workload",
+        "workloadShort": "workload",
+        "profileOriginField": "birthCountry",
+        "profileOriginFallback": "Birth country unavailable",
+        "teamSplitStats": [
+          "plateAppearances",
+          "battersFaced",
+          "hits",
+          "homeRuns",
+          "rbi",
+          "pitchingStrikeouts"
+        ],
+        "profileStats": [
+          "games",
+          "minutes",
+          "hits",
+          "homeRuns",
+          "pitchingStrikeouts"
+        ],
+        "additionalMetrics": [
+          {
+            "field": "plateAppearances",
+            "label": "Plate appearances"
+          },
+          {
+            "field": "battersFaced",
+            "label": "Batters faced"
+          },
+          {
+            "field": "homeRuns",
+            "label": "Home runs"
+          },
+          {
+            "field": "pitchingStrikeouts",
+            "label": "Pitching strikeouts"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -3,25 +3,7 @@
 
   const scriptUrl = new URL(document.currentScript.src, window.location.href);
   const rootUrl = new URL("../", scriptUrl);
-  const sports = [
-    { id: "football", name: "Football", path: "", season: "2025–26", scope: "Big Five European domestic leagues", participants: 2690, participantLabel: "players", coverage: 90.1, measures: "Starts · Starters · Players", workloadField: "starts", workloadLabel: "starts", workloadShort: "starts", accent: "#d9ff57" },
-    { id: "cricket", name: "Cricket", path: "cricket/", season: "2025", scope: "Men’s and women’s Full Member T20 internationals", participants: 446, participantLabel: "players", coverage: 87.0, measures: "Appearances · Players", workloadField: "appearances", workloadLabel: "appearances", workloadShort: "apps", accent: "#f4c95d" },
-    { id: "ufc", name: "UFC", path: "ufc/", season: "2025", scope: "All 42 UFC events", participants: 620, participantLabel: "fighters", coverage: 84.2, measures: "Bouts · Fighters", workloadField: "bouts", workloadLabel: "bouts", workloadShort: "bouts", accent: "#ef4444" },
-    { id: "formula", name: "Formula", path: "formula/", season: "2025", scope: "F1, F2, F3 and F1 Academy", participants: 106, participantLabel: "drivers", coverage: 81.1, measures: "Laps · Starts · Drivers", workloadField: "laps", workloadLabel: "laps", workloadShort: "laps", accent: "#ff5a36" },
-    { id: "motogp", name: "MotoGP", path: "motogp/", season: "2025", scope: "MotoGP, Moto2, Moto3, MotoE and WorldWCR", participants: 163, participantLabel: "riders", coverage: 90.2, measures: "Laps · Starts · Riders", workloadField: "laps", workloadLabel: "laps", workloadShort: "laps", accent: "#ff3b30" },
-    { id: "volleyball", name: "Volleyball", path: "volleyball/", season: "2025", scope: "Women’s and men’s Volleyball Nations League", participants: 580, participantLabel: "players", coverage: 60.2, measures: "Sets · Matches · Players", workloadField: "sets", workloadLabel: "sets", workloadShort: "sets", accent: "#ffcf33" },
-    { id: "athletics", name: "Athletics", path: "athletics/", season: "Tokyo 2025", scope: "World Athletics Championships · all 49 events", participants: 1992, participantLabel: "athletes", coverage: 51.9, measures: "Event entries · Rounds · Athletes", workloadField: "entries", workloadLabel: "event entries", workloadShort: "entries", accent: "#69e0c1" },
-    { id: "tennis", name: "Tennis", path: "tennis/", season: "2025", scope: "Year-end ATP and WTA singles top 100", participants: 200, participantLabel: "players", coverage: 99.5, measures: "Ranking points · Players", workloadField: "points", workloadLabel: "ranking points", workloadShort: "pts", accent: "#b9ef72" },
-    { id: "padel", name: "Padel", path: "padel/", season: "2025", scope: "Year-end FIP men’s and women’s top 100", participants: 200, participantLabel: "players", coverage: 99.0, measures: "Ranking points · Players", workloadField: "points", workloadLabel: "ranking points", workloadShort: "pts", accent: "#5dd6db" },
-    { id: "badminton", name: "Badminton", path: "badminton/", season: "2025", scope: "Top singles players and doubles pairs", participants: 468, participantLabel: "athletes", coverage: 73.7, measures: "Allocated points · Athletes", workloadField: "points", workloadLabel: "allocated ranking points", workloadShort: "pts", accent: "#b592ff" },
-    { id: "golf", name: "Golf", path: "golf/", season: "2025", scope: "Final men’s and women’s world top 100", participants: 200, participantLabel: "golfers", coverage: 84.0, measures: "Ranking points · Golfers", workloadField: "points", workloadLabel: "ranking points", workloadShort: "pts", accent: "#e9c75f" },
-    { id: "afl", name: "AFL", path: "afl/", season: "2025", scope: "Men’s home-and-away season", participants: 663, participantLabel: "players", coverage: 47.4, measures: "Games · Players", workloadField: "games", workloadLabel: "games", workloadShort: "games", accent: "#e5652f" },
-    { id: "nrl", name: "NRL", path: "nrl/", season: "2025", scope: "Men’s regular season", participants: 506, participantLabel: "players", coverage: 56.1, measures: "Games · Players", workloadField: "games", workloadLabel: "games", workloadShort: "games", accent: "#78d69a" },
-    { id: "nba", name: "NBA", path: "nba/", season: "2025–26", scope: "Men’s regular season", participants: 582, participantLabel: "players", coverage: 99.1, measures: "Minutes · Games · Players", workloadField: "minutes", workloadLabel: "minutes", workloadShort: "min", accent: "#ff9b54" },
-    { id: "nfl", name: "NFL", path: "nfl/", season: "2025", scope: "Men’s regular season", participants: 2186, participantLabel: "players", coverage: 97.0, measures: "Snaps · Games · Players", workloadField: "snaps", workloadLabel: "snaps", workloadShort: "snaps", accent: "#71b8ff" },
-    { id: "nhl", name: "NHL", path: "nhl/", season: "2025–26", scope: "Men’s regular season", participants: 1038, participantLabel: "players", coverage: 95.8, measures: "Minutes · Games · Players", workloadField: "minutes", workloadLabel: "minutes", workloadShort: "min", accent: "#65d4ec" },
-    { id: "mlb", name: "MLB", path: "mlb/", season: "2025", scope: "Men’s regular season", participants: 1470, participantLabel: "players", coverage: 96.1, measures: "Workload · Games · Players", workloadField: "minutes", workloadLabel: "workload", workloadShort: "workload", accent: "#f28c5c" },
-  ];
+  const sports = window.TALENT_GEO_CATALOG;
 
   const cleanPath = (value) => decodeURIComponent(value).replace(/\/index\.html$/, "/").replace(/^\/+|\/+$/g, "");
   const rootPath = cleanPath(rootUrl.pathname);
@@ -32,7 +14,12 @@
   const isCompare = relativePath === "compare";
   let mapStateReader = null;
   const escapeHtml = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
-  const sportUrl = (sport) => new URL(sport.path, rootUrl);
+  const sportUrl = (sport) => {
+    const url = new URL(sport.path, rootUrl);
+    const language = window.TalentGeoLanguage?.language;
+    if (language && language !== "en") url.searchParams.set("lang", language);
+    return url;
+  };
 
   function renderHeaderNavigation() {
     document.querySelectorAll(".sport-switcher").forEach((navigation) => {
@@ -41,9 +28,8 @@
         const active = currentSport?.id === sport.id;
         return `<a${active ? ' class="active" aria-current="page"' : ""} data-sport-id="${escapeHtml(sport.id)}" href="${escapeHtml(sportUrl(sport).href)}"><i style="--sport-accent:${escapeHtml(sport.accent)}" aria-hidden="true"></i>${escapeHtml(sport.name)}</a>`;
       }).join("");
-      const teamSportIds = new Set(["football", "cricket", "volleyball", "afl", "nrl", "nba", "nfl", "nhl", "mlb"]);
-      const teamSports = sports.filter((sport) => teamSportIds.has(sport.id));
-      const individualSports = sports.filter((sport) => !teamSportIds.has(sport.id));
+      const teamSports = sports.filter((sport) => sport.kind === "team");
+      const individualSports = sports.filter((sport) => sport.kind !== "team");
       const directoryUrl = escapeHtml(new URL("sports/", rootUrl).href);
       const compareUrl = escapeHtml(new URL("compare/", rootUrl).href);
       navigation.innerHTML = `
@@ -112,6 +98,7 @@
 
   function sideBySideUrl(left = currentSport?.id || "nfl", right = left === "nba" ? "nfl" : "nba", mapState = null) {
     const url = new URL("compare/", rootUrl);
+    if (window.TalentGeoLanguage?.language) url.searchParams.set("lang", window.TalentGeoLanguage.language);
     url.searchParams.set("left", sports.some((sport) => sport.id === left) ? left : "nfl");
     url.searchParams.set("right", sports.some((sport) => sport.id === right) ? right : "nba");
     if (mapState?.mode?.startsWith("population")) url.searchParams.set("view", "population");
@@ -216,7 +203,7 @@
   function renderDirectory(container) {
     if (!container) return;
     const number = new Intl.NumberFormat(window.TalentGeoLanguage?.locale || "en-US");
-    container.innerHTML = sports.map((sport) => `<article class="sport-card" style="--card-accent:${escapeHtml(sport.accent)}"><div><span>${escapeHtml(sport.season)}</span><strong>${escapeHtml(sport.name)}</strong><p>${escapeHtml(sport.scope)}</p></div><dl><div><dt>Cohort</dt><dd>${number.format(sport.participants)} ${escapeHtml(sport.participantLabel)}</dd></div><div><dt>Birthplace coverage</dt><dd>${sport.coverage.toFixed(1)}%</dd></div><div><dt>Map measures</dt><dd>${escapeHtml(sport.measures)}</dd></div></dl><a href="${escapeHtml(new URL(`${sport.path}#map`, rootUrl).href)}">Open map <span>→</span></a></article>`).join("");
+    container.innerHTML = sports.map((sport) => `<article class="sport-card" style="--card-accent:${escapeHtml(sport.accent)}"><div><span>${escapeHtml(sport.season)}</span><strong>${escapeHtml(sport.name)}</strong><p>${escapeHtml(sport.scope)}</p></div><dl><div><dt>Cohort</dt><dd>${number.format(sport.participants)} ${escapeHtml(sport.participantLabel)}</dd></div><div><dt>Birthplace coverage</dt><dd>${sport.coverage.toFixed(1)}%${sport.mappedCoverage !== sport.coverage ? `<small>${sport.mappedCoverage.toFixed(1)}% including origins</small>` : ""}</dd></div><div><dt>Map measures</dt><dd>${escapeHtml(sport.measures)}</dd></div></dl><a href="${escapeHtml(new URL(`${sport.path}#map`, rootUrl).href)}">Open map <span>→</span></a></article>`).join("");
   }
 
   window.TalentGeoNavigation = { sports, currentSport, rootUrl, readMapState, comparisonUrl, sideBySideUrl, mountMapSwitcher, restoreMapScroll, renderDirectory };

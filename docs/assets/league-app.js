@@ -53,6 +53,7 @@ const EDITION = {
   showTeamFilter: true,
   comparisonHighlight: "outsideHome",
   showPopulationReferenceCells: true,
+  additionalMetrics: [],
   ...window.TALENT_GEO_EDITION,
 };
 const TEAM_STYLES = window.TALENT_TEAM_COLOURS?.[EDITION.name] || null;
@@ -65,6 +66,8 @@ const state = {
   teamMeta: [],
   country: "all",
   position: "all",
+  age: "all",
+  rank: "all",
   metric: EDITION.defaultMetric,
   mapMode: "city",
   populationResolution: 3,
@@ -173,38 +176,79 @@ function projectTeamSplits(row, splits) {
   };
 }
 
+function projectEventSelection(row) {
+  if (EDITION.profileLogType !== "athletics" || state.position === "all") return row;
+  const events = (row.eventLog || []).filter((event) => event.event === state.position);
+  const rounds = events.reduce((sum, event) => sum + event.rounds, 0);
+  const stats = {
+    entries: events.length, rounds, games: rounds,
+    medals: events.filter((event) => event.medal).length,
+    gold: events.filter((event) => event.medal === "Gold").length,
+    silver: events.filter((event) => event.medal === "Silver").length,
+    bronze: events.filter((event) => event.medal === "Bronze").length,
+  };
+  return {
+    ...row, ...stats, minutes: stats[EDITION.workloadField],
+    eventNames: events.map((event) => event.event), eventLog: events,
+    teamSplits: (row.teamSplits || []).map((split) => ({ ...split, ...stats, minutes: stats[EDITION.workloadField] })),
+  };
+}
+
+function selectedParticipant(row) {
+  if (state.country !== "all" && row.country !== state.country) return null;
+  if (state.position !== "all" && !positionValues(row).includes(state.position)) return null;
+  if (state.age !== "all") {
+    if (!Number.isFinite(row.age)) return null;
+    const ranges = { u21: [0, 21], "21-24": [21, 25], "25-29": [25, 30], "30-34": [30, 35], "35plus": [35, Infinity] };
+    const [minimum, maximum] = ranges[state.age];
+    if (row.age < minimum || row.age >= maximum) return null;
+  }
+  return projectEventSelection(row);
+}
+
+function matchesRank(row) {
+  return state.rank === "all" || (Number.isFinite(row.rank) && row.rank <= Number(state.rank));
+}
+
 function filteredRecords(conference = state.conference) {
-  return state.payload.records.flatMap((row) => {
-    if (state.country !== "all" && row.country !== state.country) return [];
-    if (state.position !== "all" && !positionValues(row).includes(state.position)) return [];
+  return state.payload.records.flatMap((source) => {
+    const row = selectedParticipant(source);
+    if (!row) return [];
     if (!row.teamSplits?.length) {
       return (conference === "all" || row.conference === conference)
-        && matchesTeam(row.team) ? [row] : [];
+        && matchesTeam(row.team) && matchesRank(row) ? [row] : [];
     }
     const splits = row.teamSplits.filter((split) =>
       (conference === "all" || split.conference === conference)
       && matchesTeam(split.team)
     );
     if (!splits.length) return [];
-    return conference === "all" && !hasTeamSelection() ? [row] : [projectTeamSplits(row, splits)];
+    const projected = conference === "all" && !hasTeamSelection() ? row : projectTeamSplits(row, splits);
+    return matchesRank(projected) ? [projected] : [];
   });
 }
 
 function filteredTeamRecords() {
-  return state.payload.records.flatMap((row) => {
-    if (state.country !== "all" && row.country !== state.country) return [];
+  return state.payload.records.flatMap((source) => {
+    const row = selectedParticipant(source);
+    if (!row) return [];
     if (!row.teamSplits?.length) {
       return (state.conference === "all" || row.conference === state.conference)
-        && matchesTeam(row.team) ? [row] : [];
+        && matchesTeam(row.team) && matchesRank(row) ? [row] : [];
     }
     return row.teamSplits
       .filter((split) => (state.conference === "all" || split.conference === state.conference) && matchesTeam(split.team))
-      .map((split) => projectTeamSplits(row, [split]));
+      .map((split) => projectTeamSplits(row, [split])).filter(matchesRank);
   });
 }
 
 function metricLabel(metric = state.metric) {
-  return { minutes: EDITION.workloadLabel, players: EDITION.participantLabelPlural, games: "games" }[metric];
+  return EDITION.additionalMetrics.find((item) => item.field === metric)?.label
+    || { minutes: EDITION.workloadLabel, players: EDITION.participantLabelPlural, games: "games" }[metric];
+}
+
+function addMetricTotals(target, row) {
+  EDITION.additionalMetrics.forEach(({ field }) => { target[field] = (target[field] || 0) + (Number(row[field]) || 0); });
 }
 
 function metricValue(item) {
@@ -256,6 +300,7 @@ function aggregatePlaces(records) {
       places.set(key, { key, place: row.place || `Unnamed ${EDITION.locationLabel.toLowerCase()}`, country: row.country || "Country unavailable", lat: row.lat, lon: row.lon, minutes: 0, games: 0, playerRows: new Map(), teams: new Set(), hasOrigin: false, hasBirthplace: false });
     }
     const place = places.get(key);
+    addMetricTotals(place, row);
     place.minutes += row.minutes || 0;
     place.games += row.games || 0;
     place.teams.add(row.team);
@@ -277,6 +322,7 @@ function aggregateCountries(records) {
     const key = row.countryCode || normalCountry(row.country);
     if (!countries.has(key)) countries.set(key, { code: key, country: row.country, minutes: 0, games: 0, playerRows: new Map() });
     const country = countries.get(key);
+    addMetricTotals(country, row);
     country.minutes += row.minutes || 0;
     country.games += row.games || 0;
     country.playerRows.set(row.id, row);
@@ -433,8 +479,10 @@ function usePopulationBasemap(active) {
 }
 
 function popupPlayers(rows, maximum = 8) {
-  const visible = rows.slice(0, maximum);
-  const items = visible.map((row) => { const detail = recordValues(row, EDITION.popupDetailField).join(" · "); return `<button type="button" class="popup-player" data-player-id="${escapeHtml(row.id)}"><span>${escapeHtml(row.name)}${detail ? `<small class="popup-player-detail">${escapeHtml(detail)}</small>` : ""}${EDITION.mixedLocationTypes ? `<small class="location-kind ${row.locationType && row.locationType !== "birthplace" ? "origin" : "birthplace"}">${row.locationType && row.locationType !== "birthplace" ? escapeHtml(EDITION.originLabel) : "Birthplace"}</small>` : ""}</span><b>${number.format(row.minutes)} ${escapeHtml(EDITION.workloadShort)}</b></button>`; }).join("");
+  const additional = EDITION.additionalMetrics.find((metric) => metric.field === state.metric);
+  const ordered = additional ? [...rows].sort((a, b) => (b[additional.field] || 0) - (a[additional.field] || 0)) : rows;
+  const visible = ordered.slice(0, maximum);
+  const items = visible.map((row) => { const detail = recordValues(row, EDITION.popupDetailField).join(" · "); return `<button type="button" class="popup-player" data-player-id="${escapeHtml(row.id)}"><span>${escapeHtml(row.name)}${detail ? `<small class="popup-player-detail">${escapeHtml(detail)}</small>` : ""}${EDITION.mixedLocationTypes ? `<small class="location-kind ${row.locationType && row.locationType !== "birthplace" ? "origin" : "birthplace"}">${row.locationType && row.locationType !== "birthplace" ? escapeHtml(EDITION.originLabel) : "Birthplace"}</small>` : ""}</span><b>${number.format(additional ? row[additional.field] || 0 : row.minutes)} ${escapeHtml(additional ? additional.label : EDITION.workloadShort)}</b></button>`; }).join("");
   const rest = rows.length - visible.length;
   return `${items}${rest > 0 ? `<small class="popup-rest">+ ${rest} more ${escapeHtml(EDITION.participantLabelPlural)}</small>` : ""}`;
 }
@@ -458,6 +506,7 @@ function aggregateTeamPlaces(records) {
     const place = places.get(key);
     if (!place.teams.has(row.team)) place.teams.set(row.team, { team: row.team, minutes: 0, games: 0, playerRows: new Map() });
     const team = place.teams.get(row.team);
+    addMetricTotals(team, row);
     team.minutes += row.minutes || 0;
     team.games += row.games || 0;
     team.playerRows.set(row.id, row);
@@ -668,6 +717,7 @@ function updateMap() {
   const teamRecords = filteredTeamRecords();
   const places = aggregatePlaces(records);
   const countries = aggregateCountries(records);
+  if ($(".additional-metric-control")) $(".additional-metric-control").hidden = isPopulationMode();
   if (isPopulationMode()) {
     // A previously loaded population layer skips showPopulationLoading(), so
     // restore its controls here as well when returning from another map mode.
@@ -698,6 +748,12 @@ function updateKpis() {
   $("#kpi-players").textContent = number.format(records.length);
   $("#kpi-minutes").textContent = compact.format(records.reduce((sum, row) => sum + row.minutes, 0));
   $("#kpi-coverage").textContent = records.length ? `${(mapped / records.length * 100).toFixed(1)}%` : "—";
+  if (EDITION.mixedLocationTypes) {
+    const card = $("#kpi-coverage").closest("article");
+    const birthplaces = records.filter((row) => row.mapped && (!row.locationType || row.locationType === "birthplace")).length;
+    card.querySelector("span").textContent = "Location coverage";
+    card.querySelector("small").textContent = `${records.length ? (birthplaces / records.length * 100).toFixed(1) : 0}% verified birthplaces`;
+  }
 }
 
 function updateConferenceComparison() {
@@ -785,11 +841,13 @@ function updateFilterUi() {
     TEAM_STYLES ? state.teams.length > 0 && { key: "teams", label: state.teams.length === 1 ? state.teams[0] : `${state.teams.length} ${EDITION.groupLabelPlural}` } : state.team !== "all" && { key: "team", label: state.team },
     state.country !== "all" && { key: "country", label: `${EDITION.mixedLocationTypes ? "Located" : "Born"} in ${state.country}` },
     state.position !== "all" && { key: "position", label: state.position },
+    state.age !== "all" && { key: "age", label: $("#age-filter").selectedOptions[0].textContent },
+    state.rank !== "all" && { key: "rank", label: $("#rank-filter").selectedOptions[0].textContent },
   ].filter(Boolean);
   const container = $("#active-filters");
   container.innerHTML = filters.map((filter) => `<button type="button" class="filter-chip" data-clear-filter="${filter.key}" aria-label="Remove ${escapeHtml(filter.label)} filter"><span>${escapeHtml(filter.label)}</span><span aria-hidden="true">×</span></button>`).join("");
   container.hidden = filters.length === 0;
-  const moreFilterCount = Number(state.country !== "all") + Number(state.position !== "all");
+  const moreFilterCount = Number(state.country !== "all") + Number(state.position !== "all") + Number(state.age !== "all") + Number(state.rank !== "all");
   $("#more-filter-count").textContent = moreFilterCount ? String(moreFilterCount) : "";
   $("#reset-filters").disabled = filters.length === 0 && !state.search && !state.placeQuery && state.metric === EDITION.defaultMetric && state.mapMode === "city";
   const conference = state.conference === "all" ? EDITION.allConferenceLabel : state.conference.replace(" Conference", "");
@@ -845,6 +903,16 @@ function updateSnapshotCopy() {
 }
 
 function populateFilters() {
+  const secondary = $(".secondary-filters");
+  if (secondary && state.payload.records.some((row) => Number.isFinite(row.age))) {
+    secondary.insertAdjacentHTML("beforeend", '<div class="control-group age-control"><label for="age-filter">Age at snapshot</label><div class="select-wrap"><select id="age-filter"><option value="all">All ages</option><option value="u21">Under 21</option><option value="21-24">21–24</option><option value="25-29">25–29</option><option value="30-34">30–34</option><option value="35plus">35+</option></select></div></div>');
+  }
+  if (secondary && state.payload.records.some((row) => Number.isFinite(row.rank))) {
+    secondary.insertAdjacentHTML("beforeend", '<div class="control-group rank-control"><label for="rank-filter">Ranking cohort</label><div class="select-wrap"><select id="rank-filter"><option value="all">All ranks</option><option value="25">Top 25</option><option value="50">Top 50</option><option value="100">Top 100</option></select></div></div>');
+  }
+  if (EDITION.additionalMetrics.length) {
+    $("#map-explorer").insertAdjacentHTML("beforeend", `<div class="control-group additional-metric-control"><label for="additional-metric">Performance measure</label><div class="select-wrap"><select id="additional-metric"><option value="">Choose a measure</option>${EDITION.additionalMetrics.map((metric) => `<option value="${escapeHtml(metric.field)}">${escapeHtml(metric.label)}</option>`).join("")}</select></div></div>`);
+  }
   const addOptions = (selector, values) => {
     const select = $(selector);
     values.forEach((value) => select.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`));
@@ -1042,6 +1110,8 @@ function resetAll() {
   state.teams = [];
   state.country = "all";
   state.position = "all";
+  state.age = "all";
+  state.rank = "all";
   state.metric = EDITION.defaultMetric;
   state.mapMode = "city";
   state.populationResolution = 3;
@@ -1052,6 +1122,9 @@ function resetAll() {
   $("#team-filter").value = "all";
   $("#country-filter").value = "all";
   if ($("#position-filter")) $("#position-filter").value = "all";
+  if ($("#age-filter")) $("#age-filter").value = "all";
+  if ($("#rank-filter")) $("#rank-filter").value = "all";
+  if ($("#additional-metric")) $("#additional-metric").value = "";
   $("#player-search").value = "";
   $("#place-search").value = "";
   if ($("#team-search")) $("#team-search").value = "";
@@ -1094,11 +1167,19 @@ function bindEvents() {
   }
   $("#country-filter").addEventListener("change", (event) => { state.country = event.target.value; state.playerLimit = PLAYER_BATCH; render(); });
   $("#position-filter")?.addEventListener("change", (event) => { state.position = event.target.value; state.playerLimit = PLAYER_BATCH; render(); });
+  ["age", "rank"].forEach((key) => $(`#${key}-filter`)?.addEventListener("change", (event) => { state[key] = event.target.value; state.playerLimit = PLAYER_BATCH; render(); }));
+  $("#additional-metric")?.addEventListener("change", (event) => {
+    state.metric = event.target.value || EDITION.defaultMetric;
+    $$("#metric-control button").forEach((button) => { const active = button.dataset.metric === state.metric; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
+    updateFilterUi();
+    updateMap();
+  });
   $("#reset-filters").addEventListener("click", resetAll);
   $("#metric-control").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-metric]");
     if (!button) return;
     state.metric = button.dataset.metric;
+    if ($("#additional-metric")) $("#additional-metric").value = "";
     $$("#metric-control button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active)); });
     updateFilterUi();
     updateMap();

@@ -73,18 +73,21 @@ def _read_text(path: Path | None, url: str, cache_path: Path, *, force: bool) ->
     return result.text, result.retrieved_at
 
 
-def parse_cohort(rankings_text: str, players_text: str, tour: str) -> list[dict[str, Any]]:
+def parse_cohort(rankings_text: str, players_text: str, tour: str, *, ranking_date: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
     if tour not in TOURS:
         raise ValueError(f"Unsupported tour: {tour}")
     players = {row["player_id"]: row for row in csv.DictReader(io.StringIO(players_text))}
-    ranking_date = TOURS[tour]["ranking_date"]
+    ranking_date = ranking_date or TOURS[tour]["ranking_date"]
+    datetime.strptime(ranking_date, "%Y%m%d")
+    if limit < 1:
+        raise ValueError("Ranking limit must be positive")
     rankings = [
         row for row in csv.DictReader(io.StringIO(rankings_text))
-        if row["ranking_date"] == ranking_date and 1 <= int(row["rank"]) <= 100
+        if row["ranking_date"] == ranking_date and 1 <= int(row["rank"]) <= limit
     ]
     ranks = sorted(int(row["rank"]) for row in rankings)
-    if ranks != list(range(1, 101)):
-        raise ValueError(f"Expected exact {tour} ranks 1–100 on {ranking_date}; found {len(rankings)} rows")
+    if ranks != list(range(1, limit + 1)):
+        raise ValueError(f"Expected exact {tour} ranks 1–{limit} on {ranking_date}; found {len(rankings)} rows")
     output = []
     for ranking in rankings:
         player = players.get(ranking["player"])
@@ -120,6 +123,8 @@ def fetch_cohorts(
     atp_players_input: Path | None = None,
     wta_rankings_input: Path | None = None,
     wta_players_input: Path | None = None,
+    ranking_dates: dict[str, str] | None = None,
+    limit: int = 100,
     force: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     inputs = {
@@ -137,7 +142,7 @@ def fetch_cohorts(
             players_input, INPUT_URLS[tour]["players"], cache_dir / f"{tour.lower()}_players.csv",
             force=force,
         )
-        rows.extend(parse_cohort(rankings_text, players_text, tour))
+        rows.extend(parse_cohort(rankings_text, players_text, tour, ranking_date=(ranking_dates or {}).get(tour), limit=limit))
         retrieval[f"{tour.lower()}_rankings_retrieved_at"] = rankings_at
         retrieval[f"{tour.lower()}_players_retrieved_at"] = players_at
     return rows, retrieval
@@ -257,8 +262,15 @@ def age_on(dob: str | None) -> int | None:
 
 def build_payload(
     cohort: list[dict[str, Any]], places: dict[str, dict[str, Any]], source_meta: dict[str, Any],
-    *, generated_at: str | None = None,
+    *, generated_at: str | None = None, limit: int = 100, ranking_dates: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    dates = ranking_dates or {tour: details["ranking_date"] for tour, details in TOURS.items()}
+    years = {datetime.strptime(value, "%Y%m%d").year for value in dates.values()}
+    if len(years) != 1:
+        raise ValueError("ATP and WTA snapshot dates must be in the same year")
+    year = years.pop()
+    snapshot_date = max(datetime.strptime(value, "%Y%m%d").date() for value in dates.values())
+    year_end = dates == {tour: details["ranking_date"] for tour, details in TOURS.items()}
     records, unresolved = [], []
     for player in cohort:
         source_key = f"{player['tour']}:{player['player_id']}"
@@ -276,7 +288,7 @@ def build_payload(
             "conference": player["tour"],
             "tour": player["tour"],
             "gender": player["gender"],
-            "year": SEASON,
+            "year": year,
             "rankingDate": player["ranking_date"],
             "rank": player["rank"],
             "points": player["points"],
@@ -286,7 +298,7 @@ def build_payload(
             "hand": player["hand"],
             "heightCm": player.get("height_cm"),
             "dob": dob,
-            "age": age_on(dob),
+            "age": _age_on(dob, snapshot_date),
             "nationality": player.get("represented_country"),
             "representedCountry": player.get("represented_country"),
             "place": place.get("place") if mapped else None,
@@ -311,15 +323,17 @@ def build_payload(
         "meta": {
             "title": "Tennis Talent Geography",
             "sport": "tennis",
-            "scope": "2025 year-end ATP and WTA singles top 100",
-            "season": "2025 year-end",
-            "year": SEASON,
+            "scope": f"{year}{' year-end' if year_end else ''} ATP and WTA singles top {limit}",
+            "season": f"{year} {'year-end' if year_end else 'ranking snapshot'}",
+            "year": year,
+            "cohort_limit": limit,
+            "snapshot_date": snapshot_date.isoformat(),
             "teams": ["ATP", "WTA"],
             "conferences": ["ATP", "WTA"],
             "generated_at": generated_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-            "ranking_dates": {tour: details["ranking_date"] for tour, details in TOURS.items()},
-            "ranking_source_name": "Official ATP and WTA year-end singles rankings",
-            "ranking_source_urls": OFFICIAL_SOURCES,
+            "ranking_dates": dates,
+            "ranking_source_name": "Official ATP and WTA year-end singles rankings" if year_end else "Tennis Sackmann Archive singles ranking snapshot",
+            "ranking_source_urls": OFFICIAL_SOURCES if year_end else {"ATP": "https://www.atptour.com/en/rankings/singles", "WTA": "https://www.wtatennis.com/rankings/singles"},
             "processed_snapshot_name": "Tennis Sackmann Archive",
             "processed_snapshot_url": "https://github.com/Aneeshers/tennis-sackmann-archive",
             "birthplace_source_name": "Wikidata",
@@ -352,31 +366,43 @@ def run(
     atp_players_input: Path | None = None,
     wta_rankings_input: Path | None = None,
     wta_players_input: Path | None = None,
+    ranking_dates: dict[str, str] | None = None,
+    limit: int = 100,
     force: bool = False,
 ) -> dict[str, Any]:
+    dates = ranking_dates or {tour: details["ranking_date"] for tour, details in TOURS.items()}
+    if set(dates) != set(TOURS) or len({datetime.strptime(value, "%Y%m%d").year for value in dates.values()}) != 1 or limit < 1:
+        raise ValueError("Provide valid ATP and WTA dates in one year and a positive ranking limit")
+    custom = limit != 100 or dates != {tour: details["ranking_date"] for tour, details in TOURS.items()}
+    if custom and output_path.resolve() == DEFAULT_OUTPUT.resolve():
+        raise ValueError("Custom tennis cohorts require --output outside the published snapshot; rebuild their population layers separately")
+    if custom and wikidata_cache == DEFAULT_WIKIDATA_CACHE:
+        wikidata_cache = cache_dir / f"birthplaces_{dates['ATP']}_{dates['WTA']}_top{limit}.json"
     cohort, source_meta = fetch_cohorts(
         cache_dir,
         atp_rankings_input=atp_rankings_input,
         atp_players_input=atp_players_input,
         wta_rankings_input=wta_rankings_input,
         wta_players_input=wta_players_input,
+        ranking_dates=dates,
+        limit=limit,
         force=force,
     )
-    payload = build_payload(cohort, fetch_birthplaces(cohort, wikidata_cache, force=force), source_meta)
-    if len(payload["records"]) != 200 or any(
-        len([row for row in payload["records"] if row["tour"] == tour]) != 100 for tour in TOURS
+    payload = build_payload(cohort, fetch_birthplaces(cohort, wikidata_cache, force=force), source_meta, limit=limit, ranking_dates=dates)
+    if len(payload["records"]) != 2 * limit or any(
+        len([row for row in payload["records"] if row["tour"] == tour]) != limit for tour in TOURS
     ):
-        raise ValueError("Tennis top-100 reconciliation failed")
+        raise ValueError(f"Tennis top-{limit} reconciliation failed")
     _write_json(output_path, payload)
     print(
-        f"Wrote 100 ATP and 100 WTA players with {payload['summary']['player_coverage_pct']}% "
+        f"Wrote {limit} ATP and {limit} WTA players with {payload['summary']['player_coverage_pct']}% "
         f"birthplace coverage to {output_path}"
     )
     return payload
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build the 2025 year-end tennis talent geography dataset")
+    parser = argparse.ArgumentParser(description="Build an explicit ATP/WTA singles ranking cohort")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE)
     parser.add_argument("--wikidata-cache", type=Path, default=DEFAULT_WIKIDATA_CACHE)
@@ -384,6 +410,9 @@ def main() -> None:
     parser.add_argument("--atp-players-input", type=Path)
     parser.add_argument("--wta-rankings-input", type=Path)
     parser.add_argument("--wta-players-input", type=Path)
+    parser.add_argument("--limit", type=int, default=100)
+    parser.add_argument("--atp-ranking-date", default=TOURS["ATP"]["ranking_date"], help="YYYYMMDD")
+    parser.add_argument("--wta-ranking-date", default=TOURS["WTA"]["ranking_date"], help="YYYYMMDD")
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
     run(
@@ -394,6 +423,8 @@ def main() -> None:
         atp_players_input=args.atp_players_input,
         wta_rankings_input=args.wta_rankings_input,
         wta_players_input=args.wta_players_input,
+        ranking_dates={"ATP": args.atp_ranking_date, "WTA": args.wta_ranking_date},
+        limit=args.limit,
         force=args.force,
     )
 

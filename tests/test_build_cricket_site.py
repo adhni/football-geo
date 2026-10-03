@@ -2,8 +2,9 @@ import io
 import json
 import zipfile
 from pathlib import Path
+import pytest
 
-from src.ftg.build_cricket_site import aggregate_players, build_payload, is_eligible_match, parse_archive
+from src.ftg.build_cricket_site import aggregate_players, build_payload, is_eligible_match, parse_archive, run
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -97,3 +98,43 @@ def test_published_cricket_snapshot_reconciles_players_splits_and_appearances():
     assert sum(split["appearances"] for row in records for split in row["teamSplits"]) == 3389
     assert sum(row["appearances"] for row in records if row["mapped"]) == summary["mapped_appearances"]
     assert summary["mapped_players"] + summary["unresolved_players"] == 446
+
+
+@pytest.mark.parametrize("match_type", ["ODI", "Test"])
+def test_configurable_formats_include_associate_players_and_multiple_innings(match_type):
+    match = match_fixture(year="2024")
+    match["info"]["match_type"] = match_type
+    if match_type == "Test":
+        match["info"]["dates"].append("2024-01-02")
+        match["innings"].append(match["innings"][0])
+    splits, meta = parse_archive(archive_bytes([match]), {}, year=2024, match_type=match_type, full_members_only=False)
+    players = aggregate_players(splits)
+    assert len(players) == 3
+    assert meta["matches"] == 1
+    assert sum(row["appearances"] for row in players) == 3
+    batter = next(row for row in players if row["sourcePlayerId"] == "aaaa1111")
+    assert batter["runs"] == (8 if match_type == "Test" else 4)
+    assert batter["battingInnings"] == (2 if match_type == "Test" else 1)
+    payload = build_payload(players, {}, meta, year=2024, match_type=match_type, full_members_only=False)
+    assert payload["meta"]["year"] == 2024
+    assert payload["meta"]["match_type"] == match_type
+    assert not payload["meta"]["full_members_only"]
+
+
+def test_club_archive_uses_actual_teams_without_inferring_nationality():
+    match = match_fixture()
+    match["info"]["team_type"] = "club"
+    match["info"]["teams"] = ["Club A", "Club B"]
+    match["info"]["players"] = {"Club A": ["A Batter", "A Bowler"], "Club B": ["N Batter"]}
+    players = aggregate_players(parse_archive(archive_bytes([match]), {}, team_type="club", full_members_only=False)[0])
+    payload = build_payload(players, {}, {}, team_type="club", full_members_only=False)
+    assert payload["meta"]["teams"] == ["Club A", "Club B"]
+    assert len(players) == 3
+    assert all(row["nationality"] is None for row in payload["records"])
+
+
+def test_custom_cricket_cohort_requires_separate_output_before_network_requests():
+    with pytest.raises(ValueError, match="require --output"):
+        run(match_type="ODI")
+    with pytest.raises(ValueError, match="include-associates"):
+        run(team_type="club")
