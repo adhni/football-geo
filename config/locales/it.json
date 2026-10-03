@@ -268,5 +268,6 @@
   "phrase.tennis.two_snapshots": "Due istantanee delle classifiche di fine anno.",
   "phrase.tennis.qa_identity": "Nome o data di nascita esatta non verificati",
   "phrase.tennis.qa_geography": "Identità verificata; luogo di nascita, paese o coordinate irrisolti",
-  "phrase.tennis.qa_conflict": "Le fonti ufficiali discordano sul luogo di nascita; serve una verifica manuale"
+  "phrase.tennis.qa_conflict": "Le fonti ufficiali discordano sul luogo di nascita; serve una verifica manuale",
+  "phrase.tennis250.find_player": "Trova un giocatore tra i primi 250"
 }

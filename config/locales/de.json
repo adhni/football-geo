@@ -268,5 +268,6 @@
   "phrase.tennis.two_snapshots": "Zwei Ranglisten zum Jahresende.",
   "phrase.tennis.qa_identity": "Name oder genaues Geburtsdatum konnte nicht bestätigt werden",
   "phrase.tennis.qa_geography": "Identität bestätigt; Geburtsort, Land oder Koordinaten ungeklärt",
-  "phrase.tennis.qa_conflict": "Offizielle Profile widersprechen sich beim Geburtsort; manuelle Prüfung erforderlich"
+  "phrase.tennis.qa_conflict": "Offizielle Profile widersprechen sich beim Geburtsort; manuelle Prüfung erforderlich",
+  "phrase.tennis250.find_player": "Finde einen Spieler der Top 250"
 }

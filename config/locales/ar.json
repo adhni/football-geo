@@ -943,5 +943,6 @@
   "phrase.tennis.two_snapshots": "لقطتان لتصنيفات نهاية العام.",
   "phrase.tennis.qa_identity": "تعذر التحقق من الاسم أو تاريخ الميلاد الدقيق",
   "phrase.tennis.qa_geography": "هوية موثقة؛ مكان الميلاد أو البلد أو الإحداثيات غير محسومة",
-  "phrase.tennis.qa_conflict": "تختلف مصادر الملفات الرسمية حول مكان الميلاد؛ يلزم تدقيق يدوي"
+  "phrase.tennis.qa_conflict": "تختلف مصادر الملفات الرسمية حول مكان الميلاد؛ يلزم تدقيق يدوي",
+  "phrase.tennis250.find_player": "ابحث عن لاعب ضمن أفضل 250"
 }

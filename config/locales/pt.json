@@ -268,5 +268,6 @@
   "phrase.tennis.two_snapshots": "Dois retratos do ranking de fim de ano.",
   "phrase.tennis.qa_identity": "Não foi possível verificar o nome ou a data exata de nascimento",
   "phrase.tennis.qa_geography": "Identidade verificada; local de nascimento, país ou coordenadas por resolver",
-  "phrase.tennis.qa_conflict": "Os perfis oficiais divergem quanto ao local de nascimento; é necessária revisão manual"
+  "phrase.tennis.qa_conflict": "Os perfis oficiais divergem quanto ao local de nascimento; é necessária revisão manual",
+  "phrase.tennis250.find_player": "Encontre um jogador do top 250"
 }

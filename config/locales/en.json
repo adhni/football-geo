@@ -943,5 +943,6 @@
   "phrase.tennis.two_snapshots": "Two year-end ranking snapshots.",
   "phrase.tennis.qa_identity": "Identity name or exact DOB could not be verified",
   "phrase.tennis.qa_geography": "Verified identity; birthplace, country or coordinates unresolved",
-  "phrase.tennis.qa_conflict": "Official profile sources disagree on birthplace; manual review required"
+  "phrase.tennis.qa_conflict": "Official profile sources disagree on birthplace; manual review required",
+  "phrase.tennis250.find_player": "Find a top-250 player"
 }

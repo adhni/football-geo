@@ -943,5 +943,6 @@
   "phrase.tennis.two_snapshots": "Dua snapshot peringkat akhir tahun.",
   "phrase.tennis.qa_identity": "Nama atau tanggal lahir tepat belum dapat diverifikasi",
   "phrase.tennis.qa_geography": "Identitas terverifikasi; tempat lahir, negara atau koordinat belum teratasi",
-  "phrase.tennis.qa_conflict": "Sumber profil resmi berbeda tentang tempat lahir; perlu tinjauan manual"
+  "phrase.tennis.qa_conflict": "Sumber profil resmi berbeda tentang tempat lahir; perlu tinjauan manual",
+  "phrase.tennis250.find_player": "Cari pemain dalam 250 besar"
 }
