@@ -19,6 +19,7 @@ configurable tennis/cricket cohorts and the table-tennis import pilot.
 | `docs/assets/league-app.js` | Shared sport explorer, configured by each page's `TALENT_GEO_EDITION` |
 | `docs/assets/app.js`, `docs/nfl/app.js` | Football and NFL explorers with their distinct data models |
 | `docs/compare/compare.js` | Cross-sport map comparison |
+| `docs/assets/basemap.js` | Shared tile provider and attribution for all maps |
 
 Keep source-specific assumptions in the sport builder. Shared helpers must not
 import sport builders. Their imports are re-exported from existing builders for
@@ -30,6 +31,23 @@ special transliteration rules. Volleyball also retains its stricter DOB parser.
 GeoNames matching policies were moved without changing ambiguity handling.
 The shared Wikidata lookup retains the historical `motogp_*` raw cache group
 names so existing cached responses remain usable by both callers.
+
+## Map background
+
+All explorers, comparison panels and athlete profile maps use the provider in
+`docs/assets/basemap.js`. The default is OpenStreetMap's standard HTTPS tile
+service, which does not require a key. A CSS filter on the dark tile layer
+matches the interface; population modes use the original light tiles. Filters
+do not affect athlete markers, country shapes or population overlays.
+
+Keep linked OpenStreetMap attribution visible, including on profile maps.
+Requests use the browser's cache and a valid referrer. Fetch tiles only for
+interactive viewing, without prefetching or offline downloads. The public
+service is best-effort; if traffic grows, change the shared provider to a
+service with appropriate capacity and update its attribution. See the
+[tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
+Automated browser tests should substitute local tile fixtures rather than
+pan or zoom against the public tile service.
 
 ## Tests
 

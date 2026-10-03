@@ -5,6 +5,24 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_all_maps_load_shared_basemap_with_visible_attribution():
+    pages = [ROOT / "docs/index.html", *sorted((ROOT / "docs").glob("*/index.html"))]
+    map_pages = [page for page in pages if "leaflet.js" in page.read_text()]
+    assert len(map_pages) == 18
+    for page in map_pages:
+        html = page.read_text()
+        assert html.count("assets/basemap.js") == 1, page
+        assert html.index("leaflet.js") < html.index("assets/basemap.js"), page
+        app = "compare.js" if page.parent.name == "compare" else "app.js" if page.parent.name in ("docs", "nfl") else "league-app.js"
+        assert html.index("assets/basemap.js") < html.index(f"/{app}"), page
+    for path in ("assets/app.js", "assets/league-app.js", "nfl/app.js", "compare/compare.js"):
+        javascript = (ROOT / "docs" / path).read_text()
+        assert "window.TalentGeoBasemap.create(" in javascript
+        assert "cartocdn.com" not in javascript
+        assert "L.tileLayer(" not in javascript
+        assert "attributionControl: false" not in javascript
+
+
 def test_static_map_explorer_assets_and_controls_are_wired():
     html = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
     javascript = (ROOT / "docs" / "assets" / "app.js").read_text(encoding="utf-8")

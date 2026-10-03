@@ -342,8 +342,8 @@ function initMap() {
   if (!window.L) throw new Error("The map library did not load");
   state.map = L.map("talent-map", { preferCanvas: true, zoomControl: false, worldCopyJump: true, minZoom: 1 }).setView([32, -35], 2);
   L.control.zoom({ position: "bottomright" }).addTo(state.map);
-  state.baseLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd", attribution: "&copy; OpenStreetMap contributors &copy; CARTO" }).addTo(state.map);
-  state.populationBaseLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd", attribution: "&copy; OpenStreetMap contributors &copy; CARTO" });
+  state.baseLayer = window.TalentGeoBasemap.create().addTo(state.map);
+  state.populationBaseLayer = window.TalentGeoBasemap.create("light");
   state.markerLayer = L.markerClusterGroup ? L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 42, showCoverageOnHover: false }) : L.layerGroup();
   state.markerLayer.addTo(state.map);
   state.teamMarkerLayer = L.layerGroup();
@@ -801,7 +801,7 @@ function openPlayerProfile(playerId, opener = document.activeElement) {
   if (state.profileMap) state.profileMap.remove(); state.profileMap = null;
   const profileLocation = locationFields(player);
   $("#profile-map-empty").hidden = profileLocation.mapped; $("#player-mini-map").hidden = !profileLocation.mapped;
-  if (profileLocation.mapped) setTimeout(() => { if (!modal.classList.contains("open")) return; state.profileMap = L.map("player-mini-map", { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false }).setView([profileLocation.lat, profileLocation.lon], 6); L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd" }).addTo(state.profileMap); L.circleMarker([profileLocation.lat, profileLocation.lon], { radius: 8, color: "#a6ddff", fillColor: "#55baff", fillOpacity: .8 }).addTo(state.profileMap); }, 80);
+  if (profileLocation.mapped) setTimeout(() => { if (!modal.classList.contains("open")) return; state.profileMap = L.map("player-mini-map", { zoomControl: false, dragging: false, scrollWheelZoom: false }).setView([profileLocation.lat, profileLocation.lon], 6); window.TalentGeoBasemap.create().addTo(state.profileMap); L.circleMarker([profileLocation.lat, profileLocation.lon], { radius: 8, color: "#a6ddff", fillColor: "#55baff", fillOpacity: .8 }).addTo(state.profileMap); }, 80);
   $("#close-player-modal").focus();
 }
 

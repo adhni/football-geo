@@ -87,11 +87,7 @@
     const panel = state.sides[side];
     panel.map = L.map(`${side}-map`, { preferCanvas: true, zoomControl: false, worldCopyJump: true, minZoom: 1 }).setView([initialViewport.lat, initialViewport.lon], initialViewport.zoom);
     L.control.zoom({ position: side === "left" ? "bottomleft" : "bottomright" }).addTo(panel.map);
-    panel.baseLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19,
-      subdomains: "abcd",
-      attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-    }).addTo(panel.map);
+    panel.baseLayer = window.TalentGeoBasemap.create().addTo(panel.map);
     panel.layer = L.layerGroup().addTo(panel.map);
     panel.map.on("moveend", () => syncViewport(side));
   }
