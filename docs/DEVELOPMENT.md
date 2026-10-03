@@ -2,9 +2,15 @@
 
 ## Layout
 
+See [Geo 6.1 expansion](GEO_6_1.md) for catalog generation, language previews,
+configurable tennis/cricket cohorts and the table-tennis import pilot.
+
 | Location | Responsibility |
 | --- | --- |
 | `src/ftg/build_*_site.py` | Sport-specific source parsing, cohort rules, aggregation and export |
+| `config/editions.json` | Sport/edition identities and shared explorer settings |
+| `config/locales/` | Language metadata and stable message catalogs |
+| `src/ftg/build_edition_catalog.py`, `build_language_catalog.py` | Validate and generate static catalog assets and page wiring |
 | `src/ftg/utils.py` | Atomic JSON replacement, cached binary download, ASCII lookup keys and age calculation |
 | `src/ftg/geonames.py` | GeoNames inputs, city indexes and existing country/state matching policies |
 | `src/ftg/wikidata_birthplaces.py` | Shared name/title lookup with exact DOB validation, used by MotoGP and volleyball |

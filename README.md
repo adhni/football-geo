@@ -4,6 +4,12 @@ A reproducible data + visualisation project that started with football and now
 includes cricket, UFC, Formula, MotoGP, volleyball, athletics, tennis, padel,
 badminton, golf, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
 
+The [Geo 6.1 expansion](docs/GEO_6_1.md) adds configurable editions and language
+catalogs, Portuguese/German/Italian interface previews, more explorer filters
+and measures, broader tennis/cricket build options, and a table-tennis import
+pilot. It documents which additions are ready in the interface and which still
+need source data before publication.
+
 The football project asks:
 
 > **Where do the world's leading men's national teams actually get their starters from, and which places over-produce elite footballers relative to population?**

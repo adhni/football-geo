@@ -3,7 +3,7 @@ import io
 
 import pytest
 
-from src.ftg.build_tennis_site import build_payload, parse_cohort
+from src.ftg.build_tennis_site import build_payload, parse_cohort, run
 
 
 def _csv(fieldnames, rows):
@@ -59,3 +59,25 @@ def test_payload_reconciles_players_and_point_coverage():
     assert payload["summary"]["mapped_points"] == 10000
     assert payload["records"][0]["rank"] == 1
     assert payload["records"][0]["locationType"] == "birthplace"
+
+
+def test_top_250_and_explicit_historical_dates_keep_their_actual_scope_and_age():
+    rankings, players = _cohort_inputs("ATP", 250)
+    rankings = rankings.replace("20251117", "20241118")
+    cohort = parse_cohort(rankings, players, "ATP", ranking_date="20241118", limit=250)
+    payload = build_payload(cohort, {}, {}, limit=250, ranking_dates={"ATP": "20241118", "WTA": "20241111"})
+    assert len(cohort) == 250
+    assert payload["meta"]["year"] == 2024
+    assert payload["meta"]["cohort_limit"] == 250
+    assert payload["meta"]["season"] == "2024 ranking snapshot"
+    assert "year-end" not in payload["meta"]["scope"]
+    assert payload["records"][0]["age"] == 24
+    assert payload["records"][0]["year"] == 2024
+    assert "2025" not in str(payload["meta"]["ranking_source_urls"])
+
+
+def test_custom_tennis_cohort_cannot_overwrite_the_published_snapshot():
+    with pytest.raises(ValueError, match="require --output"):
+        run(limit=250)
+    with pytest.raises(ValueError, match="one year"):
+        run(ranking_dates={"ATP": "20241118", "WTA": "20251110"})

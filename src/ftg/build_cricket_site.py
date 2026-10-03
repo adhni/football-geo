@@ -73,15 +73,15 @@ def parse_register(text: str) -> dict[str, dict[str, str]]:
     return rows
 
 
-def is_eligible_match(match: dict[str, Any]) -> bool:
+def is_eligible_match(match: dict[str, Any], *, year: int = SEASON, match_type: str = "T20", team_type: str = "international", full_members_only: bool = True) -> bool:
     info = match.get("info", {})
     dates = info.get("dates") or []
     return bool(
-        dates and str(dates[0]).startswith(str(SEASON))
-        and info.get("team_type") == "international"
-        and info.get("match_type") == "T20"
+        dates and str(dates[0]).startswith(f"{year}-")
+        and info.get("team_type") == team_type
+        and info.get("match_type") == match_type
         and match.get("innings")
-        and set(info.get("teams") or []) & set(FULL_MEMBERS)
+        and (not full_members_only or set(info.get("teams") or []) & set(FULL_MEMBERS))
     )
 
 
@@ -102,7 +102,9 @@ def _fielder_names(wicket: dict[str, Any]) -> list[str]:
     return output
 
 
-def parse_archive(content: bytes, register: dict[str, dict[str, str]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def parse_archive(content: bytes, register: dict[str, dict[str, str]], *, year: int = SEASON, match_type: str = "T20", team_type: str = "international", full_members_only: bool = True) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    if team_type == "club" and full_members_only:
+        raise ValueError("Club competitions cannot be restricted to ICC Full Member teams")
     splits: dict[tuple[str, str, str], dict[str, Any]] = {}
     matches = 0
     matches_by_gender: defaultdict[str, int] = defaultdict(int)
@@ -110,7 +112,7 @@ def parse_archive(content: bytes, register: dict[str, dict[str, str]]) -> tuple[
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
         for filename in sorted(name for name in archive.namelist() if name.endswith(".json")):
             match = json.loads(archive.read(filename))
-            if not is_eligible_match(match):
+            if not is_eligible_match(match, year=year, match_type=match_type, team_type=team_type, full_members_only=full_members_only):
                 continue
             info = match["info"]
             gender = "Women" if info.get("gender") == "female" else "Men"
@@ -118,7 +120,7 @@ def parse_archive(content: bytes, register: dict[str, dict[str, str]]) -> tuple[
             people = info.get("registry", {}).get("people", {})
             selected_ids: set[str] = set()
             for team, names in info.get("players", {}).items():
-                if team not in FULL_MEMBERS:
+                if full_members_only and team not in FULL_MEMBERS:
                     continue
                 represented_sides += 1
                 seen: set[str] = set()
@@ -133,7 +135,7 @@ def parse_archive(content: bytes, register: dict[str, dict[str, str]]) -> tuple[
                         "sourcePlayerId": player_id, "name": register.get(player_id, {}).get("unique_name")
                         or register.get(player_id, {}).get("name") or name,
                         "cricinfoId": register.get(player_id, {}).get("key_cricinfo") or None,
-                        "team": team, "teamCode": TEAM_CODES[team], "conference": gender,
+                        "team": team, "teamCode": TEAM_CODES.get(team, team), "conference": gender,
                         "gender": gender, **_new_stats(), "matchIds": [],
                     })
                     split["appearances"] += 1
@@ -431,7 +433,7 @@ def age_on(dob: str | None) -> int | None:
     return _age_on(dob, SEASON_END)
 
 
-def build_payload(players: list[dict[str, Any]], places: dict[str, dict[str, Any]], source_meta: dict[str, Any], *, generated_at: str | None = None) -> dict[str, Any]:
+def build_payload(players: list[dict[str, Any]], places: dict[str, dict[str, Any]], source_meta: dict[str, Any], *, generated_at: str | None = None, year: int = SEASON, match_type: str = "T20", team_type: str = "international", full_members_only: bool = True) -> dict[str, Any]:
     records, unresolved = [], []
     for player in players:
         place = places.get(player["sourcePlayerId"], {})
@@ -440,8 +442,8 @@ def build_payload(players: list[dict[str, Any]], places: dict[str, dict[str, Any
         name = place.get("display_name") or player["name"]
         record = {
             "id": f"cricket:cricsheet:{player['sourcePlayerId']}", **player, "name": name,
-            "year": SEASON, "position": player.get("position") or "International cricketer", "dob": dob or player.get("dob"), "age": age_on(dob or player.get("dob")),
-            "nationality": player["team"], "representedCountry": player["team"],
+            "year": year, "position": player.get("position") or "Cricketer", "dob": dob or player.get("dob"), "age": _age_on(dob or player.get("dob"), date(year, 12, 31)),
+            "nationality": player["team"] if team_type == "international" else None, "representedCountry": player["team"] if team_type == "international" else None,
             "place": place.get("place") if mapped else None, "country": place.get("country") if mapped else None,
             "lat": place.get("lat") if mapped else None, "lon": place.get("lon") if mapped else None,
             "mapped": mapped, "status": "verified birthplace" if mapped else "birthplace or coordinates unresolved",
@@ -458,10 +460,12 @@ def build_payload(players: list[dict[str, Any]], places: dict[str, dict[str, Any
     teams = sorted({split["team"] for row in records for split in row["teamSplits"]})
     return {
         "meta": {
-            "title": "Cricket Talent Geography", "sport": "cricket", "scope": "2025 men's and women's T20 internationals involving ICC Full Members",
-            "season": "2025 calendar year", "year": SEASON, "teams": teams, "conferences": ["Men", "Women"],
+            "title": "Cricket Talent Geography", "sport": "cricket",
+            "scope": f"{year} men's and women's {match_type} {'internationals involving ICC Full Members' if full_members_only else 'internationals' if team_type == 'international' else 'club matches'} in the Cricsheet archive",
+            "season": f"{year} calendar year", "year": year, "teams": teams, "conferences": sorted({row["conference"] for row in records}),
+            "match_type": match_type, "team_type": team_type, "full_members_only": full_members_only,
             "comparison_groups": ["Men", "Women"], "generated_at": generated_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-            "stats_source_name": "Cricsheet T20 international JSON archive", "stats_source_url": "https://cricsheet.org/downloads/",
+            "stats_source_name": f"Cricsheet {match_type} {team_type} JSON archive", "stats_source_url": "https://cricsheet.org/downloads/",
             "registry_source_name": "Cricsheet Register", "registry_source_url": "https://cricsheet.org/register/",
             "birthplace_source_name": "Wikidata and English Wikipedia", "birthplace_source_url": "https://www.wikidata.org/", **source_meta,
         },
@@ -495,31 +499,45 @@ def _read_input(path: Path, url: str, *, force: bool) -> tuple[bytes, str]:
     return content, retrieved_at
 
 
-def run(output_path: Path = DEFAULT_OUTPUT, *, archive_input: Path | None = None, register_input: Path | None = None, cache_dir: Path = DEFAULT_CACHE, wikidata_cache: Path = DEFAULT_WIKIDATA_CACHE, overrides_path: Path = DEFAULT_OVERRIDES, workers: int = 12, force: bool = False, force_birthplaces: bool = False) -> dict[str, Any]:
-    archive_path = archive_input or cache_dir / "t20s_json.zip"
+def run(output_path: Path = DEFAULT_OUTPUT, *, archive_input: Path | None = None, register_input: Path | None = None, cache_dir: Path = DEFAULT_CACHE, wikidata_cache: Path = DEFAULT_WIKIDATA_CACHE, overrides_path: Path = DEFAULT_OVERRIDES, workers: int = 12, force: bool = False, force_birthplaces: bool = False, year: int = SEASON, match_type: str = "T20", team_type: str = "international", full_members_only: bool = True) -> dict[str, Any]:
+    if not 1900 <= year <= 2100 or match_type not in ("T20", "ODI", "Test") or team_type not in ("international", "club"):
+        raise ValueError("Invalid cricket year, match type or team type")
+    if team_type == "club" and full_members_only:
+        raise ValueError("Use --include-associates for club archives to include all teams")
+    custom = (year, match_type, team_type, full_members_only) != (SEASON, "T20", "international", True)
+    if custom and output_path.resolve() == DEFAULT_OUTPUT.resolve():
+        raise ValueError("Custom cricket cohorts require --output outside the published snapshot; rebuild their population layers separately")
+    if team_type == "club" and archive_input is None:
+        raise ValueError("Club competitions require an explicit --archive-input from Cricsheet")
+    archive_name = {"T20": "t20s", "ODI": "odis", "Test": "tests"}[match_type] + "_json.zip"
+    archive_path = archive_input or cache_dir / archive_name
     register_path = register_input or cache_dir / "people.csv"
-    archive, archive_at = _read_input(archive_path, CRICSHEET_URL, force=force and archive_input is None)
+    archive, archive_at = _read_input(archive_path, f"https://cricsheet.org/downloads/{archive_name}", force=force and archive_input is None)
     register_bytes, register_at = _read_input(register_path, REGISTER_URL, force=force and register_input is None)
     register = parse_register(register_bytes.decode("utf-8-sig"))
-    splits, match_meta = parse_archive(archive, register)
+    splits, match_meta = parse_archive(archive, register, year=year, match_type=match_type, team_type=team_type, full_members_only=full_members_only)
     players = aggregate_players(splits)
+    if not players:
+        raise ValueError("The archive contains no players for the selected cricket cohort")
     fetch_profiles(players, cache_dir / "espn_profiles", workers=workers, force=force)
     if len({row["sourcePlayerId"] for row in players}) != len(players):
         raise ValueError("Cricsheet player identifiers are not unique")
     if sum(row["appearances"] for row in players) != sum(row["appearances"] for row in splits):
         raise ValueError("Player/team appearance totals do not reconcile")
     source_meta = {**match_meta, "archive_retrieved_at": archive_at, "register_retrieved_at": register_at, "archive_sha256": hashlib.sha256(archive).hexdigest(), "register_sha256": hashlib.sha256(register_bytes).hexdigest()}
+    if custom and wikidata_cache == DEFAULT_WIKIDATA_CACHE:
+        wikidata_cache = cache_dir / f"birthplaces_{year}_{match_type}_{team_type}_{'full' if full_members_only else 'all'}.json"
     places = fetch_birthplaces(players, wikidata_cache, force=force_birthplaces)
     if overrides_path.exists():
         places.update(json.loads(overrides_path.read_text(encoding="utf-8")))
-    payload = build_payload(players, places, source_meta)
+    payload = build_payload(players, places, source_meta, year=year, match_type=match_type, team_type=team_type, full_members_only=full_members_only)
     _write_json(output_path, payload)
     print(f"Wrote {payload['summary']['players']} cricketers from {payload['summary']['matches']} matches with {payload['summary']['player_coverage_pct']}% player / {payload['summary']['appearance_coverage_pct']}% appearance coverage to {output_path}")
     return payload
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build the 2025 men's and women's T20I talent geography dataset")
+    parser = argparse.ArgumentParser(description="Build an explicit cricket archive cohort")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--archive-input", type=Path)
     parser.add_argument("--register-input", type=Path)
@@ -529,8 +547,12 @@ def main() -> None:
     parser.add_argument("--workers", type=int, default=12)
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--force-birthplaces", action="store_true")
+    parser.add_argument("--year", type=int, default=SEASON)
+    parser.add_argument("--match-type", choices=("T20", "ODI", "Test"), default="T20")
+    parser.add_argument("--team-type", choices=("international", "club"), default="international")
+    parser.add_argument("--include-associates", action="store_true", help="Include all teams; also required for club archives")
     args = parser.parse_args()
-    run(args.output, archive_input=args.archive_input, register_input=args.register_input, cache_dir=args.cache_dir, wikidata_cache=args.wikidata_cache, overrides_path=args.overrides, workers=args.workers, force=args.force, force_birthplaces=args.force_birthplaces)
+    run(args.output, archive_input=args.archive_input, register_input=args.register_input, cache_dir=args.cache_dir, wikidata_cache=args.wikidata_cache, overrides_path=args.overrides, workers=args.workers, force=args.force, force_birthplaces=args.force_birthplaces, year=args.year, match_type=args.match_type, team_type=args.team_type, full_members_only=not args.include_associates)
 
 
 if __name__ == "__main__":

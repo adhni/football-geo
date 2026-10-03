@@ -1,0 +1,48 @@
+{
+  "en": {
+    "name": "English",
+    "locale": "en-US",
+    "dir": "ltr"
+  },
+  "es": {
+    "name": "Español",
+    "locale": "es-ES",
+    "dir": "ltr"
+  },
+  "fr": {
+    "name": "Français",
+    "locale": "fr-FR",
+    "dir": "ltr"
+  },
+  "ar": {
+    "name": "العربية",
+    "locale": "ar-u-nu-latn",
+    "dir": "rtl"
+  },
+  "id": {
+    "name": "Bahasa Indonesia",
+    "locale": "id-ID",
+    "dir": "ltr"
+  },
+  "pt": {
+    "name": "Português",
+    "locale": "pt-BR",
+    "dir": "ltr",
+    "status": "preview",
+    "previewLabel": "Prévia"
+  },
+  "de": {
+    "name": "Deutsch",
+    "locale": "de-DE",
+    "dir": "ltr",
+    "status": "preview",
+    "previewLabel": "Vorschau"
+  },
+  "it": {
+    "name": "Italiano",
+    "locale": "it-IT",
+    "dir": "ltr",
+    "status": "preview",
+    "previewLabel": "Anteprima"
+  }
+}

@@ -4,7 +4,7 @@ const { resolve } = require("node:path");
 const { test } = require("node:test");
 const vm = require("node:vm");
 
-function languageHarness(saved = null, title = "Football Talent Geography") {
+function languageHarness(saved = null, title = "Football Talent Geography", search = "") {
   const values = new Map(saved ? [["football-geo-language", saved]] : []);
   const button = {
     label: "Close player profile",
@@ -40,10 +40,12 @@ function languageHarness(saved = null, title = "Football Talent Geography") {
     observe() {}
   }
   const context = {
-    window: {}, document, localStorage: { getItem(key) { return values.get(key); }, setItem(key, value) { values.set(key, value); } },
+    URL, URLSearchParams,
+    window: { location: { search } }, document, localStorage: { getItem(key) { return values.get(key); }, setItem(key, value) { values.set(key, value); } },
     MutationObserver, CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
     Node: { TEXT_NODE: 3, ELEMENT_NODE: 1 }, NodeFilter: { SHOW_TEXT: 4 },
   };
+  vm.runInNewContext(readFileSync(resolve(__dirname, "../../docs/assets/language-catalog.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(resolve(__dirname, "../../docs/assets/site-language.js"), "utf8"), context);
   return { language: context.window.FootballLanguage, document, headline, select, values, observer, parent, button };
 }
@@ -73,6 +75,42 @@ test("football languages translate the page and restore the English source", () 
   assert.equal(headline.nodeValue, "Players");
   assert.equal(button.label, "Close player profile");
   assert.equal(document.title, "Football Talent Geography");
+});
+
+test("language catalogs fix mixed-language compounds and choose singular counts", () => {
+  const { language } = languageHarness("es");
+  assert.equal(language.translate("Find an NBA player"), "Buscar Jugador · NBA");
+  assert.equal(language.translate("Search NBA players"), "Buscar jugadores · NBA");
+  assert.equal(language.translate("Minutes and mapped birthplace coverage"), "Minutos y cobertura de lugares de nacimiento");
+  assert.equal(language.translate("Compare Full Member sides"), "Comparar selecciones de miembros plenos");
+  assert.equal(language.translate("1 players"), "1 jugador");
+  assert.equal(language.translate("2 players"), "2 jugadores");
+  language.setLanguage("en");
+  assert.equal(language.translate("1 players"), "1 player");
+  assert.equal(language.translate("2 players"), "2 players");
+});
+
+test("new language previews translate controls and dynamic templates with a safe source fallback", () => {
+  const { language, document, select } = languageHarness();
+  for (const [code, players, country] of [["pt", "Jogadores", "Alemanha"], ["de", "Spieler", "Deutschland"], ["it", "Giocatori", "Germania"]]) {
+    language.setLanguage(code);
+    assert.equal(language.translate("Players"), players);
+    assert.equal(language.translate("Germany"), country);
+    assert.equal(document.documentElement.lang, code);
+    assert.equal(document.documentElement.dir, "ltr");
+    assert.doesNotMatch(language.translate("All 32 teams"), /undefined|\{p1\}/);
+    assert.doesNotMatch(language.translate("Germany reference area"), /undefined|\{name\}/);
+    assert.equal(language.translate("Unknown source description"), "Unknown source description");
+  }
+  assert.match(select.innerHTML, /Português/);
+  assert.match(select.innerHTML, /Anteprima/);
+});
+
+test("shareable language selection takes precedence over the saved preference", () => {
+  const { language, document } = languageHarness("ar", "Tennis Talent Geography", "?lang=it");
+  assert.equal(language.language, "it");
+  assert.equal(document.documentElement.dir, "ltr");
+  assert.equal(languageHarness("fr", "Tennis Talent Geography", "?lang=invalid").language.language, "fr");
 });
 
 test("saved language applies to new dashboard text", () => {
