@@ -58,7 +58,8 @@ make test PYTHON=.venv/bin/python
 Browser validation covered all 17 explorers, event/ranking/performance filters,
 language switching and mobile controls. The existing CARTO basemap endpoint
 displayed an "API key required" tile during local inspection; athlete overlays
-rendered, but the basemap service needs a separate configuration update.
+rendered. The subsequent basemap fix switches all maps to OpenStreetMap through
+`docs/assets/basemap.js`; see [development notes](DEVELOPMENT.md#map-background).
 
 ## Broader tennis cohorts
 

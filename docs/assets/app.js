@@ -444,12 +444,8 @@ function updateKpis(records, places) {
 function initMap() {
   state.map = L.map("talent-map", { preferCanvas: true, zoomControl: false, worldCopyJump: true, minZoom: 1 }).setView([20, 4], 2);
   L.control.zoom({ position: "bottomright" }).addTo(state.map);
-  state.baseLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-    maxZoom: 19,
-    subdomains: "abcd",
-    attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-  }).addTo(state.map);
-  state.populationBaseLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd", attribution: "&copy; OpenStreetMap contributors &copy; CARTO" });
+  state.baseLayer = window.TalentGeoBasemap.create().addTo(state.map);
+  state.populationBaseLayer = window.TalentGeoBasemap.create("light");
   state.markerLayer = L.markerClusterGroup
     ? L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 42, showCoverageOnHover: false })
     : L.layerGroup();
@@ -892,8 +888,8 @@ function openPlayerProfile(playerId, opener = document.activeElement) {
   if (player.mapped) {
     setTimeout(() => {
       if (!$("#player-modal").classList.contains("open") || state.profilePlayerId !== String(playerId)) return;
-      state.profileMap = L.map("player-mini-map", { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false }).setView([player.lat, player.lon], 6);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd" }).addTo(state.profileMap);
+      state.profileMap = L.map("player-mini-map", { zoomControl: false, dragging: false, scrollWheelZoom: false }).setView([player.lat, player.lon], 6);
+      window.TalentGeoBasemap.create().addTo(state.profileMap);
       L.circleMarker([player.lat, player.lon], { radius: 8, color: "#d9ff57", fillColor: "#d9ff57", fillOpacity: .7 }).addTo(state.profileMap);
     }, 80);
   }
