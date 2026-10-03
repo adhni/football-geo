@@ -837,8 +837,8 @@ function updateFilterUi() {
     TEAM_STYLES ? state.teams.length > 0 && { key: "teams", label: state.teams.length === 1 ? state.teams[0] : `${state.teams.length} ${EDITION.groupLabelPlural}` } : state.team !== "all" && { key: "team", label: state.team },
     state.country !== "all" && { key: "country", label: `${EDITION.mixedLocationTypes ? "Located" : "Born"} in ${state.country}` },
     state.position !== "all" && { key: "position", label: state.position },
-    state.age !== "all" && { key: "age", label: $("#age-filter").selectedOptions[0].textContent },
-    state.rank !== "all" && { key: "rank", label: $("#rank-filter").selectedOptions[0].textContent },
+    state.age !== "all" && { key: "age", label: { u21: "Under 21", "21-24": "21–24", "25-29": "25–29", "30-34": "30–34", "35plus": "35+" }[state.age] },
+    state.rank !== "all" && { key: "rank", label: `Top ${state.rank}` },
   ].filter(Boolean);
   const container = $("#active-filters");
   container.innerHTML = filters.map((filter) => `<button type="button" class="filter-chip" data-clear-filter="${filter.key}" aria-label="Remove ${escapeHtml(filter.label)} filter"><span>${escapeHtml(filter.label)}</span><span aria-hidden="true">×</span></button>`).join("");
@@ -904,7 +904,9 @@ function populateFilters() {
     secondary.insertAdjacentHTML("beforeend", '<div class="control-group age-control"><label for="age-filter">Age at snapshot</label><div class="select-wrap"><select id="age-filter"><option value="all">All ages</option><option value="u21">Under 21</option><option value="21-24">21–24</option><option value="25-29">25–29</option><option value="30-34">30–34</option><option value="35plus">35+</option></select></div></div>');
   }
   if (secondary && state.payload.records.some((row) => Number.isFinite(row.rank))) {
-    secondary.insertAdjacentHTML("beforeend", '<div class="control-group rank-control"><label for="rank-filter">Ranking cohort</label><div class="select-wrap"><select id="rank-filter"><option value="all">All ranks</option><option value="25">Top 25</option><option value="50">Top 50</option><option value="100">Top 100</option></select></div></div>');
+    const maximum = Math.max(...state.payload.records.map((row) => row.rank || 0));
+    const ranks = [25, 50, 100, 250].filter((rank) => rank <= maximum);
+    secondary.insertAdjacentHTML("beforeend", `<div class="control-group rank-control"><label for="rank-filter">Ranking subset</label><div class="select-wrap"><select id="rank-filter"><option value="all">All ranks</option>${ranks.map((rank) => `<option value="${rank}">Top ${rank}</option>`).join("")}</select></div></div>`);
   }
   if (EDITION.additionalMetrics.length) {
     $("#map-explorer").insertAdjacentHTML("beforeend", `<div class="control-group additional-metric-control"><label for="additional-metric">Performance measure</label><div class="select-wrap"><select id="additional-metric"><option value="">Choose a measure</option>${EDITION.additionalMetrics.map((metric) => `<option value="${escapeHtml(metric.field)}">${escapeHtml(metric.label)}</option>`).join("")}</select></div></div>`);

@@ -3,7 +3,7 @@ import io
 
 import pytest
 
-from src.ftg.build_tennis_site import build_payload, parse_cohort, run
+from src.ftg.build_tennis_site import BIRTHPLACE_CONFLICTS, build_payload, fetch_named_entities, matches_identity, parse_cohort, run
 
 
 def _csv(fieldnames, rows):
@@ -81,3 +81,54 @@ def test_custom_tennis_cohort_cannot_overwrite_the_published_snapshot():
         run(limit=250)
     with pytest.raises(ValueError, match="one year"):
         run(ranking_dates={"ATP": "20241118", "WTA": "20251110"})
+
+
+@pytest.mark.parametrize("dob", [None, "2000-01-02", "2000-01-01"])
+def test_identity_requires_source_dob_to_be_present_and_exact(dob):
+    entity = {"labels": {"en": {"value": "Player One"}}, "claims": {}}
+    if dob:
+        entity["claims"]["P569"] = [{"mainsnak": {"snaktype": "value", "datavalue": {"value": {"time": f"+{dob}T00:00:00Z"}}}}]
+    assert matches_identity({"name": "Player One", "dob": "2000-01-01"}, entity) is (dob == "2000-01-01")
+
+
+def test_missing_english_names_use_multilingual_labels_without_losing_claims(monkeypatch):
+    calls = []
+    claims = {"P569": [{"mainsnak": {"snaktype": "value", "datavalue": {"value": {"time": "+2000-01-01T00:00:00Z"}}}}]}
+    def fetch(_client, qids, _group, **kwargs):
+        calls.append((qids, kwargs.get("languages")))
+        if kwargs.get("languages") == "en|mul":
+            return {"Q2": {"labels": {"mul": {"value": "Player Two"}}, "claims": claims}}
+        return {"Q1": {"labels": {"en": {"value": "Player One"}}, "claims": claims}, "Q2": {"labels": {}, "claims": claims}}
+    monkeypatch.setattr("src.ftg.build_tennis_site._fetch_entities", fetch)
+    entities = fetch_named_entities(None, ["Q1", "Q2"], "test", force=False)
+    assert calls[-1] == (["Q2"], "en|mul")
+    assert matches_identity({"name": "Player Two", "dob": "2000-01-01"}, entities["Q2"])
+
+
+def test_ranking_cohort_rejects_duplicate_player_ids():
+    rankings, players = _cohort_inputs("ATP", 2)
+    rankings = rankings.replace("20251117,2,1002,", "20251117,2,1001,")
+    with pytest.raises(ValueError, match="Duplicate ATP player"):
+        parse_cohort(rankings, players, "ATP", limit=2)
+
+
+@pytest.mark.parametrize("change", [{"dob": "1999-01-01"}, {"lat": 91}, {"lon": float("nan")}, {"country": None}])
+def test_unverified_cached_geography_stays_in_the_public_qa_queue(change):
+    rankings, players = _cohort_inputs("ATP", 1)
+    cohort = parse_cohort(rankings, players, "ATP", limit=1)
+    place = {"place": "Melbourne", "country": "Australia", "lat": -37.81, "lon": 144.96, "dob": "2000-01-01", **change}
+    payload = build_payload(cohort, {"ATP:1001": place}, {}, limit=1)
+    assert payload["summary"]["mapped_players"] == 0
+    assert payload["summary"]["points"] == 10000
+    assert payload["records"][0]["lat"] is None
+    assert payload["unresolved"][0]["id"] == "tennis:atp:1001"
+
+
+def test_documented_birthplace_conflict_is_not_silently_resolved_by_cached_coordinates():
+    rankings, players = _cohort_inputs("WTA", 1)
+    cohort = parse_cohort(rankings, players, "WTA", limit=1)
+    key = next(iter(BIRTHPLACE_CONFLICTS))
+    cohort[0]["player_id"] = key.split(":")[1]
+    payload = build_payload(cohort, {key: {"place": "Dallas", "country": "United States", "lat": 32.77, "lon": -96.79, "dob": "2000-01-01"}}, {}, limit=1)
+    assert payload["summary"]["mapped_players"] == 0
+    assert payload["unresolved"][0]["status"] == BIRTHPLACE_CONFLICTS[key]

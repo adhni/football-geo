@@ -255,5 +255,18 @@
   "phrase.controls_30": "Presenze al piatto",
   "phrase.controls_31": "Battitori affrontati",
   "phrase.controls_32": "Fuoricampo",
-  "phrase.controls_33": "Strikeout da lanciatore"
+  "phrase.controls_33": "Strikeout da lanciatore",
+  "phrase.tennis.edition": "Edizione",
+  "phrase.tennis.top100_per_tour": "Top 100 per circuito",
+  "phrase.tennis.top250_per_tour": "Top 250 per circuito",
+  "phrase.tennis.ranking_subset": "Sottoinsieme della classifica",
+  "phrase.tennis.top250": "Top 250",
+  "phrase.tennis.top250_profile": "Profilo singolare dei top 250",
+  "phrase.directory.every_lens": "Ogni prospettiva sportiva.",
+  "phrase.directory.completed_views": "Viste delle stagioni concluse. Un progetto riproducibile.",
+  "phrase.compare.completed_views": "Viste delle stagioni concluse. Un confronto sincronizzato.",
+  "phrase.tennis.two_snapshots": "Due istantanee delle classifiche di fine anno.",
+  "phrase.tennis.qa_identity": "Nome o data di nascita esatta non verificati",
+  "phrase.tennis.qa_geography": "Identità verificata; luogo di nascita, paese o coordinate irrisolti",
+  "phrase.tennis.qa_conflict": "Le fonti ufficiali discordano sul luogo di nascita; serve una verifica manuale"
 }

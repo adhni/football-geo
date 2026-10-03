@@ -313,6 +313,11 @@ equally between partners for geography, while athletes are deduplicated by BWF
 ID across events. See `docs/badminton/DATA_SOURCES.md` for ranking-week
 semantics, birthplace resolution and attribution.
 
+The [tennis top-250 edition](docs/tennis-250/DATA_SOURCES.md) publishes 500
+players alongside the original top-100 view. Rebuild it with
+`python -m src.ftg.build_tennis_site --limit 250 --output docs/tennis-250/data/dashboard.json`,
+then rebuild its population layers at resolutions 1, 2 and 3.
+
 To refresh the final 2025 golf world-ranking snapshot:
 
 ```bash

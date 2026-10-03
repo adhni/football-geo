@@ -1,0 +1,39 @@
+id,tour,rank,name,dob,wikidata_qid,status
+tennis:atp:202358,ATP,124,Chun Hsin Tseng,2001-08-08,Q47516746,Identity name or exact DOB could not be verified
+tennis:atp:149282,ATP,132,Nicolai Budkov Kjaer,2006-09-01,,Identity name or exact DOB could not be verified
+tennis:atp:209284,ATP,152,Elmer Moller,2003-07-09,Q60416655,Identity name or exact DOB could not be verified
+tennis:atp:209226,ATP,163,Adolfo Daniel Vallejo,2004-04-28,Q107493222,Identity name or exact DOB could not be verified
+tennis:atp:210017,ATP,172,Daniel Merida Aguilar,2004-09-26,,Identity name or exact DOB could not be verified
+tennis:atp:102093,ATP,175,Martin Damm,2003-09-30,Q381173,Identity name or exact DOB could not be verified
+tennis:atp:200059,ATP,181,Yibing Wu,1999-10-14,Q28137186,Identity name or exact DOB could not be verified
+tennis:atp:209903,ATP,189,Lukas Neumayer,2002-09-06,Q107641373,Identity name or exact DOB could not be verified
+tennis:atp:206750,ATP,191,Daniil Glinka,2000-05-12,Q87758048,"Verified identity; birthplace, country or coordinates unresolved"
+tennis:atp:210317,ATP,196,James Mccabe,2003-07-05,,Identity name or exact DOB could not be verified
+tennis:atp:105882,ATP,207,Stefano Travaglia,1991-12-28,Q3972751,Identity name or exact DOB could not be verified
+tennis:atp:200318,ATP,219,Yu Hsiou Hsu,1999-04-02,Q28534179,Identity name or exact DOB could not be verified
+tennis:atp:144973,ATP,235,Santiago Fa Rodriguez Taverna,1999-07-16,,Identity name or exact DOB could not be verified
+tennis:atp:144817,ATP,244,Marc Andrea Huesler,1996-06-24,Q42310179,Identity name or exact DOB could not be verified
+tennis:wta:221909,WTA,45,Ashlyn Krueger,2004-05-07,Q105825572,Official profile sources disagree on birthplace; manual review required
+tennis:wta:201533,WTA,102,Shuai Zhang,1989-01-21,Q197291,Identity name or exact DOB could not be verified
+tennis:wta:263857,WTA,116,Yuliia Starodubtseva,2000-02-17,,Identity name or exact DOB could not be verified
+tennis:wta:239456,WTA,123,Tiantsoa Sarah Rakotomanga Rajaonah,2005-12-15,,Identity name or exact DOB could not be verified
+tennis:wta:206294,WTA,129,Yue Yuan,1998-09-25,,Identity name or exact DOB could not be verified
+tennis:wta:222966,WTA,132,Dominika Salkova,2004-06-28,,"Verified identity; birthplace, country or coordinates unresolved"
+tennis:wta:223331,WTA,148,Anca Alexia Todoni,2004-10-10,,Identity name or exact DOB could not be verified
+tennis:wta:202684,WTA,166,Lin Zhu,1994-01-28,Q17319111,Identity name or exact DOB could not be verified
+tennis:wta:215250,WTA,168,Hanyu Guo,1998-05-18,Q41735946,Identity name or exact DOB could not be verified
+tennis:wta:216016,WTA,174,Xiyu Wang,2001-03-28,Q41799108,Identity name or exact DOB could not be verified
+tennis:wta:214386,WTA,177,Xinyu Gao,1997-11-21,Q27156306,Identity name or exact DOB could not be verified
+tennis:wta:202493,WTA,181,Ekaterine Gorgodze,1991-12-03,Q5350353,"Verified identity; birthplace, country or coordinates unresolved"
+tennis:wta:213873,WTA,191,Gabriela Andrea Knutson,1997-04-21,,Identity name or exact DOB could not be verified
+tennis:wta:215571,WTA,196,Guiomar Maristany Zuleta De Reales,1999-02-19,Q105745607,Identity name or exact DOB could not be verified
+tennis:wta:214254,WTA,199,Alice Rame,1997-11-09,Q65556836,"Verified identity; birthplace, country or coordinates unresolved"
+tennis:wta:214480,WTA,221,Miriam Bianca Bulgaru,1998-10-08,Q55584978,Identity name or exact DOB could not be verified
+tennis:wta:221096,WTA,223,Sijia Wei,2003-12-05,,Identity name or exact DOB could not be verified
+tennis:wta:259883,WTA,224,Wakana Sonobe,2008-01-17,,"Verified identity; birthplace, country or coordinates unresolved"
+tennis:wta:215946,WTA,225,Ye Xin Ma,1999-06-10,Q106293196,Identity name or exact DOB could not be verified
+tennis:wta:211901,WTA,231,Aliona Bolsova,1997-11-06,Q19819866,Identity name or exact DOB could not be verified
+tennis:wta:221004,WTA,243,Amarissa Kiara Toth,2003-02-10,Q107474709,"Verified identity; birthplace, country or coordinates unresolved"
+tennis:wta:213779,WTA,244,Raluka Serban,1997-06-17,,Identity name or exact DOB could not be verified
+tennis:wta:213706,WTA,245,Irene Burillo Escorihuela,1997-07-23,Q97293772,Identity name or exact DOB could not be verified
+tennis:wta:222080,WTA,248,Hina Inoue,2003-06-01,,"Verified identity; birthplace, country or coordinates unresolved"

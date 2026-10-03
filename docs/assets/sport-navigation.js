@@ -36,7 +36,7 @@
         <details class="sport-menu">
           <summary${currentSport || isDirectory ? ' class="active"' : ""}>Sports<span aria-hidden="true" class="sport-menu-chevron">⌄</span></summary>
           <div class="sport-menu-panel">
-            <div class="sport-menu-heading"><strong>Explore ${sports.length} sports</strong><span>Choose an edition</span></div>
+            <div class="sport-menu-heading"><strong>Explore ${sports.length} editions</strong><span>Choose an edition</span></div>
             <div class="sport-menu-columns">
               <div><span class="sport-menu-label">Team sports</span>${sportLinks(teamSports)}</div>
               <div><span class="sport-menu-label">Individual &amp; racing</span>${sportLinks(individualSports)}</div>
@@ -61,6 +61,18 @@
         event.preventDefault();
         window.location.assign(comparisonUrl(target, mapStateReader()).href);
       });
+    });
+  }
+
+  function mountEditionSwitcher() {
+    const editions = sports.filter((edition) => edition.sportId === currentSport?.sportId);
+    const controls = document.querySelector("main > .controls");
+    if (!controls || editions.length < 2) return;
+    controls.insertAdjacentHTML("afterbegin", `<div class="control-group edition-control"><label for="edition-select">Edition</label><span class="select-wrap"><select id="edition-select">${editions.map((edition) => `<option value="${escapeHtml(edition.id)}"${edition.id === currentSport.id ? " selected" : ""}>${escapeHtml(edition.editionLabel || edition.name)}</option>`).join("")}</select></span></div>`);
+    controls.querySelector("#edition-select").addEventListener("change", (event) => {
+      const target = editions.find((edition) => edition.id === event.target.value);
+      if (!target || target.id === currentSport.id) return;
+      window.location.assign((mapStateReader ? comparisonUrl(target, mapStateReader()) : sportUrl(target)).href);
     });
   }
 
@@ -202,12 +214,14 @@
 
   function renderDirectory(container) {
     if (!container) return;
+    if (isDirectory) document.querySelector(".status-pill").innerHTML = `<i aria-hidden="true"></i> ${sports.length} editions`;
     const number = new Intl.NumberFormat(window.TalentGeoLanguage?.locale || "en-US");
     container.innerHTML = sports.map((sport) => `<article class="sport-card" style="--card-accent:${escapeHtml(sport.accent)}"><div><span>${escapeHtml(sport.season)}</span><strong>${escapeHtml(sport.name)}</strong><p>${escapeHtml(sport.scope)}</p></div><dl><div><dt>Cohort</dt><dd>${number.format(sport.participants)} ${escapeHtml(sport.participantLabel)}</dd></div><div><dt>Birthplace coverage</dt><dd>${sport.coverage.toFixed(1)}%${sport.mappedCoverage !== sport.coverage ? `<small>${sport.mappedCoverage.toFixed(1)}% including origins</small>` : ""}</dd></div><div><dt>Map measures</dt><dd>${escapeHtml(sport.measures)}</dd></div></dl><a href="${escapeHtml(new URL(`${sport.path}#map`, rootUrl).href)}">Open map <span>→</span></a></article>`).join("");
   }
 
   window.TalentGeoNavigation = { sports, currentSport, rootUrl, readMapState, comparisonUrl, sideBySideUrl, mountMapSwitcher, restoreMapScroll, renderDirectory };
   renderHeaderNavigation();
+  mountEditionSwitcher();
   enhanceMapWorkspace();
   restoreMapScroll();
   document.addEventListener("talentgeolanguagechange", () => renderDirectory(document.querySelector("#sport-directory")));
