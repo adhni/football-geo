@@ -133,7 +133,8 @@ test("every sport, directory, and comparison page loads the shared language sele
   const pages = [resolve(docs, "index.html"), ...readdirSync(docs, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && readdirSync(resolve(docs, entry.name)).includes("index.html"))
     .map((entry) => resolve(docs, entry.name, "index.html"))];
-  assert.equal(pages.length, 19);
+  const catalog = JSON.parse(readFileSync(resolve(__dirname, "../../config/editions.json"), "utf8"));
+  assert.equal(pages.length, catalog.editions.length + 2);
   for (const page of pages) {
     const html = readFileSync(page, "utf8");
     assert.match(html, /assets\/site-language\.js/ , page);

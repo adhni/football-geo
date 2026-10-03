@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_all_maps_load_shared_basemap_with_visible_attribution():
     pages = [ROOT / "docs/index.html", *sorted((ROOT / "docs").glob("*/index.html"))]
     map_pages = [page for page in pages if "leaflet.js" in page.read_text()]
-    assert len(map_pages) == 18
+    assert len(map_pages) == len(json.loads((ROOT / "config/editions.json").read_text())["editions"]) + 1
     for page in map_pages:
         html = page.read_text()
         assert html.count("assets/basemap.js") == 1, page
@@ -383,7 +383,7 @@ def test_every_sport_uses_the_central_navigation_registry():
         assert "assets/sport-navigation.js" in html
 
     navigation = (ROOT / "docs" / "assets" / "sport-navigation.js").read_text(encoding="utf-8")
-    expected_order = ("football", "cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+    expected_order = ("football", "cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "tennis", "tennis-250", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
     catalog = json.loads((ROOT / "config/editions.json").read_text(encoding="utf-8"))
     assert tuple(entry["id"] for entry in catalog["editions"]) == expected_order
     assert "window.TALENT_GEO_CATALOG" in navigation
@@ -401,7 +401,7 @@ def test_all_sports_directory_explains_comparison_scope():
     stylesheet = (ROOT / "docs" / "sports" / "sports.css").read_text(encoding="utf-8")
 
     assert 'id="sport-directory"' in html
-    assert "Seventeen sporting lenses" in html
+    assert "Every sporting lens" in html
     assert "workload measures retain their sport-specific meanings" in html
     assert "TalentGeoNavigation.renderDirectory" in html
     assert ".sport-directory" in stylesheet

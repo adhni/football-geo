@@ -255,5 +255,19 @@
   "phrase.controls_30": "Schlagauftritte",
   "phrase.controls_31": "Konfrontierte Schlagleute",
   "phrase.controls_32": "Home Runs",
-  "phrase.controls_33": "Strikeouts als Pitcher"
+  "phrase.controls_33": "Strikeouts als Pitcher",
+  "phrase.tennis.edition": "Ausgabe",
+  "phrase.tennis.top100_per_tour": "Top 100 je Tour",
+  "phrase.tennis.top250_per_tour": "Top 250 je Tour",
+  "phrase.tennis.ranking_subset": "Ranglisten-Auswahl",
+  "phrase.tennis.top250": "Top 250",
+  "phrase.tennis.top250_profile": "Einzelprofil der Top 250",
+  "phrase.directory.every_lens": "Jede sportliche Perspektive.",
+  "phrase.directory.completed_views": "Ansichten abgeschlossener Saisons. Ein reproduzierbares Projekt.",
+  "phrase.compare.completed_views": "Ansichten abgeschlossener Saisons. Ein synchronisierter Vergleich.",
+  "phrase.tennis.two_snapshots": "Zwei Ranglisten zum Jahresende.",
+  "phrase.tennis.qa_identity": "Name oder genaues Geburtsdatum konnte nicht bestätigt werden",
+  "phrase.tennis.qa_geography": "Identität bestätigt; Geburtsort, Land oder Koordinaten ungeklärt",
+  "phrase.tennis.qa_conflict": "Offizielle Profile widersprechen sich beim Geburtsort; manuelle Prüfung erforderlich",
+  "phrase.tennis250.find_player": "Finde einen Spieler der Top 250"
 }

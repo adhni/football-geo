@@ -255,5 +255,19 @@
   "phrase.controls_30": "Aparições no bastão",
   "phrase.controls_31": "Rebatedores enfrentados",
   "phrase.controls_32": "Home runs",
-  "phrase.controls_33": "Strikeouts como arremessador"
+  "phrase.controls_33": "Strikeouts como arremessador",
+  "phrase.tennis.edition": "Edição",
+  "phrase.tennis.top100_per_tour": "Top 100 por circuito",
+  "phrase.tennis.top250_per_tour": "Top 250 por circuito",
+  "phrase.tennis.ranking_subset": "Subconjunto do ranking",
+  "phrase.tennis.top250": "Top 250",
+  "phrase.tennis.top250_profile": "Perfil de simples do top 250",
+  "phrase.directory.every_lens": "Todas as perspetivas desportivas.",
+  "phrase.directory.completed_views": "Visões de épocas concluídas. Um projeto reproduzível.",
+  "phrase.compare.completed_views": "Visões de épocas concluídas. Uma comparação sincronizada.",
+  "phrase.tennis.two_snapshots": "Dois retratos do ranking de fim de ano.",
+  "phrase.tennis.qa_identity": "Não foi possível verificar o nome ou a data exata de nascimento",
+  "phrase.tennis.qa_geography": "Identidade verificada; local de nascimento, país ou coordenadas por resolver",
+  "phrase.tennis.qa_conflict": "Os perfis oficiais divergem quanto ao local de nascimento; é necessária revisão manual",
+  "phrase.tennis250.find_player": "Encontre um jogador do top 250"
 }

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import io
 import json
+import math
 import re
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -58,6 +60,26 @@ OFFICIAL_BIRTHPLACE_OVERRIDES = {
     "WTA:221012": ("Shiyan", "https://www.wtatennis.com/players/328120/qinwen-zheng"),
     "WTA:216133": ("Shenzhen", "https://www.wtatennis.com/players/326376/xinyu-wang/"),
 }
+BIRTHPLACE_CONFLICTS = {
+    "WTA:221909": "Official profile sources disagree on birthplace; manual review required",
+}
+
+
+def matches_identity(player: dict[str, Any], entity: dict[str, Any]) -> bool:
+    """Require exact DOB agreement whenever the source provides a DOB."""
+    return bool(
+        normalize(entity_label(entity)) == normalize(player["name"])
+        and (not player.get("dob") or claim_date(entity) == player["dob"])
+    )
+
+
+def fetch_named_entities(client: CachedHttpClient, qids: list[str], group: str, *, force: bool) -> dict[str, dict]:
+    entities = _fetch_entities(client, qids, group, batch_size=30, force=force)
+    # Proper names can live under Wikidata's default multilingual label (mul).
+    missing = [qid for qid, entity in entities.items() if not entity_label(entity) and "missing" not in entity]
+    if missing:
+        entities.update(_fetch_entities(client, missing, group + "_mul", batch_size=30, force=force, languages="en|mul"))
+    return entities
 
 
 def _read_text(path: Path | None, url: str, cache_path: Path, *, force: bool) -> tuple[str, str]:
@@ -88,6 +110,8 @@ def parse_cohort(rankings_text: str, players_text: str, tour: str, *, ranking_da
     ranks = sorted(int(row["rank"]) for row in rankings)
     if ranks != list(range(1, limit + 1)):
         raise ValueError(f"Expected exact {tour} ranks 1–{limit} on {ranking_date}; found {len(rankings)} rows")
+    if len({row["player"] for row in rankings}) != len(rankings):
+        raise ValueError(f"Duplicate {tour} player in the ranking cohort")
     output = []
     for ranking in rankings:
         player = players.get(ranking["player"])
@@ -132,7 +156,8 @@ def fetch_cohorts(
         "WTA": (wta_rankings_input, wta_players_input),
     }
     rows: list[dict[str, Any]] = []
-    retrieval: dict[str, str] = {}
+    retrieval: dict[str, Any] = {}
+    sources = {}
     for tour, (rankings_input, players_input) in inputs.items():
         rankings_text, rankings_at = _read_text(
             rankings_input, INPUT_URLS[tour]["rankings"], cache_dir / f"{tour.lower()}_rankings_20s.csv",
@@ -145,14 +170,30 @@ def fetch_cohorts(
         rows.extend(parse_cohort(rankings_text, players_text, tour, ranking_date=(ranking_dates or {}).get(tour), limit=limit))
         retrieval[f"{tour.lower()}_rankings_retrieved_at"] = rankings_at
         retrieval[f"{tour.lower()}_players_retrieved_at"] = players_at
+        for kind, text, source_path in (("rankings", rankings_text, rankings_input), ("players", players_text, players_input)):
+            sources[f"{tour.lower()}_{kind}"] = {
+                "url": INPUT_URLS[tour][kind] if source_path is None else source_path.name,
+                "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            }
+    retrieval["input_sources"] = sources
     return rows, retrieval
 
 
 def fetch_birthplaces(
     players: list[dict[str, Any]], cache_path: Path = DEFAULT_WIKIDATA_CACHE, *, force: bool = False,
 ) -> dict[str, dict[str, Any]]:
+    cohort_key = hashlib.sha256(json.dumps({
+        "resolver": "exact-name-dob-en-mul-v2",
+        "people": sorted((row["tour"], row["player_id"], row["name"], row.get("dob")) for row in players),
+    }).encode()).hexdigest()
     if cache_path.exists() and not force:
-        return json.loads(cache_path.read_text(encoding="utf-8"))
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        if cached.get("_meta", {}).get("cohort_key") == cohort_key:
+            return cached
+        # Preserve the legacy published top-100 cache while wider cohorts must
+        # resolve all of their source identities rather than stopping at 199.
+        if not cached.get("_meta", {}).get("cohort_key") and len(players) == 200 and all(row["rank"] <= 100 for row in players):
+            return cached
     session = requests.Session()
     session.headers.update({"User-Agent": "TalentGeography/1.0 (research; github.com/adhni/football-geo)"})
     client = CachedHttpClient(session, delay=0.1, retries=3, timeout=90)
@@ -169,7 +210,7 @@ def fetch_birthplaces(
     candidate_qids = {
         qid for qid in title_qids.values() if qid
     } | {row["wikidata_qid"] for row in players if row.get("wikidata_qid")}
-    people = _fetch_entities(client, list(candidate_qids), "tennis_person_batches", batch_size=30, force=force)
+    people = fetch_named_entities(client, list(candidate_qids), "tennis_person_batches", force=force)
 
     selected: dict[str, str] = {}
     for row in players:
@@ -180,10 +221,7 @@ def fetch_birthplaces(
         matches = set()
         for qid in candidates - {None}:
             entity = people.get(qid, {})
-            same_name = normalize(entity_label(entity)) == normalize(row["name"])
-            wikidata_dob = claim_date(entity)
-            same_dob = not row.get("dob") or not wikidata_dob or row["dob"] == wikidata_dob
-            if same_name and same_dob:
+            if matches_identity(row, entity):
                 matches.add(qid)
         if len(matches) == 1:
             selected[key] = matches.pop()
@@ -191,22 +229,30 @@ def fetch_birthplaces(
     place_by_player = {
         key: claim_entity(people.get(qid, {}), "P19") for key, qid in selected.items()
     }
-    places = _fetch_entities(
+    places = fetch_named_entities(
         client, [qid for qid in place_by_player.values() if qid], "tennis_place_batches",
-        batch_size=30, force=force,
+        force=force,
     )
-    countries = _fetch_entities(
+    countries = fetch_named_entities(
         client, [qid for entity in places.values() if (qid := claim_entity(entity, "P17"))],
-        "tennis_country_batches", batch_size=30, force=force,
+        "tennis_country_batches", force=force,
     )
-    output: dict[str, dict[str, Any]] = {"_meta": {"schema_version": 1, "source": "Wikidata"}}
+    unresolved = {
+        f"{row['tour']}:{row['player_id']}": "Identity name or exact DOB could not be verified"
+        for row in players if f"{row['tour']}:{row['player_id']}" not in selected
+    }
+    output: dict[str, dict[str, Any]] = {"_meta": {"schema_version": 2, "source": "Wikidata", "cohort_key": cohort_key, "unresolved": unresolved}}
     for key, person_qid in selected.items():
+        if key in BIRTHPLACE_CONFLICTS:
+            unresolved[key] = BIRTHPLACE_CONFLICTS[key]
+            continue
         place_qid = place_by_player.get(key)
         entity = places.get(place_qid, {})
         lat, lon = claim_coordinates(entity)
-        if lat is None or lon is None:
-            continue
         country_qid = claim_entity(entity, "P17")
+        if lat is None or lon is None or not country_qid or not entity_label(countries.get(country_qid, {})):
+            unresolved[key] = "Verified identity; birthplace, country or coordinates unresolved"
+            continue
         output[key] = {
             "wikidata_qid": person_qid,
             "birth_place_qid": place_qid,
@@ -219,7 +265,8 @@ def fetch_birthplaces(
         }
 
     unresolved_overrides = {
-        key: value for key, value in OFFICIAL_BIRTHPLACE_OVERRIDES.items() if key not in output
+        key: value for key, value in OFFICIAL_BIRTHPLACE_OVERRIDES.items()
+        if key not in output and key in {f"{row['tour']}:{row['player_id']}" for row in players}
     }
     if unresolved_overrides:
         override_qids = _fetch_title_qids(
@@ -252,6 +299,7 @@ def fetch_birthplaces(
                 "lon": lon,
                 "resolution_source": f"Official tour profile; coordinates from Wikidata ({source_url})",
             }
+            unresolved.pop(key, None)
     _write_json(cache_path, output, pretty=True)
     return output
 
@@ -275,9 +323,18 @@ def build_payload(
     for player in cohort:
         source_key = f"{player['tour']}:{player['player_id']}"
         place = places.get(source_key, {})
-        mapped = place.get("lat") is not None and place.get("lon") is not None
-        dob = place.get("dob") or player.get("dob")
-        status = "verified birthplace" if mapped else "birthplace or coordinates unresolved"
+        lat, lon = place.get("lat"), place.get("lon")
+        mapped = bool(
+            isinstance(lat, (int, float)) and isinstance(lon, (int, float))
+            and math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180
+            and place.get("place") and place.get("country")
+        )
+        status = "verified birthplace" if mapped else places.get("_meta", {}).get("unresolved", {}).get(source_key, "birthplace or coordinates unresolved")
+        if player.get("dob") and place and place.get("dob") != player["dob"]:
+            mapped, status = False, "Birthplace identity DOB does not match ranking source"
+        if source_key in BIRTHPLACE_CONFLICTS:
+            mapped, status = False, BIRTHPLACE_CONFLICTS[source_key]
+        dob = player.get("dob") or place.get("dob")
         record = {
             "id": f"tennis:{player['tour'].lower()}:{player['player_id']}",
             "sourcePlayerId": player["player_id"],
@@ -314,7 +371,7 @@ def build_payload(
         }
         records.append(record)
         if not mapped:
-            unresolved.append({"name": record["name"], "tour": record["tour"], "status": status})
+            unresolved.append({"id": record["id"], "name": record["name"], "tour": record["tour"], "rank": record["rank"], "status": status})
     records.sort(key=lambda row: (row["tour"], row["rank"]))
     mapped_records = [row for row in records if row["mapped"]]
     points = sum(row["points"] for row in records)
@@ -336,6 +393,8 @@ def build_payload(
             "ranking_source_urls": OFFICIAL_SOURCES if year_end else {"ATP": "https://www.atptour.com/en/rankings/singles", "WTA": "https://www.wtatennis.com/rankings/singles"},
             "processed_snapshot_name": "Tennis Sackmann Archive",
             "processed_snapshot_url": "https://github.com/Aneeshers/tennis-sackmann-archive",
+            "ranking_data_credit": "Jeff Sackmann; ATP and WTA rankings",
+            "ranking_data_license": "CC BY-NC-SA 4.0",
             "birthplace_source_name": "Wikidata",
             "birthplace_source_url": "https://www.wikidata.org/",
             **source_meta,
@@ -393,6 +452,8 @@ def run(
         len([row for row in payload["records"] if row["tour"] == tour]) != limit for tour in TOURS
     ):
         raise ValueError(f"Tennis top-{limit} reconciliation failed")
+    from src.ftg.build_edition_catalog import validate_dashboard
+    validate_dashboard(payload, {"id": "tennis", "workloadField": "points"})
     _write_json(output_path, payload)
     print(
         f"Wrote {limit} ATP and {limit} WTA players with {payload['summary']['player_coverage_pct']}% "

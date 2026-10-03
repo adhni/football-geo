@@ -68,6 +68,11 @@ Both dates must fall in the same year. Arbitrary dates are labelled ranking
 snapshots; only the original verified 2025 dates are called year-end rankings.
 Age is calculated at the later selected ranking date.
 
+The [top-250 tennis edition](tennis-250/) now publishes 500 players on the same
+2025 year-end dates, with an edition selector linking it to the original
+top-100 view. It includes all three rebuilt population layers and a public
+[coverage/QA report](tennis-250/DATA_SOURCES.md).
+
 ```bash
 python -m src.ftg.build_tennis_site \
   --limit 250 \

@@ -92,7 +92,7 @@
     if ((match = source.match(/^Show more ([\w\s-]+)$/))) return `${message("template.show_more")} ${translateCore(match[1])}`;
     if ((match = source.match(/^Find (?:a |an )?(.+)$/))) return `${message("template.find")} ${translateCore(match[1])}`;
     if ((match = source.match(/^([\d.,\s—]+) (players|clubs|leagues|places|countries|areas|starts|mapped starts|mapped|unresolved|total|residents|starters|birthplaces|locations|teams|divisions|drivers|riders|fighters|athletes|golfers|cricketers|games|matches|appearances|laps|sets|bouts|snaps|points|wins|podiums|fights|ranking points|minutes)$/))) return `${match[1]} ${word(match[2])}`;
-    if ((match = source.match(/^Explore (\d+) sports$/))) return `${word("Explore")} ${match[1]} ${word("sports")}`;
+    if ((match = source.match(/^Explore (\d+) (sports|editions)$/))) return `${word("Explore")} ${match[1]} ${word(match[2])}`;
     if ((match = source.match(/^([\d.,\s]+) active (filter|filters)$/))) return `${match[1]} ${word("filters")} ${word("active")}`;
     if ((match = source.match(/^All (\d+) clubs$/))) return message("template.all_clubs", { p1: match[1] });
     if ((match = source.match(/^([\d.,\s—]+) (players|clubs|leagues|places|countries|areas|starts|mapped starts|mapped|unresolved|total|residents|starters)$/))) {

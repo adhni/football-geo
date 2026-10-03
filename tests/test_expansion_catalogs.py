@@ -14,7 +14,9 @@ def test_catalog_reconciles_all_published_snapshots_and_separates_sports_from_ed
     config = json.loads((ROOT / "config/editions.json").read_text())
     catalog = build_catalog(config, ROOT / "docs")
     editions = {entry["id"]: entry for entry in catalog}
-    assert len(catalog) == 17
+    assert len(catalog) == 18
+    assert editions["tennis-250"]["sportId"] == editions["tennis"]["sportId"]
+    assert editions["tennis-250"]["participants"] == 500
     assert editions["nba"]["sportId"] == "basketball"
     assert editions["nfl"]["sportId"] == "american-football"
     assert editions["afl"]["coverage"] == 34.2
