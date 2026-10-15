@@ -4,13 +4,13 @@ const { resolve } = require("node:path");
 const { test } = require("node:test");
 const vm = require("node:vm");
 
-function explorer(edition, records) {
+function explorer(edition, records, elements = {}) {
   const context = {
     window: { TALENT_GEO_EDITION: edition },
-    document: { addEventListener() {} },
+    document: { addEventListener() {}, querySelector(selector) { return elements[selector]; } },
   };
   const source = readFileSync(resolve(__dirname, "../../docs/assets/league-app.js"), "utf8");
-  vm.runInNewContext(source.replace(/\nboot\(\);\s*$/, "\nwindow.explorer = { state, filteredRecords, filteredTeamRecords, aggregatePopulationCells, aggregatePlaces, aggregateCountries, aggregateTeamPlaces, metricLabel, metricValue };"), context);
+  vm.runInNewContext(source.replace(/\nboot\(\);\s*$/, "\nwindow.explorer = { state, filteredRecords, filteredTeamRecords, syncTeamOptions, aggregatePopulationCells, aggregatePlaces, aggregateCountries, aggregateTeamPlaces, metricLabel, metricValue };"), context);
   const app = context.window.explorer;
   app.state.payload = { records };
   return app;
@@ -37,6 +37,56 @@ test("athletics event selection scopes entries, rounds and medals in maps and te
   assert.equal(JSON.stringify(payload.records), original);
   app.state.position = "all";
   assert.equal(app.filteredRecords().reduce((sum, row) => sum + row.entries, 0), payload.summary.entries);
+});
+
+test("cycling event selection scopes starts, medals and profile results without changing the cohort", () => {
+  const payload = JSON.parse(readFileSync(resolve(__dirname, "../../docs/cycling/data/dashboard.json"), "utf8"));
+  const config = JSON.parse(readFileSync(resolve(__dirname, "../../config/editions.json"), "utf8"));
+  const edition = config.editions.find((entry) => entry.id === "cycling").renderer;
+  const records = payload.records.map((row) => ({ ...row, minutes: row.starts, teamSplits: row.teamSplits.map((split) => ({ ...split, minutes: split.starts })) }));
+  const original = JSON.stringify(records);
+  const app = explorer(edition, records);
+  app.state.conference = "Individual time trial";
+  const rows = app.filteredRecords();
+  assert.equal(rows.length, 54);
+  assert.equal(rows.reduce((sum, row) => sum + row.minutes, 0), 54);
+  assert.equal(rows.reduce((sum, row) => sum + row.medals, 0), 3);
+  assert.equal(app.filteredTeamRecords().reduce((sum, row) => sum + row.starts, 0), 54);
+  assert.ok(rows.every((row) => row.eventLog.length === 1 && row.eventLog[0].event === "Individual time trial"));
+  const remco = rows.find((row) => row.sourcePlayerId === "10058736615");
+  assert.equal(remco.gold, 1);
+  assert.equal(remco.medals, 1);
+  app.state.team = "Belgium";
+  assert.equal(app.filteredRecords().reduce((sum, row) => sum + row.starts, 0), 3);
+  app.state.team = "all";
+  app.state.conference = "Road race";
+  assert.equal(app.filteredRecords().length, 164);
+  assert.equal(app.filteredRecords().reduce((sum, row) => sum + row.finishes, 0), 30);
+  app.state.conference = "all";
+  assert.equal(app.filteredRecords().length, 182);
+  assert.equal(app.filteredRecords().reduce((sum, row) => sum + row.starts, 0), 218);
+  assert.equal(JSON.stringify(records), original);
+});
+
+test("team options remain available when a team has contributions in multiple events", () => {
+  const all = { value: "all" };
+  const belgium = { value: "Belgium", hidden: false };
+  const france = { value: "France", hidden: false };
+  const select = { options: [all, belgium, france], selectedOptions: [belgium], value: "Belgium" };
+  const app = explorer({ teamSplitStats: [] }, [
+    { team: "Belgium", conference: "Road race", teamSplits: [{ team: "Belgium", conference: "Road race" }, { team: "Belgium", conference: "Individual time trial" }] },
+    { team: "France", conference: "Road race" },
+  ], { "#team-filter": select });
+  app.state.team = "Belgium";
+  app.state.conference = "Individual time trial";
+  app.syncTeamOptions();
+  assert.equal(belgium.hidden, false);
+  assert.equal(france.hidden, true);
+  assert.equal(app.state.team, "Belgium");
+  select.selectedOptions = [france];
+  app.state.team = "France";
+  app.syncTeamOptions();
+  assert.equal(app.state.team, "all");
 });
 
 test("age and ranking selections exclude unknown values and apply ranks to the selected event", () => {

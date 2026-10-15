@@ -68,6 +68,7 @@ comparison workload field for each sport:
 | Editions | Field | Unit |
 | --- | --- | --- |
 | Football | `starts` | Starting appearances |
+| Road cycling | `starts` | Actual rider-event starts |
 | Cricket | `appearances` | Match appearances |
 | UFC | `bouts` | Fighter-bout appearances |
 | Formula, MotoGP | `laps` | Completed laps |

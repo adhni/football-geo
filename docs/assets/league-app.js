@@ -52,6 +52,8 @@ const EDITION = {
   popupDetailField: null,
   showTeamFilter: true,
   comparisonHighlight: "outsideHome",
+  comparisonOriginLabel: "Represented countries",
+  comparisonOriginNote: "ranking nationalities",
   showPopulationReferenceCells: true,
   additionalMetrics: [],
   ...window.TALENT_GEO_EDITION,
@@ -160,6 +162,9 @@ function projectTeamSplits(row, splits) {
     key,
     Math.min(...splits.map((split) => split[key]).filter(Number.isFinite)),
   ]));
+  const eventLog = EDITION.profileLogType === "cycling"
+    ? (row.eventLog || []).filter((event) => splits.some((split) => split.conference === event.event))
+    : null;
   return {
     ...row,
     team: primary.team,
@@ -172,6 +177,7 @@ function projectTeamSplits(row, splits) {
     minutes: total("minutes"),
     ...projectedStats,
     ...projectedMinimums,
+    ...(eventLog ? { eventLog, eventNames: eventLog.map((event) => event.event) } : {}),
     rebounds: splits.some((split) => Number.isFinite(split.goals)) ? total("goals") : row.rebounds,
   };
 }
@@ -782,7 +788,7 @@ function updateAgeAndCountry() {
     <article><span>Median age</span><strong>${median(ages)?.toFixed(1) ?? "—"}</strong><small>${escapeHtml(EDITION.participantLabelPlural)} in snapshot</small></article>
     <article><span>Under 23</span><strong>${number.format(ages.filter((age) => age < 23).length)}</strong><small>${ages.length ? (ages.filter((age) => age < 23).length / ages.length * 100).toFixed(1) : 0}% of ${escapeHtml(EDITION.participantLabelPlural)}</small></article>
     <article><span>Age 30+</span><strong>${number.format(ages.filter((age) => age >= 30).length)}</strong><small>${ages.length ? (ages.filter((age) => age >= 30).length / ages.length * 100).toFixed(1) : 0}% of ${escapeHtml(EDITION.participantLabelPlural)}</small></article>
-    <article><span>${escapeHtml(EDITION.comparisonHighlight === "coverage" ? "Represented countries" : EDITION.outsideHomeLabel)}</span><strong>${EDITION.comparisonHighlight === "coverage" ? number.format(representedCountries) : `${mapped ? (outsideHome / mapped * 100).toFixed(1) : 0}%`}</strong><small>${EDITION.comparisonHighlight === "coverage" ? "ranking nationalities" : `of mapped ${escapeHtml(EDITION.participantLabelPlural)}`}</small></article>`;
+    <article><span>${escapeHtml(EDITION.comparisonHighlight === "coverage" ? EDITION.comparisonOriginLabel : EDITION.outsideHomeLabel)}</span><strong>${EDITION.comparisonHighlight === "coverage" ? number.format(representedCountries) : `${mapped ? (outsideHome / mapped * 100).toFixed(1) : 0}%`}</strong><small>${EDITION.comparisonHighlight === "coverage" ? escapeHtml(EDITION.comparisonOriginNote) : `of mapped ${escapeHtml(EDITION.participantLabelPlural)}`}</small></article>`;
   const countries = aggregateCountries(birthplaceRecords);
   const byPlayers = [...countries].sort((a, b) => b.players - a.players || a.country.localeCompare(b.country)).slice(0, 10);
   const byMinutes = [...countries].sort((a, b) => b.minutes - a.minutes || a.country.localeCompare(b.country)).slice(0, 10);
@@ -934,9 +940,10 @@ function syncTeamOptions() {
   const options = [...$("#team-filter").options];
   options.forEach((option) => {
     if (option.value === "all") return;
-    const record = state.payload.records.find((row) => row.team === option.value || row.teamSplits?.some((split) => split.team === option.value));
-    const conference = record?.teamSplits?.find((split) => split.team === option.value)?.conference || record?.conference;
-    option.hidden = state.conference !== "all" && conference !== state.conference;
+    const available = state.payload.records.some((row) => row.teamSplits?.length
+      ? row.teamSplits.some((split) => split.team === option.value && (state.conference === "all" || split.conference === state.conference))
+      : row.team === option.value && (state.conference === "all" || row.conference === state.conference));
+    option.hidden = !available;
   });
   if (state.team !== "all" && $("#team-filter").selectedOptions[0]?.hidden) {
     state.team = "all";
@@ -968,7 +975,7 @@ function openPlayerProfile(playerId, opener = document.activeElement) {
   ["#profile-games", "#profile-minutes", "#profile-points", "#profile-rebounds", "#profile-assists"].forEach((selector, index) => {
     const key = EDITION.profileStats[index];
     const digits = EDITION.profileStatDecimals[key];
-    $(selector).textContent = digits === undefined
+    $(selector).textContent = player[key] === null || player[key] === undefined ? "—" : digits === undefined
       ? number.format(player[key] || 0)
       : Number(player[key] || 0).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
   });
@@ -984,6 +991,9 @@ function openPlayerProfile(playerId, opener = document.activeElement) {
   } else if (eventLog && EDITION.profileLogType === "athletics") {
     const rows = player.eventLog || [];
     eventLog.innerHTML = rows.length ? `<h3>${escapeHtml(EDITION.profileLogTitle || "Championship events")}</h3><ol>${rows.map((event) => `<li><b>${event.medal ? escapeHtml(event.medal) : event.bestPlace ? `P${number.format(event.bestPlace)}` : "—"}</b><span>${escapeHtml(event.event)}<br><small>${escapeHtml(event.discipline)} · ${escapeHtml(event.gender)}</small></span><span>${number.format(event.rounds || 0)} result ${event.rounds === 1 ? "round" : "rounds"}<br><small>${escapeHtml(player.team)}</small></span></li>`).join("")}</ol>` : "";
+  } else if (eventLog && EDITION.profileLogType === "cycling") {
+    const rows = player.eventLog || [];
+    eventLog.innerHTML = rows.length ? `<h3>${escapeHtml(EDITION.profileLogTitle || "Race results")}</h3><ol>${rows.map((race) => `<li><b>${race.medal ? escapeHtml(race.medal) : race.position ? `P${number.format(race.position)}` : escapeHtml(race.status)}</b><span>${escapeHtml(race.event)}<br><small>${escapeHtml(race.date)} · ${escapeHtml(player.team)}</small></span><span>${escapeHtml(race.time || "—")}<br><small><a href="${escapeHtml(race.sourceUrl)}" target="_blank" rel="noreferrer">Official result ↗</a></small></span></li>`).join("")}</ol>` : "";
   } else if (fightLog) {
     const rows = player.fightLog || [];
     fightLog.innerHTML = rows.length ? `<h3>2025 fight log</h3><ol>${rows.map((fight) => `<li><b class="${fight.result === "W" ? "win" : fight.result === "L" ? "loss" : ""}">${escapeHtml(fight.result)}</b><span>${escapeHtml(fight.opponent)}<br><small>${escapeHtml(fight.event)} · ${escapeHtml(fight.division)}</small></span><span>${escapeHtml(fight.method)}<br><small>R${number.format(fight.round)} ${escapeHtml(fight.time)}</small></span></li>`).join("")}</ol>` : "";

@@ -1,0 +1,18 @@
+.cycling-site{--bg:#101712;--panel:#18231b;--panel-2:#233329;--text:#f7faed;--muted:#adbaaa;--line:#3e5140;--line-soft:#2a3c2e;--accent:#f9d648;--mint:#a3dfb0;--danger:#ff9385}
+.cycling-site .cycling-mark{position:relative;display:inline-block;width:32px;height:26px;flex-shrink:0}
+.cycling-site .cycling-mark:before,.cycling-site .cycling-mark:after{content:"";position:absolute;bottom:2px;width:19px;height:19px;border:2px solid var(--accent);border-radius:50%}
+.cycling-site .cycling-mark:before{left:0}.cycling-site .cycling-mark:after{right:0}
+.cycling-site .sport-switcher{background:rgba(16,23,18,.96)}.cycling-site .sport-switcher a.active{color:#20280d}
+.cycling-site .status-pill i{background:var(--mint);box-shadow:0 0 12px var(--mint)}.cycling-site .controls{background:rgba(16,23,18,.97)}
+.cycling-site select,.cycling-site .segmented button,.cycling-site .more-filters>summary,.cycling-site .map-explorer input,.cycling-site .map-explorer button{background:#142017}
+.cycling-site .secondary-filters{background:#1e2e22}.cycling-site .filter-chip{color:#fff0ad;border-color:#867837;background:#33331f}
+.cycling-site .segmented button.active,.cycling-site .map-mode button.active{border-color:var(--accent);background:var(--accent);color:#22270c}
+.cycling-site .kpi.accent,.cycling-site .methodology-card{background:var(--accent);color:#23260e}
+.cycling-site .methodology-card .card-label,.cycling-site .methodology-card ol{color:#494921}.cycling-site th,.cycling-site .table-footer,.cycling-site .profile-drawer{background:#142017}
+.cycling-site .cycling-map-explorer{grid-template-columns:minmax(420px,1.5fr) minmax(220px,260px) minmax(220px,1fr) auto}
+.cycling-site .cycling-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}
+.cycling-event-log{margin:22px 0}.cycling-event-log h3{font-size:16px;margin:0 0 10px}.cycling-event-log ol{list-style:none;padding:0;margin:0}
+.cycling-event-log li{padding:12px 0;border-bottom:1px solid var(--line-soft);display:grid;grid-template-columns:54px 1fr auto;gap:9px;font-size:12px}
+.cycling-event-log li>b{color:var(--accent);font-family:"DM Mono",monospace}.cycling-event-log li>span:last-child{text-align:right}.cycling-event-log small{color:var(--muted)}.cycling-event-log a{color:var(--accent)}
+@media(max-width:1180px){.cycling-site .cycling-map-explorer{grid-template-columns:minmax(340px,1fr) minmax(260px,1fr)}}
+@media(max-width:720px){.cycling-site .brand>span:last-child{display:none}.cycling-site .cycling-map-explorer,.cycling-site .cycling-comparison{grid-template-columns:minmax(0,1fr)}.cycling-site .map-mode{overflow-x:auto;justify-content:flex-start}.cycling-event-log li{grid-template-columns:48px 1fr}.cycling-event-log li>span:last-child{grid-column:2;text-align:left}}

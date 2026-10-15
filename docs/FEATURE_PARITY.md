@@ -27,6 +27,7 @@ Population rates remain birthplace-only when an edition also publishes a fallbac
 | MotoGP | Laps / starts | Birthplace | Series and team | Not yet |
 | Volleyball | Sets / matches | Birthplace | Gender and national team | Not yet |
 | Athletics | Event entries / rounds | Birthplace | Competition and federation | Not yet |
+| Road cycling | Race starts | Birthplace | Event and national team | Not yet |
 | Tennis | Ranking points | Birthplace | Tour | Not applicable |
 | Padel | Ranking points | Birthplace | Division | Not applicable |
 | Badminton | Allocated ranking points | Birthplace | Group and event | Not applicable |
@@ -39,6 +40,8 @@ Population rates remain birthplace-only when an edition also publishes a fallbac
 | MLB | Workload / games | Birthplace | League and team | Yes, up to six teams |
 
 ## Intentional differences and next candidates
+
+- Road cycling was added on 16 October 2026. It covers the men's elite road race and time trial at Kigali 2025; event filters recalculate starts, finishes and medals, including profile result logs.
 
 - College geography is NFL-only because the underlying player records contain a separately resolved college dataset.
 - AFL football origins and UFC hometowns remain visibly labelled and are excluded from birthplace population rates.

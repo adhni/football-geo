@@ -510,6 +510,95 @@
       }
     },
     {
+      "id": "cycling",
+      "name": "Road Cycling",
+      "path": "cycling/",
+      "participantLabel": "riders",
+      "measures": "Riders · Race starts · Medals",
+      "workloadField": "starts",
+      "workloadLabel": "race starts",
+      "workloadShort": "starts",
+      "accent": "#f9d648",
+      "sportId": "road-cycling",
+      "kind": "individual",
+      "phase": "championship cohort",
+      "renderer": {
+        "name": "Road Cycling",
+        "homeCountry": "",
+        "outsideHomeLabel": "",
+        "allConferenceLabel": "Both events",
+        "conferenceLabel": "Event",
+        "markerStroke": "#fff3b5",
+        "markerFill": "#f9d648",
+        "countryHue": 48,
+        "countrySaturation": 84,
+        "countryEmpty": "#28302a",
+        "workloadField": "starts",
+        "workloadLabel": "race starts",
+        "workloadShort": "starts",
+        "defaultMetric": "players",
+        "showWorkloadColumn": true,
+        "showConferenceColumn": false,
+        "singleGroupLabel": "Both events",
+        "profileOriginField": "representedCountry",
+        "profileOriginFallback": "Represented team unavailable",
+        "teamSplitStats": [
+          "starts",
+          "finishes",
+          "medals",
+          "gold",
+          "silver",
+          "bronze"
+        ],
+        "profileStats": [
+          "starts",
+          "finishes",
+          "medals",
+          "gold",
+          "age"
+        ],
+        "participantLabelPlural": "riders",
+        "groupLabelPlural": "national teams",
+        "tableGroupLabel": "National team",
+        "tableStatField": "finishes",
+        "tableStatLabel": "Finishes",
+        "showTeamFilter": true,
+        "comparisonHighlight": "coverage",
+        "showPopulationReferenceCells": true,
+        "qualityWorkloadCoverageField": "start_coverage_pct",
+        "qualityMappedWorkloadField": "mapped_starts",
+        "qualityTotalWorkloadField": "starts",
+        "profileLogType": "cycling",
+        "profileLogTitle": "Kigali 2025 race results",
+        "participantDetailField": "eventNames",
+        "popupDetailField": "eventNames",
+        "additionalMetrics": [
+          {
+            "field": "finishes",
+            "label": "Finishes"
+          },
+          {
+            "field": "medals",
+            "label": "Medals"
+          },
+          {
+            "field": "gold",
+            "label": "Gold"
+          },
+          {
+            "field": "silver",
+            "label": "Silver"
+          },
+          {
+            "field": "bronze",
+            "label": "Bronze"
+          }
+        ],
+        "comparisonOriginLabel": "Represented delegations",
+        "comparisonOriginNote": "national and neutral teams"
+      }
+    },
+    {
       "id": "tennis",
       "name": "Tennis · Top 100",
       "path": "tennis/",

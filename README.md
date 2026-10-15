@@ -2,7 +2,7 @@
 
 A reproducible data + visualisation project that started with football and now
 includes cricket, UFC, Formula, MotoGP, volleyball, athletics, tennis, padel,
-badminton, golf, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
+badminton, golf, road cycling, AFL, NRL, NBA, NFL, NHL and MLB editions in the same public site.
 
 The [Geo 6.1 expansion](docs/GEO_6_1.md) adds configurable editions and language
 catalogs, Portuguese/German/Italian interface previews, more explorer filters
@@ -90,7 +90,7 @@ streamlit run dashboard/app.py
 
 The public, backend-free dashboard lives in `docs/` and is served directly by
 GitHub Pages. The football explorer lives at `/`, the cricket explorer at
-`/cricket/`, the UFC explorer at `/ufc/`, the Formula explorer at `/formula/`, the MotoGP explorer at `/motogp/`, the volleyball explorer at `/volleyball/`, the athletics explorer at `/athletics/`, the tennis explorer at
+`/cricket/`, the UFC explorer at `/ufc/`, the Formula explorer at `/formula/`, the MotoGP explorer at `/motogp/`, the volleyball explorer at `/volleyball/`, the athletics explorer at `/athletics/`, the road cycling explorer at `/cycling/`, the tennis explorer at
 `/tennis/`, the padel explorer at `/padel/`, the badminton explorer at
 `/badminton/`, the golf explorer at `/golf/`, the AFL explorer at `/afl/`, the
 NRL explorer at `/nrl/`, the NBA explorer at `/nba/`, the NFL explorer at `/nfl/`, the NHL explorer at
@@ -221,6 +221,19 @@ The athletics builder covers all 49 Tokyo events and keeps only athletes with
 an actual start. Heats and finals collapse into one athlete-event entry,
 combined events count once, and relay participation comes from named lineups.
 See `docs/athletics/DATA_SOURCES.md` for scope and attribution.
+
+To refresh the men’s elite road cycling championship snapshot:
+
+```bash
+make rebuild-cycling
+```
+
+This builds the 2025 UCI Road World Championships men’s elite road race and
+individual time trial: 182 actual starters, 218 rider-event starts and all six
+medals. It joins the official UCI/Tissot results by stable UCI rider ID, keeps
+unresolved birthplaces in public QA, and rebuilds all three population layers
+and the edition catalog. This is a championship cohort rather than the full
+WorldTour season. See [cycling data notes](docs/cycling/DATA_SOURCES.md).
 
 To refresh the completed 2025 AFL home-and-away snapshot:
 
