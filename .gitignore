@@ -29,6 +29,7 @@ data/cache/*
 !docs/motogp/index.html
 !docs/volleyball/index.html
 !docs/athletics/index.html
+!docs/cycling/index.html
 !docs/sports/index.html
 !docs/nhl/index.html
 !docs/mlb/index.html

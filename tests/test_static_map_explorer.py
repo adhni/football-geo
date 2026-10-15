@@ -374,7 +374,7 @@ def test_cached_population_mode_restores_area_size_controls():
 def test_every_sport_uses_the_central_navigation_registry():
     pages = [ROOT / "docs" / "index.html"] + [
         ROOT / "docs" / sport / "index.html"
-        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "cycling", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
     ]
 
     for page in pages:
@@ -383,7 +383,7 @@ def test_every_sport_uses_the_central_navigation_registry():
         assert "assets/sport-navigation.js" in html
 
     navigation = (ROOT / "docs" / "assets" / "sport-navigation.js").read_text(encoding="utf-8")
-    expected_order = ("football", "cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "tennis", "tennis-250", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+    expected_order = ("football", "cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "cycling", "tennis", "tennis-250", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
     catalog = json.loads((ROOT / "config/editions.json").read_text(encoding="utf-8"))
     assert tuple(entry["id"] for entry in catalog["editions"]) == expected_order
     assert "window.TALENT_GEO_CATALOG" in navigation
@@ -444,11 +444,11 @@ def test_comparison_registry_workload_fields_exist_in_every_payload():
     payload_paths = {"football": ROOT / "docs" / "data" / "dashboard.json"}
     payload_paths.update({
         sport: ROOT / "docs" / sport / "data" / "dashboard.json"
-        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "cycling", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
     })
     workload_fields = {
         "football": "starts", "cricket": "appearances", "ufc": "bouts",
-        "formula": "laps", "motogp": "laps", "volleyball": "sets", "athletics": "entries",
+        "formula": "laps", "motogp": "laps", "volleyball": "sets", "athletics": "entries", "cycling": "starts",
         "tennis": "points", "padel": "points", "badminton": "points",
         "golf": "points", "afl": "games", "nrl": "games", "nba": "minutes",
         "nfl": "snaps", "nhl": "minutes", "mlb": "minutes",
@@ -540,7 +540,7 @@ def test_every_explorer_uses_the_shared_map_first_workspace():
     stylesheet = (ROOT / "docs" / "assets" / "styles.css").read_text(encoding="utf-8")
     map_pages = [ROOT / "docs" / "index.html"] + [
         ROOT / "docs" / sport / "index.html"
-        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
+        for sport in ("cricket", "ufc", "formula", "motogp", "volleyball", "athletics", "cycling", "tennis", "padel", "badminton", "golf", "afl", "nrl", "nba", "nfl", "nhl", "mlb")
     ]
 
     for page in map_pages:

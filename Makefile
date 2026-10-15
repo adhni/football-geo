@@ -1,7 +1,7 @@
 PYTHON ?= python
 NODE ?= node
 
-.PHONY: test test-python test-js catalogs check-catalogs demo ingest birthplaces worldcup-birthplaces population app preview rebuild-football football-export football-population
+.PHONY: test test-python test-js catalogs check-catalogs demo ingest birthplaces worldcup-birthplaces population app preview rebuild-football football-export football-population rebuild-cycling cycling-population
 
 test: check-catalogs test-python test-js
 
@@ -54,3 +54,13 @@ football-population:
 
 app: demo
 	streamlit run dashboard/app.py
+
+rebuild-cycling:
+	$(PYTHON) -m src.ftg.build_cycling_site
+	$(MAKE) cycling-population
+	$(MAKE) catalogs
+
+cycling-population:
+	$(PYTHON) -m src.ftg.build_population_hexes --input docs/cycling/data/dashboard.json --cache data/cache/cycling_worldpop_population_2025.json --use-rasters --include-reference-cells --h3-resolution 1 --output docs/cycling/data/population_hexes_r1.geojson
+	$(PYTHON) -m src.ftg.build_population_hexes --input docs/cycling/data/dashboard.json --cache data/cache/cycling_worldpop_population_2025.json --use-rasters --include-reference-cells --h3-resolution 2 --output docs/cycling/data/population_hexes_r2.geojson
+	$(PYTHON) -m src.ftg.build_population_hexes --input docs/cycling/data/dashboard.json --cache data/cache/cycling_worldpop_population_2025.json --use-rasters --include-reference-cells --h3-resolution 3 --output docs/cycling/data/population_hexes_r3.geojson
